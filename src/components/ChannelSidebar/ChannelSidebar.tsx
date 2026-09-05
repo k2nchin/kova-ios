@@ -18,10 +18,13 @@ import {
   Sparkles,
   ArrowUpRight,
   Bot,
+  MicOff,
+  Volume2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
-import { Channel } from '../../types';
+import { Channel, User } from '../../types';
+import { MOCK_USERS } from '../../data/mockData';
 
 export const ChannelSidebar: React.FC = () => {
   const {
@@ -34,6 +37,8 @@ export const ChannelSidebar: React.FC = () => {
     currentUser,
     setCurrentUser,
     joinVoiceChannel,
+    activeVoiceChannelId,
+    openUserProfile,
     setIsCreateChannelOpen,
     setIsCreateCategoryOpen,
     setPresetChannelType,
@@ -92,6 +97,196 @@ export const ChannelSidebar: React.FC = () => {
       time: 'Hace 1h',
     },
   ];
+
+  const renderVoiceUsers = (chan: Channel) => {
+    if (chan.type !== 'voice') return null;
+
+    const usersInChannel: {
+      id: string;
+      displayName: string;
+      avatar?: string;
+      isSpeaking?: boolean;
+      isMuted?: boolean;
+      isDeafened?: boolean;
+      isScreenSharing?: boolean;
+      userObj?: User;
+    }[] = [];
+
+    // 1. Current user if connected to this voice channel
+    if (activeVoiceChannelId === chan.id) {
+      usersInChannel.push({
+        id: currentUser.id,
+        displayName: currentUser.displayName || 'Tú',
+        avatar: currentUser.avatar,
+        isSpeaking: currentUser.isSpeaking,
+        isMuted: currentUser.isMuted,
+        isDeafened: currentUser.isDeafened,
+        isScreenSharing: currentUser.isScreenSharing,
+        userObj: currentUser,
+      });
+    }
+
+    // 2. Simulated/Other server members in channel
+    const mockMemberIds = chan.connectedUsers || (chan.id === 'chan_voice_main' ? ['user_elena', 'user_marcus'] : []);
+    for (const mId of mockMemberIds) {
+      if (mId === currentUser.id) continue;
+      const member = activeServer.members?.find((m) => m.id === mId) || MOCK_USERS[mId];
+      if (member) {
+        usersInChannel.push({
+          id: member.id,
+          displayName: member.displayName,
+          avatar: member.avatar,
+          isSpeaking: member.id === 'user_elena',
+          isMuted: member.id === 'user_marcus',
+          isDeafened: false,
+          isScreenSharing: false,
+          userObj: member,
+        });
+      }
+    }
+
+    if (usersInChannel.length === 0) return null;
+
+    return (
+      <div className="pl-6 pr-1 pb-1 space-y-0.5 animate-in fade-in duration-150">
+        {usersInChannel.map((u) => (
+          <div
+            key={u.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (u.userObj) openUserProfile(u.userObj);
+            }}
+            className="flex items-center justify-between px-2 py-1 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer group/user"
+            title={`Ver perfil de ${u.displayName}`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="relative shrink-0">
+                {u.avatar ? (
+                  <img
+                    src={u.avatar}
+                    alt={u.displayName}
+                    className={`w-5 h-5 rounded-full object-cover transition-all ${
+                      u.isSpeaking ? 'ring-2 ring-emerald-400 shadow-[0_0_8px_#34d399]' : ''
+                    }`}
+                  />
+                ) : (
+                  <div
+                    className={`w-5 h-5 rounded-full bg-slate-700 text-[9px] font-bold text-white flex items-center justify-center ${
+                      u.isSpeaking ? 'ring-2 ring-emerald-400 shadow-[0_0_8px_#34d399]' : ''
+                    }`}
+                  >
+                    {u.displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {u.isSpeaking && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 absolute -bottom-0.5 -right-0.5 ring-1 ring-[#11151c] animate-pulse" />
+                )}
+              </div>
+              <span
+                className={`text-[12px] truncate transition-colors ${
+                  u.isSpeaking ? 'text-emerald-400 font-semibold' : 'text-slate-300 group-hover/user:text-white'
+                }`}
+              >
+                {u.displayName}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0 text-slate-400">
+              {u.isScreenSharing && (
+                <span className="text-[8px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 font-bold font-mono">
+                  LIVE
+                </span>
+              )}
+              {u.isMuted && <MicOff size={11} className="text-rose-400" />}
+              {u.isDeafened && <Headphones size={11} className="text-rose-400" />}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderChannelRow = (chan: Channel) => {
+    const isCurrent = activeChannel?.id === chan.id;
+    const isVoiceConnected = chan.type === 'voice' && activeVoiceChannelId === chan.id;
+
+    return (
+      <div key={chan.id} className="space-y-0.5">
+        <div className="group/chan flex items-center justify-between rounded hover:bg-white/[0.04] transition-colors h-[32px] px-1">
+          <button
+            onClick={() => {
+              setActiveChannelId(chan.id);
+              if (chan.type === 'voice') {
+                joinVoiceChannel(chan.id);
+              }
+            }}
+            className={`channel-row flex-1 cursor-pointer ${isCurrent ? 'is-active' : ''}`}
+            title={chan.type === 'voice' ? (isVoiceConnected ? 'En este canal de voz' : 'Hacer clic para entrar al canal de voz') : undefined}
+          >
+            <span className="channel-icon">
+              {chan.type === 'voice' ? (
+                isVoiceConnected ? (
+                  <Volume2 size={15} className="text-emerald-400 animate-pulse" />
+                ) : (
+                  <Headphones size={15} strokeWidth={2} />
+                )
+              ) : chan.type === 'notes' ? (
+                <FileText size={15} strokeWidth={2} />
+              ) : chan.type === 'announcements' ? (
+                <Radio size={15} strokeWidth={2} />
+              ) : (
+                <Hash size={15} strokeWidth={2} />
+              )}
+            </span>
+            <span className={`channel-name truncate text-[13.5px] ${isVoiceConnected ? 'text-emerald-400 font-semibold' : ''}`}>
+              {chan.name}
+            </span>
+            {isVoiceConnected && (
+              <span className="ml-auto mr-1 px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold tracking-tight">
+                EN VOZ
+              </span>
+            )}
+            {chan.type === 'announcements' && (
+              <span className="mention-pill">
+                <AtSign size={10} />
+              </span>
+            )}
+          </button>
+
+          <div className="flex items-center opacity-0 group-hover/chan:opacity-100 transition-opacity mr-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingChannelId(chan.id);
+                setIsEditChannelOpen(true);
+              }}
+              className="p-1 text-slate-500 hover:text-white rounded hover:bg-white/[0.08] transition-all cursor-pointer"
+              title="Editar canal"
+            >
+              <Settings size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm(`¿Eliminar canal #${chan.name}?`)) {
+                  deleteChannel(chan.id);
+                }
+              }}
+              className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-all cursor-pointer"
+              title="Eliminar canal"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* Nested Connected Voice Participants List */}
+        {renderVoiceUsers(chan)}
+      </div>
+    );
+  };
 
   return (
     <div className="flex-1 rounded-2xl bg-[#11151c] border border-white/[0.06] p-2.5 flex flex-col justify-between overflow-hidden shadow-xl select-none font-['Plus_Jakarta_Sans',sans-serif] relative">
@@ -336,71 +531,7 @@ export const ChannelSidebar: React.FC = () => {
                 .filter(
                   (c) => !c.categoryId || !activeServer.categories.some((cat) => cat.id === c.categoryId)
                 )
-                .map((chan) => {
-                  const isCurrent = activeChannel?.id === chan.id;
-                  return (
-                    <div
-                      key={chan.id}
-                      className="group/chan flex items-center justify-between rounded hover:bg-white/[0.04] transition-colors h-[32px] px-1"
-                    >
-                      <button
-                        onClick={() => {
-                          setActiveChannelId(chan.id);
-                          if (chan.type === 'voice') {
-                            joinVoiceChannel(chan.id);
-                          }
-                        }}
-                        className={`channel-row flex-1 cursor-pointer ${isCurrent ? 'is-active' : ''}`}
-                      >
-                        <span className="channel-icon">
-                          {chan.type === 'voice' ? (
-                            <Headphones size={15} strokeWidth={2} />
-                          ) : chan.type === 'notes' ? (
-                            <FileText size={15} strokeWidth={2} />
-                          ) : chan.type === 'announcements' ? (
-                            <Radio size={15} strokeWidth={2} />
-                          ) : (
-                            <Hash size={15} strokeWidth={2} />
-                          )}
-                        </span>
-                        <span className="channel-name truncate text-[13.5px]">{chan.name}</span>
-                        {chan.type === 'announcements' && (
-                          <span className="mention-pill">
-                            <AtSign size={10} />
-                          </span>
-                        )}
-                      </button>
-
-                      <div className="flex items-center opacity-0 group-hover/chan:opacity-100 transition-opacity mr-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingChannelId(chan.id);
-                            setIsEditChannelOpen(true);
-                          }}
-                          className="p-1 text-slate-500 hover:text-white rounded hover:bg-white/[0.08] transition-all cursor-pointer"
-                          title="Editar canal"
-                        >
-                          <Settings size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm(`¿Eliminar canal #${chan.name}?`)) {
-                              deleteChannel(chan.id);
-                            }
-                          }}
-                          className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-all cursor-pointer"
-                          title="Eliminar canal"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                .map((chan) => renderChannelRow(chan))}
             </div>
           )}
 
@@ -450,71 +581,7 @@ export const ChannelSidebar: React.FC = () => {
                 {/* Category Channels */}
                 {!isCollapsed && (
                   <div className="space-y-0.5 pt-0.5">
-                    {catChannels.map((chan) => {
-                      const isCurrent = activeChannel?.id === chan.id;
-                      return (
-                        <div
-                          key={chan.id}
-                          className="group/chan flex items-center justify-between rounded hover:bg-white/[0.04] transition-colors h-[32px] px-1"
-                        >
-                          <button
-                            onClick={() => {
-                              setActiveChannelId(chan.id);
-                              if (chan.type === 'voice') {
-                                joinVoiceChannel(chan.id);
-                              }
-                            }}
-                            className={`channel-row flex-1 cursor-pointer ${isCurrent ? 'is-active' : ''}`}
-                          >
-                            <span className="channel-icon">
-                              {chan.type === 'voice' ? (
-                                <Headphones size={15} strokeWidth={2} />
-                              ) : chan.type === 'notes' ? (
-                                <FileText size={15} strokeWidth={2} />
-                              ) : chan.type === 'announcements' ? (
-                                <Radio size={15} strokeWidth={2} />
-                              ) : (
-                                <Hash size={15} strokeWidth={2} />
-                              )}
-                            </span>
-                            <span className="channel-name truncate text-[13.5px]">{chan.name}</span>
-                            {chan.type === 'announcements' && (
-                              <span className="mention-pill">
-                                <AtSign size={10} />
-                              </span>
-                            )}
-                          </button>
-
-                          <div className="flex items-center opacity-0 group-hover/chan:opacity-100 transition-opacity mr-1">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingChannelId(chan.id);
-                                setIsEditChannelOpen(true);
-                              }}
-                              className="p-1 text-slate-500 hover:text-white rounded hover:bg-white/[0.08] transition-all cursor-pointer"
-                              title="Editar canal"
-                            >
-                              <Settings size={12} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (window.confirm(`¿Eliminar canal #${chan.name}?`)) {
-                                  deleteChannel(chan.id);
-                                }
-                              }}
-                              className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-all cursor-pointer"
-                              title="Eliminar canal"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {catChannels.map((chan) => renderChannelRow(chan))}
                     {catChannels.length === 0 && (
                       <button
                         onClick={() => {

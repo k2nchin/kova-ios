@@ -403,15 +403,17 @@ export const UserProfileModal: React.FC = () => {
 
               <div className="min-w-0 flex-1 text-left">
                 <div className="text-[11px] font-bold text-white flex items-center gap-1 truncate">
-                  <Volume2 size={11} className="text-[#23a55a] shrink-0" />
-                  <span className="truncate">/vc1</span>
+                  <Volume2 size={11} className="text-[#23a55a] shrink-0 animate-pulse" />
+                  <span className="truncate">
+                    {activeServer?.channels?.find((c) => c.type === 'voice')?.name || 'Voz Principal (HD)'}
+                  </span>
                   <span className="text-[9px] font-normal text-[#949ba4] truncate">
-                    en {activeServer?.name || 'V3RDE COMMUNITY'}
+                    en {activeServer?.name || 'Kova'}
                   </span>
                 </div>
-                <div className="text-[9px] text-slate-400 flex items-center gap-1">
-                  <span>Establece un estado de canal</span>
-                  <Pencil size={8} />
+                <div className="text-[9px] text-emerald-400 flex items-center gap-1">
+                  <span>Audio HD WebRTC 96kHz</span>
+                  <Radio size={8} className="animate-pulse" />
                 </div>
               </div>
             </div>
@@ -428,10 +430,10 @@ export const UserProfileModal: React.FC = () => {
                   toast.info('Canal de voz no disponible en este momento');
                 }
               }}
-              className="w-full py-1 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white text-[10px] font-bold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
+              className="w-full py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 text-white text-[11px] font-bold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 border border-emerald-500/30"
             >
-              <Volume2 size={11} className="text-emerald-400" />
-              <span>Abrir voz</span>
+              <Volume2 size={12} className="text-emerald-400" />
+              <span>Entrar a la voz</span>
             </button>
           </div>
 

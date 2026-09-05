@@ -294,12 +294,45 @@ const createDefaultRoles = (serverId: string): Role[] => [
 
 const ensureServerRoles = (serverList: Server[], user: User): Server[] => {
   return serverList.map((s) => {
-    if (s.roles && s.roles.length > 0) return s;
-    const defaultRoles = createDefaultRoles(s.id);
+    const roles = s.roles && s.roles.length > 0 ? s.roles : createDefaultRoles(s.id);
     const ownerRoleId = `role_owner_${s.id}`;
+    let channels = s.channels;
+    let categories = s.categories || [];
+
+    if (!channels || channels.length === 0) {
+      const catTextId = `cat_text_${s.id}`;
+      const catVoiceId = `cat_voice_${s.id}`;
+      const chanGenId = `chan_gen_${s.id}`;
+      const chanVoiceId = `chan_voice_${s.id}`;
+
+      categories = [
+        { id: catTextId, name: 'CANALES DE TEXTO', channelIds: [chanGenId] },
+        { id: catVoiceId, name: 'CANALES DE VOZ (HD)', channelIds: [chanVoiceId] },
+      ];
+
+      channels = [
+        {
+          id: chanGenId,
+          name: 'general',
+          type: 'text',
+          topic: `Canal principal de conversación en ${s.name}`,
+          categoryId: catTextId,
+        },
+        {
+          id: chanVoiceId,
+          name: 'Voz Principal (HD)',
+          type: 'voice',
+          topic: 'Audio de alta fidelidad 96kHz WebRTC',
+          categoryId: catVoiceId,
+        },
+      ];
+    }
+
     return {
       ...s,
-      roles: defaultRoles,
+      roles,
+      categories,
+      channels,
       members: (s.members && s.members.length > 0 ? s.members : [user]).map((m) =>
         m.id === s.ownerId ? { ...m, roles: m.roles?.length ? m.roles : [ownerRoleId] } : m
       ),
@@ -529,7 +562,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('kova.servers.v5');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return ensureServerRoles(parsed, CURRENT_USER);
+        if (Array.isArray(parsed) && parsed.length > 0) return ensureServerRoles(parsed, CURRENT_USER);
       }
     } catch {}
     return ensureServerRoles(INITIAL_SERVERS, CURRENT_USER);
@@ -960,15 +993,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     topic: '',
   };
 
-  const fallbackServer: Server = {
-    id: '',
-    name: 'Mi Espacio',
+  const fallbackServer: Server = INITIAL_SERVERS[0] || {
+    id: 'server_default',
+    name: 'Kova Official Space',
     acronym: 'KO',
-    description: 'Servidor Kova',
+    description: 'Servidor oficial de Kova Community',
     ownerId: currentUser.id,
-    themeGradient: 'from-purple-600 to-indigo-600',
-    categories: [],
-    channels: [],
+    themeGradient: 'from-purple-600 via-indigo-600 to-cyan-500',
+    categories: [
+      { id: 'cat_text_fb', name: 'CANALES DE TEXTO', channelIds: ['chan_general'] },
+      { id: 'cat_voice_fb', name: 'CANALES DE VOZ (HD)', channelIds: ['chan_voice_fb'] },
+    ],
+    channels: [
+      { id: 'chan_general', name: 'general', type: 'text', topic: 'Canal general de conversación', categoryId: 'cat_text_fb' },
+      { id: 'chan_voice_fb', name: 'Voz Principal (HD)', type: 'voice', topic: 'Audio WebRTC 96kHz', categoryId: 'cat_voice_fb' },
+    ],
     roles: createDefaultRoles('fallback'),
     members: [{ ...currentUser, roles: ['role_owner_fallback'] }],
   };
@@ -1090,12 +1129,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const joinVoiceChannel = (channelId: string) => {
     soundFx.playJoinVoice();
     setActiveVoiceChannelId(channelId);
-    confetti({
-      particleCount: 35,
-      spread: 60,
-      origin: { y: 0.85, x: 0.15 },
-      colors: ['#10b981', '#06b6d4', '#8b5cf6'],
-    });
+    setActiveChannelId(channelId);
+    setIsDMViewActive(false);
+    try {
+      confetti({
+        particleCount: 35,
+        spread: 60,
+        origin: { y: 0.85, x: 0.15 },
+        colors: ['#10b981', '#06b6d4', '#8b5cf6'],
+      });
+    } catch {}
   };
 
   const leaveVoiceChannel = () => {
@@ -1556,6 +1599,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       roles: [ownerRoleId],
     };
 
+    const catTextId = `cat_text_${newServerId}`;
+    const catVoiceId = `cat_voice_${newServerId}`;
+    const chanGenId = `chan_gen_${newServerId}`;
+    const chanVoiceId = `chan_voice_${newServerId}`;
+
     const newServer: Server = {
       id: newServerId,
       name,
@@ -1564,18 +1612,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: description || 'Servidor creado en Kova',
       ownerId: currentUser.id,
       themeGradient: 'from-purple-600 to-indigo-600',
-      categories: [],
-      channels: [],
+      categories: [
+        { id: catTextId, name: 'CANALES DE TEXTO', channelIds: [chanGenId] },
+        { id: catVoiceId, name: 'CANALES DE VOZ (HD)', channelIds: [chanVoiceId] },
+      ],
+      channels: [
+        {
+          id: chanGenId,
+          name: 'general',
+          type: 'text',
+          topic: `Canal general de ${name}`,
+          categoryId: catTextId,
+        },
+        {
+          id: chanVoiceId,
+          name: 'Voz Principal (HD)',
+          type: 'voice',
+          topic: 'Audio de alta fidelidad 96kHz WebRTC',
+          categoryId: catVoiceId,
+        },
+      ],
       roles: defaultRoles,
       members: [ownerMember],
     };
 
     setServers((prev) => [...prev, newServer]);
     setActiveServerId(newServerId);
-    setActiveChannelId('');
+    setActiveChannelId(chanGenId);
     setIsDMViewActive(false);
     setIsCreateServerOpen(false);
-    toast.success(`Servidor "${name}" creado vacío`);
+    toast.success(`¡Servidor "${name}" creado con canales de texto y voz!`);
   };
 
   const createChannel = (name: string, type: ChannelType, categoryId?: string) => {

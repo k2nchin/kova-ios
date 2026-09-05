@@ -88,7 +88,124 @@ export const MOCK_USERS: Record<string, User> = {
   },
 };
 
-export const INITIAL_SERVERS: Server[] = [];
+export const INITIAL_SERVERS: Server[] = [
+  {
+    id: 'server_kova',
+    name: 'Kova Official Space',
+    acronym: 'KO',
+    themeGradient: 'from-purple-600 via-indigo-600 to-cyan-500',
+    description: 'Servidor central oficial de Kova Community & Development.',
+    ownerId: 'user_me',
+    categories: [
+      {
+        id: 'cat_info',
+        name: 'INFORMACIÓN',
+        channelIds: ['chan_anuncios', 'chan_reglas'],
+      },
+      {
+        id: 'cat_text',
+        name: 'CANALES DE TEXTO',
+        channelIds: ['chan_general', 'chan_ideas', 'chan_notes'],
+      },
+      {
+        id: 'cat_voice',
+        name: 'CANALES DE VOZ (HD)',
+        channelIds: ['chan_voice_main', 'chan_voice_gaming', 'chan_voice_dev', 'chan_voice_lofi'],
+      },
+    ],
+    channels: [
+      {
+        id: 'chan_anuncios',
+        name: 'anuncios',
+        type: 'announcements',
+        topic: 'Anuncios oficiales y actualizaciones de la plataforma Kova.',
+        categoryId: 'cat_info',
+      },
+      {
+        id: 'chan_reglas',
+        name: 'reglas-y-bienvenida',
+        type: 'text',
+        topic: 'Reglas de la comunidad y directrices del servidor.',
+        categoryId: 'cat_info',
+      },
+      {
+        id: 'chan_general',
+        name: 'general',
+        type: 'text',
+        topic: 'Charla general de la comunidad Kova.',
+        categoryId: 'cat_text',
+      },
+      {
+        id: 'chan_ideas',
+        name: 'ideas-y-feedback',
+        type: 'text',
+        topic: 'Sugerencias, nuevas características y feedback de la app.',
+        categoryId: 'cat_text',
+      },
+      {
+        id: 'chan_notes',
+        name: 'roadmap-notas',
+        type: 'notes',
+        topic: 'Documentación colaborativa y minutas de reuniones.',
+        categoryId: 'cat_text',
+      },
+      {
+        id: 'chan_voice_main',
+        name: 'Voz Principal (HD 96kHz)',
+        type: 'voice',
+        topic: 'Audio de alta fidelidad, baja latencia WebRTC.',
+        categoryId: 'cat_voice',
+        connectedUsers: ['user_elena', 'user_marcus'],
+      },
+      {
+        id: 'chan_voice_gaming',
+        name: 'Gaming & Chill',
+        type: 'voice',
+        topic: 'Canal de voz para partidas y streaming en vivo.',
+        categoryId: 'cat_voice',
+      },
+      {
+        id: 'chan_voice_dev',
+        name: 'Sala Devs (0.1ms)',
+        type: 'voice',
+        topic: 'Discusiones de código, WebGPU, Tauri v2 y Rust.',
+        categoryId: 'cat_voice',
+        connectedUsers: ['user_alex'],
+      },
+      {
+        id: 'chan_voice_lofi',
+        name: 'Radio Lo-Fi 24/7',
+        type: 'voice',
+        topic: 'Música instrumental relajante las 24 horas.',
+        categoryId: 'cat_voice',
+      },
+    ],
+    roles: [
+      {
+        id: 'role_owner_server_kova',
+        name: '👑 Propietario',
+        color: '#FFB800',
+        hoist: true,
+        permissions: ['ADMINISTRATOR'],
+      },
+      {
+        id: 'role_core_server_kova',
+        name: '⚡ Kova Core Team',
+        color: '#06b6d4',
+        hoist: true,
+        permissions: ['MANAGE_CHANNELS', 'SEND_MESSAGES'],
+      },
+    ],
+    members: [
+      CURRENT_USER,
+      MOCK_USERS.user_elena,
+      MOCK_USERS.user_marcus,
+      MOCK_USERS.user_alex,
+      MOCK_USERS.user_sophia,
+      MOCK_USERS.user_ai,
+    ],
+  },
+];
 
 export const INITIAL_MESSAGES: Record<string, Message[]> = {
   chan_general: [
