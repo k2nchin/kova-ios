@@ -221,7 +221,26 @@ export const UnifiedNavSidebar: React.FC<UnifiedNavSidebarProps> = () => {
 
           {/* Spaces Accordion */}
           <div className="space-y-2 pt-1">
-            {servers.map((server) => {
+            {servers.length === 0 ? (
+              <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-dashed border-white/[0.08] text-center space-y-2.5 mt-1">
+                <div className="w-9 h-9 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center mx-auto">
+                  <Plus size={18} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white">Crea tu servidor</div>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                    Comienza tu propio espacio para hablar y colaborar.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsCreateServerOpen(true)}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-[#6d28d9] to-[#8b5cf6] hover:from-[#7c3aed] hover:to-[#9333ea] text-white text-xs font-semibold shadow-lg shadow-purple-950/40 transition-all cursor-pointer"
+                >
+                  Crear espacio
+                </button>
+              </div>
+            ) : (
+              servers.map((server) => {
               const isExpanded = expandedSpaces[server.id] ?? (server.id === activeServer?.id);
               const isServerSelected = server.id === activeServer?.id;
 
@@ -288,7 +307,7 @@ export const UnifiedNavSidebar: React.FC<UnifiedNavSidebarProps> = () => {
                   )}
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
       </div>

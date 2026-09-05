@@ -12,7 +12,6 @@ import {
   Compass,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { MOCK_USERS } from '../../data/mockData';
 import { soundFx } from '../../utils/soundEffects';
 
 interface RadarNode {
@@ -26,35 +25,21 @@ interface RadarNode {
 }
 
 export const SpatialAudioRadar: React.FC = () => {
-  const { currentUser, toggleMute, toggleCamera, toggleScreenShare, leaveVoiceChannel, activeChannel } =
+  const { currentUser, toggleMute, toggleCamera, toggleScreenShare, leaveVoiceChannel, activeChannel, activeServer } =
     useApp();
 
-  const [nodes, setNodes] = useState<RadarNode[]>([
-    {
-      id: 'user_elena',
-      name: 'Elena Vance (Rust Lead)',
-      avatar: MOCK_USERS.user_elena.avatar,
-      x: -70,
-      y: -40,
-      isSpeaking: true,
-    },
-    {
-      id: 'user_marcus',
-      name: 'Marcus Void (Audio DSP)',
-      avatar: MOCK_USERS.user_marcus.avatar,
-      x: 75,
-      y: -30,
+  const otherVoiceMembers = (activeServer?.members || []).filter((m) => m.id !== currentUser.id);
+
+  const [nodes, setNodes] = useState<RadarNode[]>(() => {
+    return otherVoiceMembers.map((m, idx) => ({
+      id: m.id,
+      name: m.displayName,
+      avatar: m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      x: idx === 0 ? -70 : idx === 1 ? 75 : 10,
+      y: idx === 0 ? -40 : idx === 1 ? -30 : -90,
       isSpeaking: false,
-    },
-    {
-      id: 'user_sophia',
-      name: 'Dr. Sophia Chen (AI Lead)',
-      avatar: MOCK_USERS.user_sophia.avatar,
-      x: 10,
-      y: -90,
-      isSpeaking: false,
-    },
-  ]);
+    }));
+  });
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -186,6 +171,17 @@ export const SpatialAudioRadar: React.FC = () => {
             </div>
           );
         })}
+
+        {nodes.length === 0 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-[#0e111a]/90 border border-white/[0.1] text-center z-30 shadow-2xl backdrop-blur-md whitespace-nowrap">
+            <p className="text-xs text-slate-300 font-semibold">
+              Eres el único en la sala de audio espacial
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Cuando se unan miembros a tu servidor, podrás moverlos en 360°.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 3. Floating Radar Controls Bar */}

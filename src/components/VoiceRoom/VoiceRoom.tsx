@@ -27,7 +27,6 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { SpatialAudioRadar } from './SpatialAudioRadar';
-import { MOCK_USERS } from '../../data/mockData';
 import { soundFx } from '../../utils/soundEffects';
 
 export const VoiceRoom: React.FC = () => {
@@ -63,9 +62,8 @@ export const VoiceRoom: React.FC = () => {
   const [chatInput, setChatInput] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Simulated Speaking Pulses for Server Room Mates
-  const [elenaSpeaking, setElenaSpeaking] = useState(true);
-  const [marcusSpeaking, setMarcusSpeaking] = useState(false);
+  // Other members connected to active server
+  const otherVoiceMembers = (activeServer?.members || []).filter((m) => m.id !== currentUser.id);
 
   // Real Screen Sharing
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -92,18 +90,6 @@ export const VoiceRoom: React.FC = () => {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [isChatOpen, messages]);
-
-  // Simulate periodic realistic conversation from Elena and Marcus
-  useEffect(() => {
-    if (!isConnected) return;
-    const interval = setInterval(() => {
-      setElenaSpeaking((prev) => !prev);
-      if (Math.random() > 0.5) {
-        setMarcusSpeaking((prev) => !prev);
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [isConnected]);
 
   // ============================================================================
   // 1. SCREEN SHARING ENGINE (NATIVE + 60FPS CANVAS WORKSPACE STREAM FALLBACK)
@@ -778,21 +764,20 @@ export const VoiceRoom: React.FC = () => {
                     )}
                   </div>
                   <span className="text-xs font-bold text-white">{currentUser.displayName} (Tú)</span>
-                  <span className="text-slate-500">|</span>
-                  <img
-                    src={MOCK_USERS.user_elena.avatar}
-                    alt="Elena"
-                    className={`w-7 h-7 rounded-full object-cover ${
-                      elenaSpeaking ? 'ring-2 ring-emerald-400 shadow-[0_0_8px_#34d399]' : 'opacity-70'
-                    }`}
-                  />
-                  <img
-                    src={MOCK_USERS.user_marcus.avatar}
-                    alt="Marcus"
-                    className={`w-7 h-7 rounded-full object-cover ${
-                      marcusSpeaking ? 'ring-2 ring-emerald-400 shadow-[0_0_8px_#34d399]' : 'opacity-70'
-                    }`}
-                  />
+                  {otherVoiceMembers.length > 0 && (
+                    <>
+                      <span className="text-slate-500">|</span>
+                      {otherVoiceMembers.map((m) => (
+                        <img
+                          key={m.id}
+                          src={m.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                          alt={m.displayName}
+                          className="w-7 h-7 rounded-full object-cover opacity-80"
+                          title={m.displayName}
+                        />
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -900,105 +885,57 @@ export const VoiceRoom: React.FC = () => {
                 </div>
               </div>
 
-              {/* Participant 2: Elena Vance */}
-              <div
-                onClick={() => openUserProfile(MOCK_USERS.user_elena)}
-                className="rounded-2xl bg-[#111522] border border-white/[0.08] p-4 flex flex-col justify-between relative overflow-hidden shadow-xl group/card cursor-pointer hover:border-emerald-500/30 transition-all"
-              >
-                <div className="flex items-center justify-between z-10">
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 backdrop-blur-sm border border-cyan-500/30">
-                    Rust Lead · Core
-                  </span>
-                  {elenaSpeaking && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono flex items-center gap-1">
-                      <Radio size={9} className="animate-pulse" /> HABLANDO
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex flex-col items-center justify-center my-auto z-10 py-4">
-                  <div className="relative">
-                    <img
-                      src={MOCK_USERS.user_elena.avatar}
-                      alt={MOCK_USERS.user_elena.displayName}
-                      className={`w-20 h-20 rounded-2xl object-cover transition-all duration-200 ${
-                        elenaSpeaking
-                          ? 'ring-4 ring-emerald-400 shadow-[0_0_20px_#10b981] scale-105'
-                          : 'border border-white/10'
-                      }`}
-                    />
-                    {elenaSpeaking && (
-                      <span className="w-4 h-4 rounded-full bg-emerald-400 absolute -bottom-1 -right-1 ring-2 ring-[#111522] animate-pulse" />
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between z-10 bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/[0.06] mt-auto">
-                  <span className="text-xs font-bold text-white font-['Outfit'] truncate">
-                    {MOCK_USERS.user_elena.displayName}
-                  </span>
-
-                  {elenaSpeaking ? (
-                    <div className="flex items-center gap-0.5">
-                      <span className="w-1 h-3 bg-emerald-400 rounded-full animate-bounce" />
-                      <span className="w-1 h-4 bg-emerald-400 rounded-full animate-bounce delay-75" />
-                      <span className="w-1 h-2 bg-emerald-400 rounded-full animate-bounce delay-150" />
+              {/* Other Members in Voice Channel */}
+              {otherVoiceMembers.length > 0 ? (
+                otherVoiceMembers.map((member) => (
+                  <div
+                    key={member.id}
+                    onClick={() => openUserProfile(member)}
+                    className="rounded-2xl bg-[#111522] border border-white/[0.08] p-4 flex flex-col justify-between relative overflow-hidden shadow-xl group/card cursor-pointer hover:border-emerald-500/30 transition-all"
+                  >
+                    <div className="flex items-center justify-between z-10">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 backdrop-blur-sm border border-cyan-500/30">
+                        {member.roles?.[0] || 'Miembro'}
+                      </span>
+                      {member.isSpeaking && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono flex items-center gap-1">
+                          <Radio size={9} className="animate-pulse" /> HABLANDO
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">100% vol</span>
-                  )}
-                </div>
-              </div>
 
-              {/* Participant 3: Marcus Void */}
-              <div
-                onClick={() => openUserProfile(MOCK_USERS.user_marcus)}
-                className="rounded-2xl bg-[#111522] border border-white/[0.08] p-4 flex flex-col justify-between relative overflow-hidden shadow-xl group/card cursor-pointer hover:border-emerald-500/30 transition-all"
-              >
-                <div className="flex items-center justify-between z-10">
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 backdrop-blur-sm border border-purple-500/30">
-                    Audio DSP · WebRTC
-                  </span>
-                  {marcusSpeaking && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono flex items-center gap-1">
-                      <Radio size={9} className="animate-pulse" /> HABLANDO
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex flex-col items-center justify-center my-auto z-10 py-4">
-                  <div className="relative">
-                    <img
-                      src={MOCK_USERS.user_marcus.avatar}
-                      alt={MOCK_USERS.user_marcus.displayName}
-                      className={`w-20 h-20 rounded-2xl object-cover transition-all duration-200 ${
-                        marcusSpeaking
-                          ? 'ring-4 ring-emerald-400 shadow-[0_0_20px_#10b981] scale-105'
-                          : 'border border-white/10'
-                      }`}
-                    />
-                    {marcusSpeaking && (
-                      <span className="w-4 h-4 rounded-full bg-emerald-400 absolute -bottom-1 -right-1 ring-2 ring-[#111522] animate-pulse" />
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between z-10 bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/[0.06] mt-auto">
-                  <span className="text-xs font-bold text-white font-['Outfit'] truncate">
-                    {MOCK_USERS.user_marcus.displayName}
-                  </span>
-
-                  {marcusSpeaking ? (
-                    <div className="flex items-center gap-0.5">
-                      <span className="w-1 h-3 bg-emerald-400 rounded-full animate-bounce" />
-                      <span className="w-1 h-4 bg-emerald-400 rounded-full animate-bounce delay-75" />
-                      <span className="w-1 h-2 bg-emerald-400 rounded-full animate-bounce delay-150" />
+                    <div className="flex flex-col items-center justify-center my-auto z-10 py-4">
+                      <div className="relative">
+                        <img
+                          src={member.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                          alt={member.displayName}
+                          className="w-20 h-20 rounded-2xl object-cover border border-white/10"
+                        />
+                        {member.isSpeaking && (
+                          <span className="w-4 h-4 rounded-full bg-emerald-400 absolute -bottom-1 -right-1 ring-2 ring-[#111522] animate-pulse" />
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">DSP 96kHz</span>
-                  )}
+
+                    <div className="flex items-center justify-between z-10 bg-black/40 backdrop-blur-md p-2 rounded-xl border border-white/[0.06] mt-auto">
+                      <span className="text-xs font-bold text-white font-['Outfit'] truncate">
+                        {member.displayName}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">100% vol</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-1 sm:col-span-2 rounded-2xl bg-[#111522]/50 border border-dashed border-white/[0.08] p-6 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 mb-3 shadow-lg">
+                    <Radio className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <h4 className="text-sm font-bold text-white font-['Outfit']">Esperando a otros miembros</h4>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                    Estás conectado en este canal de voz. Invita a miembros a tu servidor para conversar y compartir audio y pantalla.
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

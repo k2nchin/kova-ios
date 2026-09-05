@@ -16,7 +16,6 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { User, DMConversation } from '../../types';
-import { MOCK_USERS } from '../../data/mockData';
 
 export const DirectMessagesView: React.FC = () => {
   const {
@@ -44,7 +43,7 @@ export const DirectMessagesView: React.FC = () => {
   // Selected conversation
   const activeConversation = dmConversations.find((c) => c.user.id === activeDMUserId);
   const activeFriend = friends.find((f) => f.id === activeDMUserId);
-  const activeUser = activeConversation?.user || activeFriend || (activeDMUserId ? MOCK_USERS[activeDMUserId] : null);
+  const activeUser = activeConversation?.user || activeFriend || null;
 
   const filteredFriends = friends.filter((f) => {
     const matchesQuery = f.displayName.toLowerCase().includes(friendQuery.toLowerCase());

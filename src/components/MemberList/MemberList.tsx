@@ -22,7 +22,7 @@ export const MemberList: React.FC = () => {
 
   if (!isMemberListOpen) return null;
 
-  // Build combined member list
+  // Build server member list
   const serverMembersMap = new Map<string, User>();
 
   // Add current user
@@ -31,13 +31,6 @@ export const MemberList: React.FC = () => {
   // Add active server members
   (activeServer?.members || []).forEach((m) => {
     serverMembersMap.set(m.id, m);
-  });
-
-  // Add friends in server
-  friends.forEach((f) => {
-    if (!serverMembersMap.has(f.id)) {
-      serverMembersMap.set(f.id, f);
-    }
   });
 
   const allMembers = Array.from(serverMembersMap.values());
@@ -56,7 +49,6 @@ export const MemberList: React.FC = () => {
     const isBot = member.tag === 'BOT' || member.username.includes('bot');
     const isOwner =
       member.id === activeServer?.ownerId ||
-      member.id === 'user_dfighj' ||
       member.roles?.some((r) => r.includes('owner') || r.includes('Propietario'));
 
     return (

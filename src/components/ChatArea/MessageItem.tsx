@@ -135,7 +135,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
             onClick={() => openUserProfile(message.author)}
           >
             {message.author.displayName}
-            {(message.author.id === 'user_dfighj' || message.author.id === 'user_me') && (
+            {(message.author.id === activeServer?.ownerId || message.author.id === currentUser.id) && (
               <span className="text-[12px] text-amber-400" title="Propietario / Líder">👑</span>
             )}
           </span>

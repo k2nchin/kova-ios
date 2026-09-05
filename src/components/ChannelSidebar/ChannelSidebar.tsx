@@ -24,7 +24,6 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { Channel, User } from '../../types';
-import { MOCK_USERS } from '../../data/mockData';
 
 export const ChannelSidebar: React.FC = () => {
   const {
@@ -126,18 +125,18 @@ export const ChannelSidebar: React.FC = () => {
       });
     }
 
-    // 2. Simulated/Other server members in channel
-    const mockMemberIds = chan.connectedUsers || (chan.id === 'chan_voice_main' ? ['user_elena', 'user_marcus'] : []);
-    for (const mId of mockMemberIds) {
+    // 2. Real server members connected in channel
+    const connectedMemberIds = chan.connectedUsers || [];
+    for (const mId of connectedMemberIds) {
       if (mId === currentUser.id) continue;
-      const member = activeServer.members?.find((m) => m.id === mId) || MOCK_USERS[mId];
+      const member = activeServer.members?.find((m) => m.id === mId);
       if (member) {
         usersInChannel.push({
           id: member.id,
           displayName: member.displayName,
           avatar: member.avatar,
-          isSpeaking: member.id === 'user_elena',
-          isMuted: member.id === 'user_marcus',
+          isSpeaking: false,
+          isMuted: false,
           isDeafened: false,
           isScreenSharing: false,
           userObj: member,

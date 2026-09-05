@@ -27,7 +27,6 @@ import {
   INITIAL_STORIES,
   INITIAL_DM_CONVERSATIONS,
   CURRENT_USER,
-  MOCK_USERS,
 } from '../data/mockData';
 import { soundFx } from '../utils/soundEffects';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
@@ -559,10 +558,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Dynamic Servers with localStorage persistence
   const [servers, setServers] = useState<Server[]>(() => {
     try {
-      const saved = localStorage.getItem('kova.servers.v6');
+      const saved = localStorage.getItem('kova.servers.v9_custom');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return ensureServerRoles(parsed, CURRENT_USER);
+        if (Array.isArray(parsed)) return ensureServerRoles(parsed, CURRENT_USER);
       }
     } catch {}
     return ensureServerRoles(INITIAL_SERVERS, CURRENT_USER);
@@ -570,12 +569,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
-      localStorage.setItem('kova.servers.v6', JSON.stringify(servers));
+      localStorage.setItem('kova.servers.v9_custom', JSON.stringify(servers));
     } catch {}
   }, [servers]);
 
-  const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || 'server_kova');
-  const [activeChannelId, setActiveChannelId] = useState<string>(() => servers[0]?.channels[0]?.id || 'chan_general');
+  const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || '');
+  const [activeChannelId, setActiveChannelId] = useState<string>(() => servers[0]?.channels[0]?.id || '');
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
 
   // Themes & Sound
@@ -681,7 +680,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Voice call state
-  const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>('chan_lounge');
+  const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   const isInVoice = activeVoiceChannelId !== null;
 
   // Activities, Soundboard & Arcades
@@ -868,7 +867,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return updated;
       } else {
         const friend = friends.find((f) => f.id === receiverId);
-        const targetUser = friend || MOCK_USERS[receiverId] || {
+        const targetUser = friend || {
           id: receiverId,
           username: `user_${receiverId}`,
           displayName: `Usuario`,

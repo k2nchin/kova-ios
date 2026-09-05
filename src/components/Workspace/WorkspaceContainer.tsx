@@ -75,7 +75,7 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
       </div>
 
       {/* 3. Right Island: Member List / Details Panel */}
-      {isMemberListOpen && (
+      {isMemberListOpen && !isDMViewActive && !isServerEmpty && (
         <div className="w-[260px] h-full rounded-2xl bg-[#0a0b10] border border-white/[0.05] overflow-hidden flex flex-col shadow-xl shrink-0">
           <MemberList />
         </div>
