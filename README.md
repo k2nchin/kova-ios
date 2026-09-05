@@ -36,11 +36,11 @@
 
 ## 📦 Descargas (Windows x64)
 
-| Edición | Archivo | Descripción |
-| :--- | :--- | :--- |
-| **Instalador** | `Kova-v1.0.0-Setup.exe` (~2.1 MB) | Instalador guiado con acceso directo en Inicio y Escritorio. |
-| **Portable** | `Kova-v1.0.0-Portable.exe` (~9.0 MB) | Ejecutable autónomo sin instalación ni permisos requeridos. |
-| **ZIP Portable** | `Kova-v1.0.0-Windows-Portable.zip` (~2.7 MB) | Paquete comprimido listo para descomprimir y usar. |
+| Edición | Descarga Directa | Tamaño | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Instalador Oficial** | [⬇️ Descargar Setup](https://github.com/k2nchin/kova/releases/download/v1.0.0/Kova-v1.0.0-Setup.exe) | **~2.1 MB** | Instalador guiado con acceso directo en Inicio y Escritorio. |
+| **Portable (ZIP)** | [⬇️ Descargar Portable](https://github.com/k2nchin/kova/releases/download/v1.0.0/Kova-v1.0.0-Windows-Portable.zip) | **~2.7 MB** | Paquete comprimido listo para descomprimir y usar sin instalación. |
+| **Todas las Versiones** | [Ver Release v1.0.0 en GitHub](https://github.com/k2nchin/kova/releases/tag/v1.0.0) | — | Registro oficial de cambios y sumas de verificación. |
 
 ---
 
