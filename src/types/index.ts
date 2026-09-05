@@ -116,6 +116,10 @@ export interface Message {
     duration: number;
   };
   threadCount?: number;
+  actionCard?: {
+    title: string;
+    action: string;
+  };
 }
 
 export interface Thread {

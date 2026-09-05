@@ -1,289 +1,175 @@
 import React, { useState } from 'react';
-import { PanelRightClose, Search, Crown } from 'lucide-react';
+import {
+  Search,
+  SlidersHorizontal,
+  UserPlus,
+  Crown,
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Role, User } from '../../types';
+import { User } from '../../types';
 
 export const MemberList: React.FC = () => {
   const {
     isMemberListOpen,
-    setIsMemberListOpen,
     currentUser,
     activeServer,
     friends,
     openUserProfile,
+    openInviteModal,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
 
   if (!isMemberListOpen) return null;
 
-  const serverRoles: Role[] = activeServer?.roles || [];
-
-  // Combine activeServer.members with currentUser and friends to make sure everyone in the server is listed
+  // Build combined member list
   const serverMembersMap = new Map<string, User>();
 
-  // Add owner / current user
-  serverMembersMap.set(currentUser.id, {
-    ...currentUser,
-    roles: activeServer?.members?.find((m) => m.id === currentUser.id)?.roles || [
-      serverRoles.find((r) => r.name.includes('Propietario'))?.id || '',
-    ].filter(Boolean),
-  });
+  // Add current user
+  serverMembersMap.set(currentUser.id, currentUser);
 
-  // Add server members
+  // Add active server members
   (activeServer?.members || []).forEach((m) => {
     serverMembersMap.set(m.id, m);
   });
 
-  // Add friends who may be in this server
+  // Add friends in server
   friends.forEach((f) => {
     if (!serverMembersMap.has(f.id)) {
-      const existingInServer = activeServer?.members?.find((m) => m.id === f.id);
-      serverMembersMap.set(f.id, {
-        ...f,
-        roles: existingInServer?.roles || [],
-      });
+      serverMembersMap.set(f.id, f);
     }
   });
 
   const allMembers = Array.from(serverMembersMap.values());
 
-  // Filter members by search
   const filtered = searchQuery
     ? allMembers.filter((m) =>
         (m.displayName || m.username).toLowerCase().includes(searchQuery.toLowerCase())
       )
     : allMembers;
 
-  // Helper to get a member's highest role
-  const getMemberHighestRole = (member: User): Role | null => {
-    const memberRoleIds = member.roles || [];
-    for (const role of serverRoles) {
-      if (role.name === '@everyone') continue;
-      if (memberRoleIds.includes(role.id)) {
-        return role;
-      }
-    }
-    return null;
-  };
+  const onlineMembers = filtered.filter((m) => m.status !== 'offline');
+  const offlineMembers = filtered.filter((m) => m.status === 'offline');
 
-  // Helper to get a member's highest HOISTED role
-  const getMemberHoistedRole = (member: User): Role | null => {
-    const memberRoleIds = member.roles || [];
-    for (const role of serverRoles) {
-      if (role.name === '@everyone') continue;
-      if (role.hoist && memberRoleIds.includes(role.id)) {
-        return role;
-      }
-    }
-    return null;
-  };
-
-  // Group members by Hoisted Roles (Discord style)
-  const hoistedGroups: { role: Role; members: User[] }[] = [];
-  const onlineWithoutHoist: User[] = [];
-  const offlineMembers: User[] = [];
-
-  // Keep track of members already assigned to a hoisted group
-  const assignedMemberIds = new Set<string>();
-
-  serverRoles.forEach((role) => {
-    if (role.name === '@everyone' || !role.hoist) return;
-    const matchingMembers = filtered.filter((m) => {
-      if (assignedMemberIds.has(m.id)) return false;
-      const isOnline = m.status !== 'offline';
-      if (!isOnline) return false;
-      const highestHoist = getMemberHoistedRole(m);
-      return highestHoist?.id === role.id;
-    });
-
-    if (matchingMembers.length > 0) {
-      hoistedGroups.push({ role, members: matchingMembers });
-      matchingMembers.forEach((m) => assignedMemberIds.add(m.id));
-    }
-  });
-
-  // Remaining members
-  filtered.forEach((m) => {
-    if (assignedMemberIds.has(m.id)) return;
-    if (m.status === 'offline') {
-      offlineMembers.push(m);
-    } else {
-      onlineWithoutHoist.push(m);
-    }
-  });
-
-  const totalOnline = allMembers.filter((m) => m.status !== 'offline').length;
-  const isOwnerOrAdmin = currentUser.id === activeServer?.ownerId;
-
-  // Render a member row
-  const renderMemberRow = (member: User) => {
-    const highestRole = getMemberHighestRole(member);
+  const renderMemberItem = (member: User) => {
     const isOnline = member.status !== 'offline';
-    const isOwner = member.id === activeServer?.ownerId;
+    const isBot = member.tag === 'BOT' || member.username.includes('bot');
+    const isOwner =
+      member.id === activeServer?.ownerId ||
+      member.id === 'user_dfighj' ||
+      member.roles?.some((r) => r.includes('owner') || r.includes('Propietario'));
 
     return (
       <button
         key={member.id}
-        className="member-row cursor-pointer group hover:bg-white/[0.04] p-1.5 rounded-xl flex items-center gap-2.5 transition-all w-full text-left"
         onClick={() => openUserProfile(member)}
+        className="w-full flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-white/[0.04] transition-all cursor-pointer group text-left"
       >
-        <span className="member-avatar-wrap relative shrink-0">
-          {member.avatar ? (
-            <img
-              src={member.avatar}
-              alt={member.displayName}
-              className="w-8 h-8 rounded-xl object-cover"
-            />
-          ) : (
-            <span
-              className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs text-white"
-              style={{ background: highestRole?.color || '#5865F2' }}
-            >
-              {member.displayName?.slice(0, 1) || 'U'}
-            </span>
-          )}
-          <i
-            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#11151c] ${
-              isOnline ? 'bg-emerald-400' : 'bg-slate-500'
+        {/* Avatar with Status Dot */}
+        <div className="relative shrink-0">
+          <img
+            src={
+              member.avatar ||
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+            }
+            alt={member.displayName}
+            className={`w-8 h-8 rounded-full object-cover ring-1 ${
+              isOnline ? 'ring-white/10' : 'ring-white/5 opacity-50 grayscale'
             }`}
           />
-        </span>
+          {isOnline && (
+            <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-[#0f1118]" />
+          )}
+        </div>
 
-        <span className="member-copy min-w-0 flex-1">
-          <strong
-            className="text-xs font-semibold truncate block"
-            style={{ color: highestRole?.color || '#dbdee1' }}
-          >
-            {member.displayName}
-          </strong>
-          <span className="text-[10px] text-slate-400 truncate block">
+        {/* Member Name + Custom Status Subtitle */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`text-xs font-semibold truncate ${
+                isOnline ? 'text-slate-200 group-hover:text-white' : 'text-slate-500'
+              }`}
+            >
+              {member.displayName}
+            </span>
+
+            {/* Crown Icon */}
+            {isOwner && (
+              <Crown size={12} className="text-amber-400 fill-amber-400 shrink-0" />
+            )}
+
+            {/* Purple BOT Badge */}
+            {isBot && (
+              <span className="px-1 py-0.2 rounded bg-[#7c3aed] text-white text-[9px] font-extrabold tracking-wider uppercase shrink-0">
+                BOT
+              </span>
+            )}
+          </div>
+
+          {/* Subtitle status */}
+          <span className="text-[11px] text-slate-400 truncate block">
             {member.customStatus || (isOnline ? 'En línea' : 'Desconectado')}
           </span>
-        </span>
-
-        {isOwner && (
-          <span title="Propietario del servidor" className="shrink-0 ml-auto mr-1 flex items-center">
-            <Crown size={12} className="text-amber-400 fill-amber-400" />
-          </span>
-        )}
-
-        {highestRole && (
-          <span
-            className="text-[9px] font-mono px-1.5 py-0.5 rounded border shrink-0 truncate max-w-[64px]"
-            style={{
-              backgroundColor: `${highestRole.color}15`,
-              borderColor: `${highestRole.color}40`,
-              color: highestRole.color,
-            }}
-          >
-            {highestRole.name}
-          </span>
-        )}
+        </div>
       </button>
     );
   };
 
   return (
-    <>
-      <aside className="member-panel w-full h-full bg-[#11151c] flex flex-col overflow-y-auto custom-scrollbar select-none font-['Plus_Jakarta_Sans',sans-serif]">
-        <div className="space-y-4">
-          {/* Header */}
-          <div className="member-head flex items-start justify-between">
-            <div>
-              <span className="eyebrow text-[10px] font-mono tracking-widest text-slate-400">
-                EN ESTE SERVIDOR
-              </span>
-              <h2 className="text-sm font-bold text-white font-['Outfit'] flex items-center gap-1.5">
-                <span>Miembros</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300 font-mono">
-                  {allMembers.length}
-                </span>
-              </h2>
-            </div>
-            <button
-              className="icon-button subtle cursor-pointer p-1.5 rounded-xl hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors"
-              aria-label="Cerrar panel"
-              onClick={() => setIsMemberListOpen(false)}
-              title="Cerrar lista de miembros"
-            >
-              <PanelRightClose size={17} />
-            </button>
+    <aside className="w-full h-full bg-[#0a0b10] flex flex-col justify-between p-3 select-none font-['Plus_Jakarta_Sans',sans-serif]">
+      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar space-y-4">
+        {/* Header: MIEMBROS */}
+        <div className="flex items-center justify-between px-1 pt-1">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 font-mono">
+            MIEMBROS
+          </span>
+        </div>
+
+        {/* Search Bar with Filter Slider */}
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#11131c] border border-white/[0.06] text-xs focus-within:border-purple-500/30 transition-all">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar miembros"
+            className="bg-transparent border-none outline-none text-xs text-slate-200 placeholder-slate-500 w-full"
+          />
+          <SlidersHorizontal size={14} className="text-slate-500 shrink-0 ml-2" />
+        </div>
+
+        {/* Group 1: EN LÍNEA — N */}
+        <div className="space-y-1">
+          <div className="text-[11px] font-bold text-slate-400 tracking-wider px-1 mb-1">
+            EN LÍNEA — {onlineMembers.length}
           </div>
-
-          {/* Search Input */}
-          <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#171b25] border border-white/[0.06] text-xs text-[#778398] focus-within:border-[#72e4d0] focus-within:text-white transition-all">
-              <Search size={14} className="text-[#778398] shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar miembros..."
-                className="bg-transparent border-none outline-none text-xs text-[#f4f7fb] placeholder-[#778398] w-full"
-              />
-            </div>
-          </div>
-
-          {/* Presence Summary Ring */}
-          <div className="presence-summary p-3 rounded-2xl bg-white/[0.02] border border-white/[0.05] flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-xs font-bold text-emerald-300 font-mono">
-              {totalOnline}
-            </div>
-            <div className="text-xs leading-tight">
-              <strong className="text-white block font-semibold">
-                {totalOnline} {totalOnline === 1 ? 'activo ahora' : 'activos ahora'}
-              </strong>
-              <span className="text-[10px] text-slate-400">
-                {totalOnline === 1 ? 'Tú estás conectado' : 'La colaboración está en movimiento.'}
-              </span>
-            </div>
-          </div>
-
-          {/* DYNAMIC HOISTED ROLE GROUPS (Discord Style) */}
-          <div className="space-y-4">
-            {hoistedGroups.map((group) => (
-              <div key={group.role.id} className="member-group space-y-1">
-                <div className="member-group-label flex items-center justify-between text-[11px] font-bold tracking-wider font-mono px-1">
-                  <span className="flex items-center gap-1.5" style={{ color: group.role.color }}>
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: group.role.color }}
-                    />
-                    <span>{group.role.name.toUpperCase()}</span>
-                  </span>
-                  <small className="text-slate-400 text-[10px]">{group.members.length}</small>
-                </div>
-                <div className="space-y-0.5">{group.members.map(renderMemberRow)}</div>
-              </div>
-            ))}
-
-            {/* Members Online without hoisted role */}
-            {onlineWithoutHoist.length > 0 && (
-              <div className="member-group space-y-1">
-                <div className="member-group-label flex items-center justify-between text-[11px] font-bold tracking-wider text-slate-400 font-mono px-1">
-                  <span>EN LÍNEA</span>
-                  <small className="text-[10px]">{onlineWithoutHoist.length}</small>
-                </div>
-                <div className="space-y-0.5">{onlineWithoutHoist.map(renderMemberRow)}</div>
-              </div>
-            )}
-
-            {/* Offline members */}
-            {offlineMembers.length > 0 && (
-              <div className="member-group space-y-1">
-                <div className="member-group-label flex items-center justify-between text-[11px] font-bold tracking-wider text-slate-500 font-mono px-1">
-                  <span>DESCONECTADOS</span>
-                  <small className="text-[10px]">{offlineMembers.length}</small>
-                </div>
-                <div className="space-y-0.5 opacity-60 hover:opacity-100 transition-opacity">
-                  {offlineMembers.map(renderMemberRow)}
-                </div>
-              </div>
-            )}
+          <div className="space-y-0.5">
+            {onlineMembers.map(renderMemberItem)}
           </div>
         </div>
-      </aside>
-    </>
+
+        {/* Group 2: DESCONECTADO — N */}
+        {offlineMembers.length > 0 && (
+          <div className="space-y-1 pt-2">
+            <div className="text-[11px] font-bold text-slate-500 tracking-wider px-1 mb-1">
+              DESCONECTADO — {offlineMembers.length}
+            </div>
+            <div className="space-y-0.5">
+              {offlineMembers.map(renderMemberItem)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Button: [👥+ Invitar personas] */}
+      <div className="pt-3 border-t border-white/[0.04]">
+        <button
+          onClick={() => openInviteModal()}
+          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 hover:text-white border border-white/[0.06] hover:border-purple-500/30 transition-all text-xs font-semibold cursor-pointer shadow-sm"
+        >
+          <UserPlus size={15} className="text-purple-400" />
+          <span>Invitar personas</span>
+        </button>
+      </div>
+    </aside>
   );
 };

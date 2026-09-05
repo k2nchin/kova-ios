@@ -50,6 +50,7 @@ export const MainLayout: React.FC = () => {
   } = useApp();
 
   const [layoutMode, setLayoutMode] = useState<WorkspaceLayoutMode>('split');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<'app' | 'landing'>(() => {
     const isTauri =
       typeof (window as unknown as { __TAURI__?: unknown }).__TAURI__ !== 'undefined' ||
@@ -80,20 +81,23 @@ export const MainLayout: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0a0b0e]/85 text-[#dbdee1] relative select-none font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#08090d] text-[#dbdee1] relative select-none font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Background Active Theme (OLED / Nebula / Matrix / Synthwave / Discord) */}
       <ThemeBackground theme={theme} />
 
-      {/* Top Discord Titlebar */}
-      <Titlebar />
+      {/* Top Titlebar with Search, Bell, Controls & Sidebar Toggle */}
+      <Titlebar
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
 
-      {/* Main Workspace Canvas (Floating Island Cards: Navigation + Channels + Center Content + Member List) */}
+      {/* Main Workspace Canvas (Left Nav + Main Stage with Voice Dock + Members) */}
       <main className="flex-1 flex overflow-hidden relative z-10">
-        <WorkspaceContainer layoutMode={layoutMode} />
+        <WorkspaceContainer
+          layoutMode={layoutMode}
+          sidebarCollapsed={sidebarCollapsed}
+        />
       </main>
-
-      {/* Floating CyberDock at the bottom */}
-      <CyberDock layoutMode={layoutMode} setLayoutMode={setLayoutMode} />
 
       {/* Modals & Overlays */}
       <KovaAIPanel />

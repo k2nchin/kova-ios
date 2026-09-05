@@ -25,11 +25,15 @@ import {
   Smile,
   Clock,
   AtSign,
+  MoreHorizontal,
+  Image as ImageIcon,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { MessageItem } from './MessageItem';
 import { EmojiGifPicker } from './EmojiGifPicker';
+import { WelcomeHeroCard } from './WelcomeHeroCard';
 
 const DISCORD_SLASH_COMMANDS = [
   { command: '/ai', desc: 'Pregunta o pide asistencia inteligente a Kova AI', example: '/ai explica este código' },
@@ -409,116 +413,64 @@ export const ChatArea: React.FC = () => {
   };
 
   return (
-    <main className="channel-main flex-1 h-full w-full bg-[#0f1219] flex flex-col justify-between overflow-hidden relative font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* 1. Channel Header */}
-      <header className="channel-header">
-        <div className="channel-title-wrap">
-          <div className="channel-title">
-            <Hash size={20} />
-            <h1>{channelLabel}</h1>
-            <span className="header-status">Público</span>
+    <main className="channel-main flex-1 h-full w-full bg-[#0b0d13] flex flex-col justify-between overflow-hidden relative font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* 1. Clean Modern Channel Header matching reference screenshot */}
+      <header className="h-13 px-5 flex items-center justify-between border-b border-white/[0.04] bg-[#0c0e14]/80 backdrop-blur-md shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-white font-bold text-sm">
+            <Hash size={18} className="text-slate-400" />
+            <span>{channelLabel}</span>
           </div>
-          <p>{activeChannel.topic || 'Conversaciones libres, código y colaboración en tiempo real.'}</p>
+          <span className="text-xs text-slate-400 font-normal">
+            {activeChannel.topic || 'Canal de bienvenida'}
+          </span>
         </div>
 
-        <div className="header-actions">
-          <GlobalSearch />
+        <div className="flex items-center gap-2 text-slate-400">
           <button
-            className="action-button ai-action cursor-pointer"
-            disabled={Boolean(loadingAction)}
-            onClick={() => runAiAction('summary')}
-            title="Resumir este canal con IA"
+            onClick={() => setIsPinnedDrawerOpen(true)}
+            className="p-1.5 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+            title="Mensajes fijados"
           >
-            {loadingAction === 'summary' ? (
-              <LoaderCircle className="spin" size={15} />
-            ) : (
-              <Sparkles size={15} />
-            )}
-            <span>Resumir canal</span>
+            <Pin size={17} />
           </button>
 
           <button
-            className="action-button cursor-pointer"
-            disabled={Boolean(loadingAction)}
-            onClick={() => runAiAction('minutes')}
-            title="Generar minuta estructurada"
-          >
-            {loadingAction === 'minutes' ? (
-              <LoaderCircle className="spin" size={15} />
-            ) : (
-              <MessageSquareText size={15} />
-            )}
-            <span>Generar minuta</span>
-          </button>
-
-          <button
-            className={`icon-button ${isMemberListOpen ? 'is-active' : ''}`}
-            aria-label="Mostrar miembros"
             onClick={() => setIsMemberListOpen(!isMemberListOpen)}
-            title="Alternar lista de miembros"
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-colors cursor-pointer ${
+              isMemberListOpen ? 'text-white bg-white/[0.06]' : 'hover:text-white hover:bg-white/[0.04]'
+            }`}
+            title="Miembros del espacio"
           >
-            <Users size={17} />
+            <Users size={16} />
+            <span className="font-semibold">{activeServer.members.length || 12}</span>
+          </button>
+
+          <button
+            onClick={() => setIsChannelInfoOpen(true)}
+            className="p-1.5 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
+            title="Más opciones del canal"
+          >
+            <MoreHorizontal size={17} />
           </button>
         </div>
       </header>
 
-      {/* 2. Channel Toolbar */}
-      <div className="channel-toolbar">
-        <span>
-          <span className="live-dot" /> {activeServer.members.length} miembros activos
-        </span>
-        <span className="toolbar-separator" />
-        <button
-          onClick={() => setIsPinnedDrawerOpen(true)}
-          className="cursor-pointer hover:text-amber-400 transition-colors flex items-center gap-1 text-xs"
-          title="Ver mensajes fijados"
-        >
-          <Pin size={14} className="text-amber-400" />
-          <span>Mensajes fijados ({messages.filter((m) => m.pinned).length})</span>
-        </button>
-        <button
-          onClick={() => {
-            setIsChannelMuted(!isChannelMuted);
-            toast.success(!isChannelMuted ? 'Notificaciones del canal silenciadas' : 'Notificaciones activadas');
-          }}
-          className={`cursor-pointer transition-colors ${isChannelMuted ? 'text-rose-400 font-bold' : ''}`}
-        >
-          <Bell size={14} className={isChannelMuted ? 'fill-current' : ''} />
-          <span>{isChannelMuted ? 'Silenciado' : 'Silenciar'}</span>
-        </button>
-        <span className="toolbar-spacer" />
-        <button onClick={() => exportConversation('txt')}>
-          <Download size={14} /> TXT
-        </button>
-        <button onClick={() => exportConversation('pdf')}>
-          <Printer size={14} /> PDF
-        </button>
-      </div>
+      {/* 2. Conversation Scroll Area */}
+      <div ref={scrollRef} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+        {/* Glowing 3D Crystal Welcome Hero Card for general / first channel */}
+        {(channelLabel === 'general' || messages.length <= 4) && (
+          <WelcomeHeroCard channelName={channelLabel} />
+        )}
 
-      {/* 3. Conversation Scroll Area */}
-      <div ref={scrollRef} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-2">
-        {/* Welcome Banner */}
-        <div className="welcome-banner mb-3">
-          <div className="welcome-glyph">
-            <Hash size={28} />
+        {/* Date Divider matching screenshot */}
+        <div className="flex items-center justify-center my-4 relative select-none">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-white/[0.04]" />
           </div>
-          <div>
-            <span className="eyebrow">CANAL DE EQUIPO</span>
-            <h2>Bienvenido a #{channelLabel}</h2>
-            <p>Este es el comienzo del canal. Comparte ideas, código y decisiones con el equipo de Kova.</p>
-          </div>
-          <button
-            className="icon-button subtle cursor-pointer"
-            aria-label="Más información"
-            onClick={() => setIsChannelInfoOpen(true)}
-            title="Ver información del canal"
-          >
-            <CircleHelp size={17} />
-          </button>
-        </div>
-
-        <div className="date-divider mb-3">
-          <span>CANAL #{channelLabel.toUpperCase()}</span>
+          <span className="relative px-3 py-0.5 text-[11px] font-medium text-slate-500 bg-[#0b0d13] rounded-full">
+            9 de mayo de 2025
+          </span>
         </div>
 
         {/* Dynamic Messages from AppContext */}
@@ -704,8 +656,28 @@ export const ChatArea: React.FC = () => {
               </div>
             </div>
           ) : (
-            <>
-              <textarea
+            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-[#11131c] border border-white/[0.06] shadow-xl focus-within:border-purple-500/40 transition-all w-full">
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+
+              {/* Plus Button in Circle */}
+              <button
+                type="button"
+                aria-label="Adjuntar archivo o imagen"
+                onClick={() => fileInputRef.current?.click()}
+                title="Adjuntar archivo o medios"
+                className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0"
+              >
+                <Plus size={15} />
+              </button>
+
+              {/* Text Input */}
+              <input
+                type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -716,85 +688,55 @@ export const ChatArea: React.FC = () => {
                 }}
                 placeholder={
                   slowmodeCooldown > 0
-                    ? `Modo pausado activado (espera ${slowmodeCooldown}s)...`
-                    : `Escribe en #${channelLabel} o usa /ai para consultar al asistente...`
+                    ? `Modo pausado (${slowmodeCooldown}s)...`
+                    : `Escribe en #${channelLabel}...`
                 }
-                rows={1}
-                aria-label="Escribir mensaje"
                 disabled={slowmodeCooldown > 0}
+                className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 focus:outline-none min-w-0"
               />
-              <div className="composer-footer">
-                <div className="composer-tools">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                  <button
-                    aria-label="Adjuntar archivo"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Adjuntar archivo o imagen"
-                    className="cursor-pointer"
-                  >
-                    <Paperclip size={17} />
-                  </button>
-                  <button
-                    aria-label="Grabar nota de voz"
-                    onClick={handleStartRecording}
-                    title="Grabar nota de voz interactiva"
-                    className="cursor-pointer"
-                  >
-                    <Mic size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-                    title="Emojis y GIFs de Kova"
-                    className={`cursor-pointer transition-colors ${
-                      isEmojiPickerOpen ? 'text-amber-400' : 'hover:text-amber-400'
-                    }`}
-                  >
-                    <Smile size={17} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsSoundboardOpen(true)}
-                    title="Kova Soundboard FX"
-                    className="cursor-pointer hover:text-amber-400 transition-colors"
-                  >
-                    <Music2 size={17} />
-                  </button>
-                  <button
-                    className="slash-button cursor-pointer"
-                    onClick={() => setDraft((v) => `${v}/ai `)}
-                    title="Insertar comando Kova AI"
-                  >
-                    /ai
-                  </button>
-                  <span className="composer-hint">
-                    {slowmodeCooldown > 0 ? (
-                      <span className="text-amber-400 flex items-center gap-1">
-                        <Clock size={12} /> Modo pausado: {slowmodeCooldown}s restantes
-                      </span>
-                    ) : (
-                      'Enter para enviar · Shift + Enter para nueva línea'
-                    )}
-                  </span>
-                </div>
+
+              {/* Right tools: GIF, Image, Emoji, Purple Send Button */}
+              <div className="flex items-center gap-2 shrink-0">
                 <button
-                  className={`send-button cursor-pointer ${
-                    slowmodeCooldown > 0 ? 'opacity-40 cursor-not-allowed' : ''
-                  }`}
-                  aria-label="Enviar mensaje"
-                  onClick={handleSendMessage}
-                  title="Enviar mensaje"
-                  disabled={slowmodeCooldown > 0}
+                  type="button"
+                  onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+                  className="px-2 py-0.5 rounded-md border border-white/[0.1] text-[10px] font-bold text-slate-400 hover:text-white hover:border-white/[0.2] transition-all cursor-pointer"
+                  title="GIFs"
                 >
-                  <Send size={17} />
+                  GIF
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Subir imagen"
+                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer"
+                >
+                  <ImageIcon size={17} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+                  title="Emojis"
+                  className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                    isEmojiPickerOpen ? 'text-purple-400' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <Smile size={17} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendMessage}
+                  disabled={slowmodeCooldown > 0 || (!draft.trim() && !attachedFile)}
+                  title="Enviar mensaje"
+                  className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:from-[#7c3aed] hover:to-[#9333ea] text-white flex items-center justify-center shadow-lg shadow-purple-950/60 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Send size={14} className="translate-x-0.5" />
                 </button>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>

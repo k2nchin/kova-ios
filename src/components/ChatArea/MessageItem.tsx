@@ -13,7 +13,10 @@ import {
   Play,
   RotateCcw,
   Pencil,
+  FileText,
+  ChevronRight,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Message } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { VoiceMessagePlayer } from '../Audio/VoiceMessagePlayer';
@@ -125,33 +128,36 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
         )}
 
         {/* Author Header */}
-        <div className="flex items-baseline gap-2 mb-0.5">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <span
-            className="font-semibold text-sm hover:underline cursor-pointer"
+            className="font-semibold text-sm hover:underline cursor-pointer flex items-center gap-1"
             style={{ color: authorColor || '#f2f3f5' }}
             onClick={() => openUserProfile(message.author)}
           >
             {message.author.displayName}
+            {(message.author.id === 'user_dfighj' || message.author.id === 'user_me') && (
+              <span className="text-[12px] text-amber-400" title="Propietario / Líder">👑</span>
+            )}
           </span>
 
           {/* Badges */}
           {message.aiGenerated && (
-            <span className="flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#5865f2] text-white text-[10px] font-bold font-mono uppercase">
+            <span className="flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#7c3aed] text-white text-[10px] font-bold font-mono uppercase">
               <Sparkles className="w-2.5 h-2.5" />
               KOVA AI
             </span>
           )}
 
           {message.author.tag === 'BOT' && !message.aiGenerated && (
-            <span className="px-1.5 py-0.2 rounded bg-[#5865f2] text-white text-[10px] font-bold uppercase">
+            <span className="px-1.5 py-0.5 rounded-md bg-[#7c3aed] text-white text-[10px] font-extrabold uppercase tracking-wider">
               BOT
             </span>
           )}
 
-          <span className="text-[11px] text-[#949ba4] font-normal">{message.timestamp}</span>
+          <span className="text-[11px] text-slate-500 font-normal ml-0.5">{message.timestamp}</span>
 
           {message.pinned && (
-            <span className="flex items-center gap-1 text-[10px] text-[#5865f2] bg-[#5865f2]/10 px-1.5 py-0.2 rounded">
+            <span className="flex items-center gap-1 text-[10px] text-[#7c3aed] bg-[#7c3aed]/10 px-1.5 py-0.2 rounded">
               <Pin className="w-2.5 h-2.5" /> Fijado
             </span>
           )}
@@ -196,6 +202,24 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
               )}
             </div>
           )
+        )}
+
+        {/* Interactive Action Card if present (e.g. Ver reglas) */}
+        {message.actionCard && (
+          <div className="mt-2.5">
+            <button
+              onClick={() => {
+                toast.info('📜 Reglas de KOVA Suite: 1. Respeto mutuo 2. No spam 3. Código limpio y de calidad');
+              }}
+              className="flex items-center justify-between w-64 max-w-full px-3.5 py-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-purple-500/30 text-xs text-slate-200 transition-all cursor-pointer group shadow-sm"
+            >
+              <div className="flex items-center gap-2.5">
+                <FileText size={15} className="text-purple-400" />
+                <span className="font-semibold">{message.actionCard.title}</span>
+              </div>
+              <ChevronRight size={14} className="text-slate-500 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
+            </button>
+          </div>
         )}
 
         {/* Translated Text Box (if translated) */}
