@@ -33,9 +33,11 @@ src-tauri/gen/
 .DS_Store
 Thumbs.db
 
-# Releases / Binaries export staging (ignored from git tracking)
+# Releases / Binaries export staging (ignored from git tracking except public downloads)
 release/
 release-binaries/
-*.exe
 *.msi
+*.exe
 *.zip
+!public/downloads/*.exe
+!public/downloads/*.zip

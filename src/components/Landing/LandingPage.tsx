@@ -141,7 +141,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
     setDownloadCount((prev) => prev + 1);
     toast.success('Iniciando descarga directa de Kova-v1.0.0-Setup.exe');
     const link = document.createElement('a');
-    link.href = '/downloads/Kova-v1.0.0-Setup.exe';
+    link.href = './downloads/Kova-v1.0.0-Setup.exe';
     link.download = 'Kova-v1.0.0-Setup.exe';
     document.body.appendChild(link);
     link.click();
@@ -154,7 +154,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
     setDownloadCount((prev) => prev + 1);
     toast.success('Iniciando descarga directa de Kova-v1.0.0-Windows-Portable.zip');
     const link = document.createElement('a');
-    link.href = '/downloads/Kova-v1.0.0-Windows-Portable.zip';
+    link.href = './downloads/Kova-v1.0.0-Windows-Portable.zip';
     link.download = 'Kova-v1.0.0-Windows-Portable.zip';
     document.body.appendChild(link);
     link.click();
