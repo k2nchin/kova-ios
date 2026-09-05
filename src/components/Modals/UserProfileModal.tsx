@@ -21,6 +21,9 @@ import {
   Leaf,
   Swords,
   Flame,
+  Calendar,
+  Send,
+  Radio,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Role, User } from '../../types';
@@ -46,6 +49,9 @@ export const UserProfileModal: React.FC = () => {
   const [isEditingThought, setIsEditingThought] = useState(false);
   const [thoughtInput, setThoughtInput] = useState('');
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [quickMsgInput, setQuickMsgInput] = useState('');
+  const [userNote, setUserNote] = useState('');
+  const [isEditingNote, setIsEditingNote] = useState(false);
 
   if (!profileModalUser) return null;
 
@@ -83,47 +89,51 @@ export const UserProfileModal: React.FC = () => {
     setIsSettingsOpen(true);
   };
 
-  const handleSendMessage = () => {
+  const handleSendQuickMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!quickMsgInput.trim()) return;
+    const msg = quickMsgInput.trim();
+    setQuickMsgInput('');
     closeUserProfile();
-    sendDirectMessage(user.id, '¡Hola!');
-    toast.success(`Chat abierto con ${user.displayName}`);
+    sendDirectMessage(user.id, msg);
+    toast.success(`Mensaje enviado a ${user.displayName}`);
   };
 
-  // Status dot & badge rendering (compact 18px)
+  // Status dot & badge rendering (compact 16px)
   const renderStatusBadge = () => {
     switch (user.status) {
       case 'dnd':
         return (
           <div
-            className="w-4.5 h-4.5 bg-[#f23f43] rounded-full ring-[3px] ring-[#111214] flex items-center justify-center shadow-md"
+            className="w-4 h-4 bg-[#f23f43] rounded-full ring-[2.5px] ring-[#111214] flex items-center justify-center shadow-md"
             title="No molestar"
           >
-            <div className="w-2 h-0.5 bg-white rounded-full" />
+            <div className="w-1.5 h-0.5 bg-white rounded-full" />
           </div>
         );
       case 'idle':
         return (
           <div
-            className="w-4.5 h-4.5 bg-[#f0b232] rounded-full ring-[3px] ring-[#111214] flex items-center justify-center shadow-md"
+            className="w-4 h-4 bg-[#f0b232] rounded-full ring-[2.5px] ring-[#111214] flex items-center justify-center shadow-md"
             title="Ausente"
           >
-            <div className="w-2 h-2 rounded-full bg-[#111214] -mt-0.5 -ml-0.5" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[#111214] -mt-0.5 -ml-0.5" />
           </div>
         );
       case 'offline':
         return (
           <div
-            className="w-4.5 h-4.5 bg-[#80848e] rounded-full ring-[3px] ring-[#111214] flex items-center justify-center shadow-md"
+            className="w-4 h-4 bg-[#80848e] rounded-full ring-[2.5px] ring-[#111214] flex items-center justify-center shadow-md"
             title="Desconectado"
           >
-            <div className="w-2 h-2 rounded-full bg-[#111214]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[#111214]" />
           </div>
         );
       case 'online':
       default:
         return (
           <div
-            className="w-4.5 h-4.5 bg-[#23a55a] rounded-full ring-[3px] ring-[#111214] shadow-md"
+            className="w-4 h-4 bg-[#23a55a] rounded-full ring-[2.5px] ring-[#111214] shadow-md"
             title="En línea"
           />
         );
@@ -139,7 +149,7 @@ export const UserProfileModal: React.FC = () => {
       onClick={closeUserProfile}
     >
       <div
-        className="w-full max-w-[300px] rounded-2xl bg-[#111214] border border-[#26282d] shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-150 flex flex-col"
+        className="w-full max-w-[310px] rounded-2xl bg-[#111214] border border-[#26282d] shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-150 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Header Banner */}
@@ -148,111 +158,43 @@ export const UserProfileModal: React.FC = () => {
           style={{
             backgroundImage: user.banner
               ? `url(${user.banner})`
-              : 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 50%, #06b6d4 100%)',
+              : 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
           }}
         >
           {/* Close button */}
           <button
             onClick={closeUserProfile}
-            className="absolute top-2 right-2 p-1 rounded-full bg-black/40 hover:bg-black/70 text-slate-300 hover:text-white transition-all cursor-pointer backdrop-blur-sm"
+            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 hover:bg-black/80 text-slate-300 hover:text-white transition-all cursor-pointer backdrop-blur-sm flex items-center justify-center"
           >
             <X size={13} />
           </button>
         </div>
 
-        {/* 2. Avatar & Floating Thought Bubble Row */}
-        <div className="px-3.5 relative flex items-start justify-between -mt-8 mb-1.5">
+        {/* 2. Avatar & Badges Header Row */}
+        <div className="px-3.5 relative flex items-end justify-between -mt-8 mb-2">
           {/* Avatar with Status */}
           <div className="relative shrink-0">
             {user.avatar ? (
               <img
                 src={user.avatar}
                 alt={user.displayName}
-                className="w-14 h-14 rounded-full object-cover ring-4 ring-[#111214] bg-[#111214] shadow-md"
+                className="w-16 h-16 rounded-full object-cover ring-4 ring-[#111214] bg-[#111214] shadow-xl"
               />
             ) : (
-              <div className="w-14 h-14 rounded-full bg-[#5865F2] text-white flex items-center justify-center text-xl font-black ring-4 ring-[#111214] shadow-md font-['Outfit']">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-xl font-black ring-4 ring-[#111214] shadow-xl font-['Outfit']">
                 {(user.displayName || 'U').slice(0, 1)}
               </div>
             )}
-            <div className="absolute -bottom-0.5 -right-0.5">
+            <div className="absolute bottom-0 right-0">
               {renderStatusBadge()}
             </div>
           </div>
 
-          {/* Thought Bubble ("Bocadillo de estado") */}
-          <div className="flex-1 ml-2.5 mt-2 relative">
-            <div className="absolute -left-1.5 top-2.5 w-1 h-1 rounded-full bg-[#232428] border border-white/10" />
-            <div className="absolute -left-2.5 top-3.5 w-0.5 h-0.5 rounded-full bg-[#232428] border border-white/10" />
-
-            {isEditingThought ? (
-              <div className="flex items-center gap-1 bg-[#232428] border border-purple-500/50 rounded-xl px-2 py-1 shadow-md">
-                <input
-                  type="text"
-                  value={thoughtInput}
-                  onChange={(e) => setThoughtInput(e.target.value)}
-                  placeholder="¿Qué piensas?"
-                  className="bg-transparent text-[10px] text-white outline-none w-full placeholder-slate-500"
-                  autoFocus
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveThought()}
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveThought}
-                  className="text-emerald-400 hover:text-emerald-300 p-0.5"
-                >
-                  <Check size={11} />
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => {
-                  if (isMe) {
-                    setThoughtInput(user.thoughtBubble || '');
-                    setIsEditingThought(true);
-                  }
-                }}
-                className={`group bg-[#232428] hover:bg-[#2b2d31] border border-white/[0.08] rounded-xl px-2.5 py-1 shadow-md transition-all ${
-                  isMe ? 'cursor-pointer hover:border-purple-500/40' : ''
-                }`}
-                title={isMe ? 'Haz clic para cambiar tu estado' : undefined}
-              >
-                <div className="flex items-center gap-1 text-[10px] text-[#dbdee1] leading-tight">
-                  <span className="text-purple-400 text-[10px] shrink-0">
-                    {isMe ? <Plus size={10} className="inline" /> : <Smile size={10} className="inline" />}
-                  </span>
-                  <span className="italic truncate max-w-[130px]">
-                    {user.thoughtBubble || user.customStatus || 'Elige una criatura mítica...'}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 3. Main Content Container (Compact, sleek scrollbar) */}
-        <div className="px-3.5 pb-3.5 space-y-2.5 max-h-[380px] overflow-y-auto custom-scrollbar">
-          {/* Identity: Display Name & Username */}
-          <div>
-            <div className="flex items-center gap-1">
-              <h2 className="text-[14px] font-bold text-white font-['Outfit'] tracking-tight flex items-center gap-1 truncate">
-                <span>{user.displayName || 'juanpi1x ツ'}</span>
-                {isOwner && <Crown size={12} className="text-amber-400 fill-amber-400 shrink-0" />}
-              </h2>
-              <span className="text-slate-400 text-[10px] hover:text-white transition-colors cursor-pointer">
-                ツ
-              </span>
-            </div>
-            <div className="text-[11px] text-[#949ba4] font-medium">
-              {user.username || 'invitado_kova'}
-            </div>
-          </div>
-
-          {/* Badges Bar (Discord Style Badges) */}
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-[#1e1f22] border border-white/[0.05] w-fit">
+          {/* Badges Pill (Discord Style in Top Right) */}
+          <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-[#1e1f22] border border-white/[0.05] shadow-md">
             {badges.includes('nitro') && (
               <span
-                className="w-4.5 h-4.5 rounded-md flex items-center justify-center bg-purple-500/20 text-[#f47fff] hover:scale-110 transition-transform cursor-pointer"
+                className="w-4 h-4 rounded-md flex items-center justify-center bg-purple-500/20 text-[#f47fff] hover:scale-110 transition-transform cursor-pointer"
                 title="Suscriptor de Kova Nitro"
               >
                 <Flame size={11} className="fill-[#f47fff]" />
@@ -260,7 +202,7 @@ export const UserProfileModal: React.FC = () => {
             )}
             {badges.includes('hypesquad') && (
               <span
-                className="w-4.5 h-4.5 rounded-md flex items-center justify-center bg-cyan-500/20 text-[#00a8fc] hover:scale-110 transition-transform cursor-pointer"
+                className="w-4 h-4 rounded-md flex items-center justify-center bg-cyan-500/20 text-[#00a8fc] hover:scale-110 transition-transform cursor-pointer"
                 title="HypeSquad Bravery"
               >
                 <Sparkles size={11} />
@@ -268,7 +210,7 @@ export const UserProfileModal: React.FC = () => {
             )}
             {badges.includes('leaf') && (
               <span
-                className="w-4.5 h-4.5 rounded-md flex items-center justify-center bg-emerald-500/20 text-[#23a55a] hover:scale-110 transition-transform cursor-pointer"
+                className="w-4 h-4 rounded-md flex items-center justify-center bg-emerald-500/20 text-[#23a55a] hover:scale-110 transition-transform cursor-pointer"
                 title="Guardián de la Naturaleza"
               >
                 <Leaf size={11} />
@@ -276,7 +218,7 @@ export const UserProfileModal: React.FC = () => {
             )}
             {badges.includes('gift') && (
               <span
-                className="w-4.5 h-4.5 rounded-md flex items-center justify-center bg-blue-500/20 text-[#5865f2] hover:scale-110 transition-transform cursor-pointer"
+                className="w-4 h-4 rounded-md flex items-center justify-center bg-blue-500/20 text-[#5865f2] hover:scale-110 transition-transform cursor-pointer"
                 title="Partidario Temprano"
               >
                 <Gift size={11} />
@@ -284,15 +226,15 @@ export const UserProfileModal: React.FC = () => {
             )}
             {badges.includes('dev') && (
               <span
-                className="w-4.5 h-4.5 rounded-md flex items-center justify-center bg-indigo-500/20 text-indigo-300 hover:scale-110 transition-transform cursor-pointer"
-                title="Desarrollador Activo"
+                className="w-4 h-4 rounded-md flex items-center justify-center bg-indigo-500/20 text-indigo-300 hover:scale-110 transition-transform cursor-pointer"
+                title="Desarrollador Activo de Kova"
               >
                 <Code2 size={11} />
               </span>
             )}
             {badges.includes('quest') && (
               <span
-                className="w-4.5 h-4.5 rounded-md flex items-center justify-center bg-rose-500/20 text-rose-400 hover:scale-110 transition-transform cursor-pointer"
+                className="w-4 h-4 rounded-md flex items-center justify-center bg-rose-500/20 text-rose-400 hover:scale-110 transition-transform cursor-pointer"
                 title="Cazador de Misiones"
               >
                 <Swords size={11} />
@@ -300,21 +242,83 @@ export const UserProfileModal: React.FC = () => {
             )}
             {badges.includes('gaming') && (
               <span
-                className="w-4.5 h-4.5 rounded-md flex items-center justify-center bg-amber-500/20 text-amber-400 hover:scale-110 transition-transform cursor-pointer"
+                className="w-4 h-4 rounded-md flex items-center justify-center bg-amber-500/20 text-amber-400 hover:scale-110 transition-transform cursor-pointer"
                 title="Gamer Kova"
               >
                 <Gamepad2 size={11} />
               </span>
             )}
           </div>
+        </div>
+
+        {/* 3. Main Body Container (Clean, compact, no white scrollbars) */}
+        <div className="px-3.5 pb-3.5 space-y-2.5 max-h-[400px] overflow-y-auto custom-scrollbar">
+          {/* Identity: Display Name & Username & Thought Bubble */}
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <h2 className="text-[15px] font-bold text-white font-['Outfit'] tracking-tight flex items-center gap-1 truncate leading-tight">
+                <span>{user.displayName || 'Juanpi'}</span>
+                {isOwner && <Crown size={12} className="text-amber-400 fill-amber-400 shrink-0" />}
+              </h2>
+              <span className="text-slate-400 text-[10px]">ツ</span>
+            </div>
+            <div className="text-[11px] text-[#949ba4] font-medium leading-none">
+              {user.username || 'invitado_kova'}
+            </div>
+
+            {/* Custom Status / Thought Bubble */}
+            <div className="pt-1">
+              {isEditingThought ? (
+                <div className="flex items-center gap-1 bg-[#1e1f22] border border-purple-500/50 rounded-xl px-2.5 py-1 shadow-sm">
+                  <input
+                    type="text"
+                    value={thoughtInput}
+                    onChange={(e) => setThoughtInput(e.target.value)}
+                    placeholder="¿Qué estás pensando?"
+                    className="bg-transparent text-[10px] text-white outline-none w-full placeholder-slate-500"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveThought()}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveThought}
+                    className="text-emerald-400 hover:text-emerald-300 p-0.5"
+                  >
+                    <Check size={11} />
+                  </button>
+                </div>
+              ) : (
+                <div
+                  onClick={() => {
+                    if (isMe) {
+                      setThoughtInput(user.thoughtBubble || '');
+                      setIsEditingThought(true);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.8 rounded-lg bg-[#1e1f22] border border-white/[0.04] text-[10px] text-slate-300 ${
+                    isMe ? 'cursor-pointer hover:border-purple-500/40 hover:text-white' : ''
+                  }`}
+                  title={isMe ? 'Haz clic para editar estado' : undefined}
+                >
+                  <Smile size={11} className="text-purple-400 shrink-0" />
+                  <span className="truncate max-w-[200px] italic">
+                    {user.thoughtBubble || user.customStatus || 'Elige una criatura mítica...'}
+                  </span>
+                  {isMe && <Pencil size={9} className="text-slate-500 ml-0.5" />}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="h-[1px] bg-white/[0.06]" />
 
           {/* 4. "Tunea tu perfil" Card (Nitro / Store Banner) */}
           {showPromo && (
-            <div className="p-2.5 rounded-xl bg-[#1e1f22] border border-[#a855f7]/30 space-y-1.5">
+            <div className="p-2.5 rounded-xl bg-gradient-to-r from-purple-950/30 to-indigo-950/30 border border-purple-500/25 space-y-1.5 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-white font-['Outfit'] flex items-center gap-1">
+                <span className="text-[10px] font-bold text-purple-300 font-['Outfit'] flex items-center gap-1">
                   <Sparkles size={11} className="text-[#f47fff]" />
-                  <span>Tunea tu perfil</span>
+                  <span>Tunea tu perfil con Kova Nitro</span>
                 </span>
                 <button
                   type="button"
@@ -329,48 +333,62 @@ export const UserProfileModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleNitroClick}
-                  className="flex-1 py-1 px-2 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                  className="flex-1 py-1 px-2 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer border border-purple-500/30"
                 >
                   <Rocket size={11} className="text-[#f47fff]" />
                   <span>Obtener Nitro</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => toast.info('Tienda disponible próximamente')}
-                  className="flex-1 py-1 px-2 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                  onClick={() => toast.info('Tienda de temas próximamente')}
+                  className="flex-1 py-1 px-2 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-slate-300 hover:text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer"
                 >
-                  <Store size={11} className="text-slate-300" />
+                  <Store size={11} />
                   <span>Tienda</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* 5. Bio / Sobre mí */}
-          <div>
-            <div className="text-[11px] text-[#dbdee1] leading-relaxed whitespace-pre-line font-normal">
+          {/* 5. Sobre mí (About Me) */}
+          <div className="space-y-1">
+            <div className="text-[9px] font-bold text-[#949ba4] uppercase font-mono tracking-wider">
+              SOBRE MÍ
+            </div>
+            <div className="p-2 rounded-xl bg-[#1e1f22] border border-white/[0.04] text-[11px] text-[#dbdee1] leading-relaxed whitespace-pre-line font-normal">
               {user.bio || 'Tired of life 🥷\nAparataje Music Group'}
             </div>
           </div>
 
-          {/* 6. Voice Channel Card ("En canal de voz") */}
+          {/* 6. Miembro desde (Member Since) */}
+          <div className="space-y-1">
+            <div className="text-[9px] font-bold text-[#949ba4] uppercase font-mono tracking-wider">
+              MIEMBRO DESDE
+            </div>
+            <div className="p-2 rounded-xl bg-[#1e1f22] border border-white/[0.04] flex items-center gap-2 text-[10px] text-slate-300">
+              <Calendar size={13} className="text-cyan-400 shrink-0" />
+              <span>Miembro de Kova desde septiembre de 2026</span>
+            </div>
+          </div>
+
+          {/* 7. Voice Channel Activity Card */}
           <div className="p-2 rounded-xl bg-[#1e1f22] border border-white/[0.05] space-y-1.5">
             <div className="flex items-center justify-between text-[10px] text-[#949ba4] font-semibold">
               <span className="flex items-center gap-1">
+                <Radio size={11} className="text-emerald-400 animate-pulse" />
                 <span>En canal de voz</span>
-                <Info size={11} />
               </span>
               <button
                 type="button"
                 className="text-slate-500 hover:text-slate-300"
-                onClick={() => toast.info('Detalles de sala de voz')}
+                onClick={() => toast.info('Detalles de la sala de voz')}
               >
                 <MoreHorizontal size={11} />
               </button>
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Stacked avatars */}
+              {/* Stacked Avatars */}
               <div className="flex -space-x-1.5 shrink-0">
                 <div className="w-5 h-5 rounded-full ring-2 ring-[#1e1f22] bg-emerald-500 flex items-center justify-center text-[9px] text-white font-bold">
                   🐲
@@ -388,12 +406,12 @@ export const UserProfileModal: React.FC = () => {
                   <Volume2 size={11} className="text-[#23a55a] shrink-0" />
                   <span className="truncate">/vc1</span>
                   <span className="text-[9px] font-normal text-[#949ba4] truncate">
-                    en {activeServer?.name || 'dfghj'}
+                    en {activeServer?.name || 'V3RDE COMMUNITY'}
                   </span>
                 </div>
                 <div className="text-[9px] text-slate-400 flex items-center gap-1">
                   <span>Establece un estado de canal</span>
-                  <Pencil size={9} />
+                  <Pencil size={8} />
                 </div>
               </div>
             </div>
@@ -407,18 +425,19 @@ export const UserProfileModal: React.FC = () => {
                   closeUserProfile();
                   toast.success(`Conectado a ${voiceCh.name}`);
                 } else {
-                  toast.info('Conectando a canal de voz...');
+                  toast.info('Canal de voz no disponible en este momento');
                 }
               }}
-              className="w-full py-1 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white text-[11px] font-bold transition-all cursor-pointer shadow-sm"
+              className="w-full py-1 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white text-[10px] font-bold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1"
             >
-              Abrir voz
+              <Volume2 size={11} className="text-emerald-400" />
+              <span>Abrir voz</span>
             </button>
           </div>
 
-          {/* 7. Roles Section */}
+          {/* 8. Roles Section */}
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[10px] font-bold text-[#949ba4] uppercase tracking-wider font-mono">
+            <div className="flex items-center justify-between text-[9px] font-bold text-[#949ba4] uppercase tracking-wider font-mono">
               <span>ROLES</span>
               {isOwnerOrAdmin && (
                 <button
@@ -513,7 +532,33 @@ export const UserProfileModal: React.FC = () => {
             )}
           </div>
 
-          {/* 8. Bottom Action Button ("Editar perfil" or "Enviar mensaje") */}
+          {/* 9. Nota (Discord Style Private Note) */}
+          <div className="space-y-1">
+            <div className="text-[9px] font-bold text-[#949ba4] uppercase font-mono tracking-wider">
+              NOTA
+            </div>
+            {isEditingNote ? (
+              <div className="p-1.5 rounded-xl bg-[#1e1f22] border border-purple-500/40">
+                <textarea
+                  value={userNote}
+                  onChange={(e) => setUserNote(e.target.value)}
+                  onBlur={() => setIsEditingNote(false)}
+                  placeholder="Escribe una nota privada sobre este usuario..."
+                  className="w-full bg-transparent text-[10px] text-slate-200 placeholder-slate-500 outline-none resize-none h-12"
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div
+                onClick={() => setIsEditingNote(true)}
+                className="p-1.5 rounded-xl bg-[#1e1f22] border border-white/[0.04] text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+              >
+                {userNote || 'Haz clic para añadir una nota...'}
+              </div>
+            )}
+          </div>
+
+          {/* 10. Bottom Actions: Quick Message or Edit Profile */}
           <div className="pt-1">
             {isMe ? (
               <button
@@ -525,26 +570,36 @@ export const UserProfileModal: React.FC = () => {
                 <span>Editar perfil</span>
               </button>
             ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleSendMessage}
-                  className="flex-1 py-1.5 px-3 rounded-lg bg-[#5865F2] hover:bg-[#4752C4] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
-                >
-                  <MessageSquare size={12} />
-                  <span>Enviar mensaje</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    addFriend(user.displayName);
-                    toast.success(`Solicitud enviada a ${user.displayName}`);
-                  }}
-                  className="py-1.5 px-2.5 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white text-[11px] font-semibold flex items-center justify-center transition-all cursor-pointer"
-                  title="Añadir amigo"
-                >
-                  <UserPlus size={12} />
-                </button>
+              <div className="space-y-1.5">
+                {/* Quick DM Input */}
+                <form onSubmit={handleSendQuickMessage} className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={quickMsgInput}
+                    onChange={(e) => setQuickMsgInput(e.target.value)}
+                    placeholder={`Enviar mensaje a @${user.displayName}...`}
+                    className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#1e1f22] border border-white/[0.08] focus:border-[#5865F2] text-[10px] text-white placeholder-slate-500 outline-none transition-all"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!quickMsgInput.trim()}
+                    className="p-1.5 rounded-lg bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-40 text-white cursor-pointer transition-all shrink-0"
+                    title="Enviar mensaje directo"
+                  >
+                    <Send size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addFriend(user.displayName);
+                      toast.success(`Solicitud enviada a ${user.displayName}`);
+                    }}
+                    className="p-1.5 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white cursor-pointer transition-all shrink-0"
+                    title="Añadir amigo"
+                  >
+                    <UserPlus size={12} />
+                  </button>
+                </form>
               </div>
             )}
           </div>
