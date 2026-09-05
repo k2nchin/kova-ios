@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User, X, Check, Shield, ArrowLeft, Loader2, Plus } from 'lucide-react';
+import { User, X, Check, Shield, ArrowLeft, Loader2, Plus, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+import { openExternalUrl } from '../../utils/googleRealAuth';
 
 export interface GoogleAccount {
   id: string;
@@ -23,10 +24,16 @@ const PRESET_ACCOUNTS: GoogleAccount[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   },
   {
+    id: 'google_k2nchin',
+    name: 'k2nchin',
+    email: 'k2nchin@gmail.com',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+  },
+  {
     id: 'google_juanpi_dev',
     name: 'Juanpi Developer',
     email: 'juanpi.dev@gmail.com',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
   },
 ];
 
@@ -155,6 +162,15 @@ export const GoogleConfirmModal: React.FC<GoogleConfirmModalProps> = ({
                 <div className="text-sm font-medium text-slate-700 group-hover:text-blue-600 transition-colors">
                   Usar otra cuenta de Google
                 </div>
+              </button>
+              {/* External Browser Link */}
+              <button
+                type="button"
+                onClick={() => openExternalUrl('https://accounts.google.com/signin')}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-medium transition-colors border border-slate-200 cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-blue-500" />
+                <span>Abrir Google en navegador externo</span>
               </button>
             </div>
 

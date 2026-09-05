@@ -24,6 +24,7 @@ import { AppDirectoryModal } from './components/Modals/AppDirectoryModal';
 import { TwoFactorSetupModal } from './components/Modals/TwoFactorSetupModal';
 import { TwoFactorBackupCodesModal } from './components/Modals/TwoFactorBackupCodesModal';
 import { TwoFactorDisableModal } from './components/Modals/TwoFactorDisableModal';
+import { LandingPage } from './components/Landing/LandingPage';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemeBackground } from './components/Themes/ThemeBackground';
@@ -49,13 +50,30 @@ export const MainLayout: React.FC = () => {
   } = useApp();
 
   const [layoutMode, setLayoutMode] = useState<WorkspaceLayoutMode>('split');
+  const [viewMode, setViewMode] = useState<'app' | 'landing'>(() => {
+    const isTauri =
+      typeof (window as unknown as { __TAURI__?: unknown }).__TAURI__ !== 'undefined' ||
+      typeof (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== 'undefined';
+    if (isTauri) return 'app';
+    const savedUser = localStorage.getItem('kova.auth.user');
+    return savedUser ? 'app' : 'landing';
+  });
+
+  if (viewMode === 'landing') {
+    return (
+      <div className="min-h-screen w-screen bg-[#07090e] text-[#dbdee1] relative overflow-y-auto">
+        <LandingPage onEnterApp={() => setViewMode('app')} />
+        <Toaster position="bottom-right" theme="dark" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
       <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0a0b0e] text-[#dbdee1] relative select-none">
         <ThemeBackground theme={theme} />
         <Titlebar />
-        <AuthScreen />
+        <AuthScreen onShowLanding={() => setViewMode('landing')} />
         <Toaster position="bottom-right" theme="dark" />
       </div>
     );

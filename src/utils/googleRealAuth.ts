@@ -26,6 +26,18 @@ export function saveGoogleClientId(clientId: string): void {
   } catch {}
 }
 
+export async function openExternalUrl(url: string): Promise<void> {
+  try {
+    const tauri = (window as unknown as { __TAURI__?: { core?: { invoke?: (cmd: string, args: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__;
+    if (tauri?.core?.invoke) {
+      await tauri.core.invoke('open_external_url', { url });
+      return;
+    }
+  } catch {}
+  window.open(url, '_blank');
+}
+
+
 export function openRealGoogleSignIn(
   clientId: string,
   onSuccess: (user: RealGoogleUser) => void,

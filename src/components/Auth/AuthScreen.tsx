@@ -26,7 +26,11 @@ import {
   getTwoFactorSecondsRemaining,
 } from '../../utils/twoFactorUtils';
 
-export const AuthScreen: React.FC = () => {
+interface AuthScreenProps {
+  onShowLanding?: () => void;
+}
+
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   const {
     loginWithGoogle,
     loginWithEmail,
@@ -103,65 +107,7 @@ export const AuthScreen: React.FC = () => {
   }, []);
 
   const handleOpenGoogleConfirm = () => {
-    setIsLoading(true);
-    toast.loading('Abriendo Google (accounts.google.com)...');
-
-    const existingClientId = getStoredGoogleClientId();
-    if (existingClientId) {
-      openRealGoogleSignIn(
-        existingClientId,
-        (user) => {
-          setIsLoading(false);
-          toast.dismiss();
-          handleRealGoogleSuccess(user);
-        },
-        (err) => {
-          setIsLoading(false);
-          toast.dismiss();
-          toast.error(`Error de Google: ${err}`);
-        }
-      );
-      return;
-    }
-
-    // Direct authentic Google window opening
-    const width = 500;
-    const height = 620;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-
-    const googlePopup = window.open(
-      'https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn&flowEntry=ServiceLogin',
-      'GoogleSignIn',
-      `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-    );
-
-    if (!googlePopup) {
-      // Fallback: Redirect directly to Google if popup was blocked by browser
-      window.location.href =
-        'https://accounts.google.com/signin/v2/identifier?flowName=GlifWebSignIn&flowEntry=ServiceLogin';
-      return;
-    }
-
-    toast.dismiss();
-    toast.info('Inicia sesión o confirma tu cuenta en la ventana de Google');
-
-    const checkPopup = setInterval(() => {
-      if (googlePopup.closed) {
-        clearInterval(checkPopup);
-        setIsLoading(false);
-        executeOrChallenge2FA(() => {
-          loginWithGoogle({
-            username: 'juanpi_google',
-            displayName: 'Juan Jesús Enrique Peralta',
-            avatar:
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-            customStatus: 'Verificado con Google Account',
-          });
-          toast.success('¡Autenticado con Google con éxito! Bienvenido a Kova');
-        });
-      }
-    }, 800);
+    setIsGoogleModalOpen(true);
   };
 
   const executeOrChallenge2FA = (loginCallback: () => void) => {
@@ -604,7 +550,7 @@ export const AuthScreen: React.FC = () => {
           </>
         )}
 
-        {/* Guest Mode Explorer Option */}
+        {/* Guest Mode Explorer Option & Landing Page */}
         <div className="mt-5 pt-4 border-t border-white/[0.06] flex items-center justify-between">
           <button
             type="button"
@@ -615,9 +561,19 @@ export const AuthScreen: React.FC = () => {
             <span>Entrar como Invitado</span>
           </button>
 
-          <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
-            <ShieldCheck className="w-3 h-3" /> Tauri v2 Seguro
-          </span>
+          {onShowLanding ? (
+            <button
+              type="button"
+              onClick={onShowLanding}
+              className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 cursor-pointer font-medium"
+            >
+              <span>🌐 Ver Web & Descargas</span>
+            </button>
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
+              <ShieldCheck className="w-3 h-3" /> Tauri v2 Seguro
+            </span>
+          )}
         </div>
       </div>
 
