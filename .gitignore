@@ -1,0 +1,41 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Production build output
+dist/
+dist-ssr/
+*.local
+
+# Tauri / Rust build output
+src-tauri/target/
+src-tauri/gen/
+
+# Environment and sensitive keys
+.env
+.env.local
+.env.*.local
+*.env
+
+# Editor and OS files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Releases / Binaries export staging (ignored from git tracking)
+release/
+release-binaries/
+*.exe
+*.msi
+*.zip
