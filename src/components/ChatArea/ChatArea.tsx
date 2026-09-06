@@ -36,7 +36,7 @@ import { EmojiGifPicker } from './EmojiGifPicker';
 import { WelcomeHeroCard } from './WelcomeHeroCard';
 
 const DISCORD_SLASH_COMMANDS = [
-  { command: '/ai', desc: 'Pregunta o pide asistencia inteligente a Kova AI', example: '/ai explica este código' },
+  { command: '/ai', desc: 'Asistente de consulta Kova', example: '/ai resumen del canal' },
   { command: '/shrug', desc: 'Agrega ¯\\_(ツ)_/¯ al final de tu mensaje', example: '/shrug qué se le va a hacer' },
   { command: '/tableflip', desc: 'Expresa frustración volteando una mesa (╯°□°)╯︵ ┻━┻', example: '/tableflip' },
   { command: '/unflip', desc: 'Devuelve la mesa a su sitio ┬─┬ノ( º _ ºノ)', example: '/unflip' },
@@ -487,9 +487,9 @@ export const ChatArea: React.FC = () => {
         {/* Typing indicator */}
         {isTyping && (
           <div className="typing-indicator mt-2" aria-live="polite">
-            <span className="avatar" style={{ background: '#b89cff' }}>✦</span>
+            <span className="avatar" style={{ background: '#5865F2' }}>✦</span>
             <div>
-              <strong>Kova AI está procesando</strong>
+              <strong>Kova está escribiendo</strong>
               <span className="typing-dots">
                 <i />
                 <i />

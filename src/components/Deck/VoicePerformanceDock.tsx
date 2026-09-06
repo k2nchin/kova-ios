@@ -7,6 +7,8 @@ import {
   UserPlus,
   VolumeX,
   PhoneOff,
+  Video,
+  VideoOff,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { toast } from 'sonner';
@@ -18,6 +20,7 @@ export const VoicePerformanceDock: React.FC = () => {
     currentUser,
     toggleMute,
     toggleDeafen,
+    toggleCamera,
     toggleScreenShare,
     openInviteModal,
     leaveVoiceChannel,
@@ -122,6 +125,24 @@ export const VoicePerformanceDock: React.FC = () => {
           {/* Active Purple Indicator Bar */}
           {!isDeafened && (
             <span className="absolute bottom-1 w-5 h-0.5 rounded-full bg-purple-500 shadow-sm shadow-purple-500/80" />
+          )}
+        </button>
+
+        {/* Cámara */}
+        <button
+          onClick={toggleCamera}
+          className="flex flex-col items-center justify-center w-14 h-12 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.05] transition-all cursor-pointer relative group"
+        >
+          {currentUser?.isCameraOn ? (
+            <Video size={16} className="text-emerald-400" />
+          ) : (
+            <VideoOff size={16} className="text-slate-200 group-hover:text-white" />
+          )}
+          <span className="text-[10px] text-slate-400 mt-0.5 group-hover:text-slate-200">
+            Cámara
+          </span>
+          {currentUser?.isCameraOn && (
+            <span className="absolute bottom-1 w-5 h-0.5 rounded-full bg-emerald-400" />
           )}
         </button>
 

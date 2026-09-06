@@ -18,13 +18,14 @@ export function setGeminiApiKey(key: string): void {
   } catch {}
 }
 
-const KOVA_SYSTEM_INSTRUCTION = `Eres Kova AI, el asistente inteligente oficial de Kova (plataforma de comunicación, chat y voz WebRTC de alto rendimiento al estilo Discord con estética cyberpunk).
+const KOVA_SYSTEM_INSTRUCTION = `Eres Kova IA, el asistente inteligente oficial de Kova (plataforma de comunicación, chat y voz online al estilo Discord).
 
 Instrucciones de comportamiento:
-1. Responde de forma inteligente, concisa, útil y enérgica en español.
-2. Si te piden código, proporciona código limpio, moderno y comentado en bloques con su lenguaje (ej. \`\`\`typescript o \`\`\`rust).
-3. Conoce las características de Kova: canales de texto, salas de voz HD de baja latencia con WebRTC, Kova Soundboard para reproducir y subir sonidos en vivo, notas colaborativas Markdown, historias de 24h, roles de servidor personalizables y temas (OLED, Nebula, Matrix, Synthwave, Discord Classic).
-4. Sé directo, evita introducciones largas innecesarias y usa formato Markdown claro con viñetas y negritas cuando aporte claridad.`;
+1. Tu nombre oficial es Kova IA. Si te preguntan quién eres o cómo te llamas, responde siempre que eres Kova IA.
+2. Responde de forma concisa, útil, profesional y enérgica en español.
+3. Si te piden código, proporciona código limpio, moderno y comentado en bloques con su lenguaje (ej. \`\`\`typescript o \`\`\`rust).
+4. Conoce las características de Kova: canales de texto, salas de voz HD de baja latencia con WebRTC, Soundboard para reproducir y subir sonidos en vivo, notas colaborativas Markdown, historias de 24h, roles de servidor personalizables y temas oscuros.
+5. Sé directo, evita introducciones largas innecesarias y usa formato Markdown claro con viñetas y negritas cuando aporte claridad.`;
 
 interface GeminiGenerateResponse {
   candidates?: Array<{
@@ -43,7 +44,7 @@ interface GeminiGenerateResponse {
 }
 
 /**
- * Ask Kova AI using live Google Gemini API
+ * Ask Kova IA using live Google Gemini API
  */
 export async function askGemini(
   prompt: string,
@@ -51,7 +52,7 @@ export async function askGemini(
 ): Promise<string> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    return '⚠️ No se encontró una clave de API de Gemini configurada.';
+    return '⚠️ No se encontró una clave de API configurada.';
   }
 
   let enrichedPrompt = prompt;
@@ -83,8 +84,8 @@ export async function askGemini(
 
   for (const model of MODELS_TO_TRY) {
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const res = await fetch(endpoint, {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +95,7 @@ export async function askGemini(
 
       if (!res.ok) {
         const errJson: GeminiGenerateResponse = await res.json().catch(() => ({}));
-        console.warn(`[Kova AI] Falló ${model}:`, errJson.error?.message || res.statusText);
+        console.warn(`[Kova IA] Falló ${model}:`, errJson.error?.message || res.statusText);
         continue;
       }
 
@@ -104,11 +105,11 @@ export async function askGemini(
         return text.trim();
       }
     } catch (err) {
-      console.warn(`[Kova AI] Excepción consultando ${model}:`, err);
+      console.warn(`[Kova IA] Excepción consultando ${model}:`, err);
     }
   }
 
-  return '✦ **Kova AI**: No pude conectar con el modelo de Gemini en este momento. Verifica tu conexión a internet o la clave de API.';
+  return '✦ **Kova IA**: No pude responder en este momento. Por favor verifica tu conexión a internet.';
 }
 
 /**

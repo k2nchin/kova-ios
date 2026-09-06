@@ -24,6 +24,8 @@ import {
   Code2,
   HelpCircle,
   ChevronDown,
+  ChevronUp,
+  ArrowUp,
   MessageSquare,
   Globe,
   Sliders,
@@ -72,15 +74,71 @@ interface LandingPageProps {
   onEnterApp: () => void;
 }
 
+const SECTIONS = [
+  { id: 'hero', label: 'Inicio' },
+  { id: 'mockup-preview', label: 'Vista Previa' },
+  { id: 'audio-hd', label: 'Audio HD' },
+  { id: 'soundboard', label: 'Soundboard' },
+  { id: 'themes', label: '10 Temas' },
+  { id: 'comparison', label: 'Comparativa' },
+  { id: 'downloads', label: 'Descargas' },
+  { id: 'faq', label: 'FAQ' },
+];
+
 export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
   const { theme, setTheme } = useApp();
   const [downloadCount, setDownloadCount] = useState(312);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [copiedUrl, setCopiedUrl] = useState(false);
-  const [copiedDns, setCopiedDns] = useState(false);
+
+  // Quick Slide Navigation & Scroll-to-Top State
+  const [activeSectionId, setActiveSectionId] = useState('hero');
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 350);
+
+      const sectionElements = SECTIONS.map((s) => ({
+        id: s.id,
+        el: document.getElementById(s.id),
+      })).filter((s) => s.el !== null);
+
+      const scrollPosition = window.scrollY + 250;
+      for (let i = sectionElements.length - 1; i >= 0; i--) {
+        const item = sectionElements[i];
+        if (item.el && item.el.offsetTop <= scrollPosition) {
+          setActiveSectionId(item.id);
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleScrollToSection = (id: string) => {
+    soundFx.playReactionAdded();
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleSlideNext = () => {
+    const currentIndex = SECTIONS.findIndex((s) => s.id === activeSectionId);
+    const nextIndex = Math.min(SECTIONS.length - 1, (currentIndex === -1 ? 0 : currentIndex) + 1);
+    handleScrollToSection(SECTIONS[nextIndex].id);
+  };
+
+  const handleSlidePrev = () => {
+    const currentIndex = SECTIONS.findIndex((s) => s.id === activeSectionId);
+    const prevIndex = Math.max(0, (currentIndex === -1 ? 0 : currentIndex) - 1);
+    handleScrollToSection(SECTIONS[prevIndex].id);
+  };
 
   // Interactive Live Mockup State
-  const [activeChannel, setActiveChannel] = useState<'general' | 'ia-gemini' | 'voice-radar' | 'bots'>('general');
+  const [activeChannel, setActiveChannel] = useState<'general' | 'anuncios' | 'bots'>('general');
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [mockInput, setMockInput] = useState('');
@@ -91,35 +149,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
     {
       id: '1',
       user: 'Juanpi1x',
-      role: 'Fundador',
+      role: 'Admin',
       avatarBg: 'from-amber-500 to-rose-600',
       text: '¡Bienvenidos a Kova OS v1.0.0! Compilado con Tauri v2 y Rust. El consumo de RAM se redujo a solo 68 MB.',
       time: '12:40 PM',
     },
     {
       id: '2',
-      user: 'Gemini 2.5 Flash',
-      role: 'IA Oficial',
-      avatarBg: 'from-cyan-400 via-indigo-500 to-purple-600',
-      text: 'Pipeline de audio DSP en tiempo real activado con 1.1ms de latencia. Listo para procesar comandos de bots, resúmenes de canales y traducción en vivo.',
+      user: 'Sofia',
+      role: 'Moderador',
+      avatarBg: 'from-indigo-500 to-purple-600',
+      text: 'Canales de audio HD activos a 48kHz con supresión de ruido en tiempo real y latencia mínima.',
       time: '12:41 PM',
-      isAi: true,
     },
     {
       id: '3',
       user: 'FredBoat',
-      role: 'Bot de Música',
+      role: 'Bot Oficial',
       avatarBg: 'from-emerald-500 to-teal-700',
-      text: '🎵 Reproduciendo "Cyberpunk Synthwave 2026" en Sala Radar 3D (48kHz / 32-bit float).',
+      text: '🎵 Reproduciendo en canal de voz (48kHz / 32-bit float).',
       time: '12:42 PM',
     },
   ]);
 
   // Soundboard Active State
   const [activeSound, setActiveSound] = useState<string | null>(null);
-
-  // Domain Calculator State
-  const [customDomainInput, setCustomDomainInput] = useState('kovachat.com');
 
   // Themes List
   const themesList: { id: BackgroundTheme; name: string; color: string; desc: string; glow: string }[] = [
@@ -192,13 +246,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
 
     setTimeout(() => {
       setIsAiTyping(false);
-      soundFx.playAISparkle();
+      soundFx.playMessageSent();
 
-      let reply = `Comprendido: "${userText}". Kova OS procesa comandos en tiempo real a través de Gemini 2.5 Flash y ejecuta pipelines de audio DSP en menos de 1.1ms con 0 lag.`;
+      let reply = `Comando recibido: "${userText}". Servidor sincronizado con 14ms de ping y latencia ultra baja.`;
       if (userText.toLowerCase().includes('bot') || userText.toLowerCase().includes('discord')) {
-        reply = `¡Exacto! Puedes conectar cualquier bot de Discord mediante Webhooks o programar bots personalizados con prefijos propios (ej. !musica, !ia, !kick) directamente desde el App Directory de Kova sin pagar servidores.`;
+        reply = `Puedes conectar bots de Discord mediante Webhooks o programar bots personalizados con prefijos propios (ej. !musica, !moderacion, !kick) directamente desde Kova.`;
       } else if (userText.toLowerCase().includes('2fa') || userText.toLowerCase().includes('seguridad')) {
-        reply = `Kova implementa Autenticación en 2 Pasos (TOTP) estándar compatible con Google Authenticator y claves de respaldo offline para que tu cuenta sea inexpugnable.`;
+        reply = `Kova implementa Autenticación en 2 Pasos (TOTP RFC 6238) estándar compatible con Google Authenticator y claves de respaldo offline para máxima seguridad.`;
       } else if (userText.toLowerCase().includes('descargar') || userText.toLowerCase().includes('exe')) {
         reply = `Puedes descargar el instalador oficial Setup.exe (~7.0 MB) o la edición Portable en ZIP desde los botones superiores con 1 solo clic.`;
       } else if (userText.toLowerCase().includes('ram') || userText.toLowerCase().includes('rendimiento')) {
@@ -209,54 +263,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          user: 'Gemini 2.5 Flash',
-          role: 'IA Oficial',
-          avatarBg: 'from-cyan-400 via-indigo-500 to-purple-600',
+          user: 'Kova Bot',
+          role: 'Bot Oficial',
+          avatarBg: 'from-cyan-500 via-indigo-600 to-purple-600',
           text: reply,
           time: 'Ahora mismo',
-          isAi: true,
         },
       ]);
-    }, 700);
-  };
-
-  const copyLiveUrl = () => {
-    soundFx.playReactionAdded();
-    navigator.clipboard.writeText('https://k2nchin.github.io/kova/');
-    setCopiedUrl(true);
-    toast.success('URL copiada: https://k2nchin.github.io/kova/');
-    setTimeout(() => setCopiedUrl(false), 2000);
-  };
-
-  const copyDnsRecords = () => {
-    soundFx.playReactionAdded();
-    const records = `Tipo: A | Host: @ | Valor: 185.199.108.153\nTipo: A | Host: @ | Valor: 185.199.109.153\nTipo: A | Host: @ | Valor: 185.199.110.153\nTipo: A | Host: @ | Valor: 185.199.111.153\nTipo: CNAME | Host: www | Valor: k2nchin.github.io`;
-    navigator.clipboard.writeText(records);
-    setCopiedDns(true);
-    toast.success('Registros DNS copiados al portapapeles');
-    setTimeout(() => setCopiedDns(false), 2000);
-  };
-
-  const downloadCnameFile = () => {
-    soundFx.playReactionAdded();
-    const cleanDomain = customDomainInput.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const blob = new Blob([cleanDomain], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'CNAME';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast.success(`Archivo CNAME generado para: ${cleanDomain}`);
+    }, 500);
   };
 
   const faqs = [
-    {
-      q: '¿Cómo puedo tener mi propio dominio .com gratis para Kova?',
-      a: 'La extensión global .com está regulada por ICANN y Verisign con una tarifa anual oficial de registro (~$8-$10 USD en sitios como Cloudflare o Namecheap), por lo que ningún registrador oficial regala dominios .com a perpetuidad sin costo alguno. Sin embargo, Kova te ofrece dos alternativas excelentes: 1) Si eres estudiante, con el GitHub Student Developer Pack obtienes 1 año de dominio .com/.me 100% gratis en Namecheap con SSL. 2) Ya tienes una URL 100% gratuita y permanente en GitHub Pages (k2nchin.github.io/kova) o Vercel (kova.vercel.app). Si decides adquirir tu propio .com por $8-$9, vincularlo a Kova no cuesta nada: solo agregas los 4 registros A en tu DNS y activas HTTPS gratis.',
-    },
     {
       q: '¿Por qué Kova consume un 85% menos de memoria RAM que Discord?',
       a: 'Discord está construido sobre Electron, un framework que ejecuta una copia completa de Google Chrome en segundo plano y una instancia de Node.js, devorando entre 550 y 900 MB de RAM tan pronto te unes a una llamada. Kova está construido sobre Tauri v2 con backend en Rust compilado a código máquina nativo y aprovecha el motor WebView2 que ya viene integrado en Windows, reduciendo el consumo a tan solo ~68 MB de RAM.',
@@ -266,8 +283,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
       a: 'El Instalador Setup.exe (~7.0 MB) crea automáticamente accesos directos en el Escritorio y Menú Inicio, registra el protocolo de apertura rápida y permite actualizaciones limpias. La versión Portable (~7.6 MB en archivo ZIP) no requiere instalación ni privilegios de administrador: puedes descomprimirla en una memoria USB o en cualquier carpeta y ejecutarla al instante.',
     },
     {
-      q: '¿Cómo funciona la integración de Bots de Discord y el Asistente Gemini?',
-      a: 'Kova incorpora un App Directory donde puedes añadir bots populares de Discord o crear bots personalizados con sus propios prefijos, avatares y respuestas inteligentes. Además, Kova integra de forma nativa el modelo de IA Gemini 2.5 Flash de Google, lo que te permite resumir hilos extensos, consultar dudas de programación y moderar chats en milisegundos.',
+      q: '¿Cómo funciona la integración de Bots y automatizaciones?',
+      a: 'Kova incorpora un App Directory donde puedes añadir bots populares mediante Webhooks o crear bots personalizados con sus propios comandos, avatares y respuestas automáticas, permitiendo integrar música, moderación y alertas directamente en tus canales.',
     },
     {
       q: '¿Mis credenciales y llamadas están protegidas con 2FA?',
@@ -320,10 +337,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
             className="flex items-center gap-3 cursor-pointer group"
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-400 p-0.5 shadow-lg shadow-purple-500/30 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-[#0b0e17] rounded-2xl flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-cyan-400" />
-              </div>
+            <div className="w-10 h-10 rounded-2xl overflow-hidden p-0.5 shadow-lg shadow-purple-500/30 flex items-center justify-center group-hover:scale-105 transition-transform bg-[#101322] border border-purple-500/30">
+              <img src="./kova-logo.png" alt="Kova Logo" className="w-8 h-8 object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -334,7 +349,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                   v1.0.0
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">Plataforma de Voz, Chat & IA en Rust</p>
+              <p className="text-[11px] text-slate-400 hidden sm:block">Plataforma de Voz, Chat y Bots de Alto Rendimiento</p>
             </div>
           </div>
 
@@ -342,23 +357,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
           <nav className="hidden lg:flex items-center gap-6 text-xs font-semibold text-slate-300">
             <a href="#mockup-preview" className="hover:text-cyan-400 transition-colors flex items-center gap-1">
               <Monitor className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Vista Previa OS</span>
+              <span>Vista Previa</span>
             </a>
-            <a href="#voice-radar" className="hover:text-white transition-colors flex items-center gap-1">
-              <Radio className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Radar 3D & Audio</span>
+            <a href="#audio-hd" className="hover:text-white transition-colors flex items-center gap-1">
+              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Audio HD</span>
             </a>
             <a href="#soundboard" className="hover:text-white transition-colors flex items-center gap-1">
-              <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+              <Activity className="w-3.5 h-3.5 text-amber-400" />
               <span>Soundboard</span>
             </a>
             <a href="#themes" className="hover:text-white transition-colors flex items-center gap-1">
               <Palette className="w-3.5 h-3.5 text-rose-400" />
               <span>10 Temas</span>
-            </a>
-            <a href="#domain-hub" className="hover:text-cyan-400 transition-colors flex items-center gap-1">
-              <Globe className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Dominio .com</span>
             </a>
             <a href="#comparison" className="hover:text-white transition-colors">
               Comparativa
@@ -387,6 +398,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                 soundFx.playReactionAdded();
                 onEnterApp();
               }}
+              className="hidden lg:flex px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold items-center gap-2 cursor-pointer shadow-md transition-all hover:scale-[1.02]"
+              title="Registrarse o Iniciar sesión con Google"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.97 0 12s.45 3.84 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+              <span>Acceder con Google</span>
+            </button>
+
+            <button
+              onClick={() => {
+                soundFx.playReactionAdded();
+                onEnterApp();
+              }}
               className="px-4 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs font-bold border border-white/[0.12] transition-all cursor-pointer flex items-center gap-1.5 shadow-sm hover:scale-[1.02]"
             >
               <Play className="w-3.5 h-3.5 text-cyan-400 fill-cyan-400" />
@@ -405,7 +433,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
       </header>
 
       {/* HERO SECTION */}
-      <section className="relative z-10 pt-16 pb-12 px-6 max-w-7xl mx-auto text-center">
+      <section id="hero" className="relative z-10 pt-16 pb-12 px-6 max-w-7xl mx-auto text-center">
         {/* Floating Release Pill Badge */}
         <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-500/15 via-cyan-500/15 to-indigo-500/15 border border-purple-500/30 text-purple-300 text-xs font-medium mb-6 shadow-inner backdrop-blur-md">
           <span className="flex h-2 w-2 relative">
@@ -414,59 +442,58 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
           </span>
           <span className="font-semibold text-white">Kova Desktop v1.0.0 Oficial</span>
           <span className="text-slate-500">•</span>
-          <span className="text-cyan-300 font-mono">Audio 1.1ms DSP + Gemini 2.5 Flash + 2FA</span>
+          <span className="text-cyan-300 font-mono">Audio HD 1.1ms + Seguridad 2FA + 68MB RAM</span>
         </div>
 
         {/* Hero Title */}
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white font-['Outfit'] max-w-5xl mx-auto leading-[1.08] mb-6">
-          La plataforma definitiva de voz, chat y bots con{' '}
+          Tu espacio de voz, canales y comunidad{' '}
           <span className="bg-gradient-to-r from-purple-400 via-cyan-300 to-indigo-400 bg-clip-text text-transparent">
-            IA de Ultra Baja Latencia.
+            directo en tu navegador.
           </span>
         </h1>
 
         {/* Subtitle */}
         <p className="text-base sm:text-lg text-slate-400 max-w-3xl mx-auto leading-relaxed mb-10 font-normal">
-          Despídete del consumo desmedido de Electron. Diseñado desde cero con <strong>Tauri v2, Rust y React 19</strong>, Kova te ofrece canales de audio espacial con procesamiento DSP de <strong>1.1ms</strong>, asistente <strong>Gemini 2.5 Flash</strong> integrado, bots de Discord y <strong>10 temas ultra oscuros</strong> para cuidar tu visión.
+          Toda la experiencia de <strong>Discord online</strong> sin instalaciones pesadas ni consumo excesivo de memoria. Salas de voz HD, canales de texto en tiempo real, bots de comunidad, autenticación 2FA y <strong>10 temas oscuros</strong> exclusivos.
         </p>
 
         {/* Main CTA Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-4 mb-10">
-          {/* Primary Setup Download */}
+          {/* Primary Action: Abrir Kova Web App */}
+          <button
+            onClick={() => {
+              soundFx.playReactionAdded();
+              onEnterApp();
+            }}
+            className="px-8 py-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-sm shadow-2xl shadow-purple-600/35 transition-all hover:scale-[1.03] active:scale-[0.98] cursor-pointer flex items-center gap-3.5 group"
+          >
+            <Play className="w-5 h-5 fill-white text-white group-hover:scale-110 transition-transform" />
+            <div className="text-left">
+              <div className="font-extrabold leading-tight text-base">Abrir Kova en el Navegador</div>
+              <div className="text-[11px] text-purple-100 font-mono font-normal">Entrar al chat online • 0 MB descarga</div>
+            </div>
+          </button>
+
+          {/* Setup Download */}
           <button
             onClick={handleDownloadInstaller}
-            className="px-7 py-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-sm shadow-2xl shadow-purple-600/35 transition-all hover:scale-[1.03] active:scale-[0.98] cursor-pointer flex items-center gap-3.5 group"
+            className="px-6 py-4 rounded-2xl bg-[#111524] hover:bg-[#192036] text-slate-200 hover:text-white font-bold text-sm border border-white/[0.12] transition-all hover:scale-[1.03] active:scale-[0.98] cursor-pointer flex items-center gap-3 group shadow-xl"
           >
-            <Download className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" />
+            <Download className="w-5 h-5 text-cyan-400 group-hover:translate-y-0.5 transition-transform" />
             <div className="text-left">
-              <div className="font-extrabold leading-tight">Descargar Instalador (.exe)</div>
-              <div className="text-[11px] text-purple-200 font-mono font-normal">Setup Oficial Windows • ~7.0 MB</div>
+              <div className="font-extrabold leading-tight">Descargar para Windows</div>
+              <div className="text-[11px] text-slate-400 font-mono font-normal">Setup (.exe) nativo • ~7.0 MB</div>
             </div>
           </button>
 
           {/* Portable Zip Download */}
           <button
             onClick={handleDownloadPortable}
-            className="px-6 py-4 rounded-2xl bg-[#111524] hover:bg-[#192036] text-slate-200 hover:text-white font-bold text-sm border border-white/[0.12] transition-all hover:scale-[1.03] active:scale-[0.98] cursor-pointer flex items-center gap-3 group shadow-xl"
+            className="px-5 py-4 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white font-bold text-sm border border-white/[0.08] transition-all hover:scale-[1.02] cursor-pointer flex items-center gap-2.5"
           >
-            <HardDrive className="w-5 h-5 text-cyan-400 group-hover:rotate-6 transition-transform" />
-            <div className="text-left">
-              <div className="font-extrabold leading-tight">Edición Portable (.zip)</div>
-              <div className="text-[11px] text-slate-400 font-mono font-normal">Sin instalación • ~7.6 MB</div>
-            </div>
-          </button>
-
-          {/* Web App Direct Launch */}
-          <button
-            onClick={() => {
-              soundFx.playReactionAdded();
-              onEnterApp();
-            }}
-            className="px-6 py-4 rounded-2xl bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white font-bold text-sm border border-white/[0.1] transition-all hover:scale-[1.02] cursor-pointer flex items-center gap-2.5 shadow-lg"
-          >
-            <Monitor className="w-4 h-4 text-purple-400" />
-            <span>Usar Cliente Web Online</span>
-            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <HardDrive className="w-4 h-4 text-purple-400" />
+            <span>Versión Portable (.zip)</span>
           </button>
         </div>
 
@@ -486,6 +513,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
           </span>
         </div>
 
+        {/* Slide Down to Explore Prompt Button */}
+        <div className="flex justify-center -mt-8 mb-16">
+          <button
+            onClick={() => handleScrollToSection('mockup-preview')}
+            className="group inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] hover:border-cyan-500/40 text-xs font-semibold text-slate-300 hover:text-white shadow-xl backdrop-blur-md transition-all cursor-pointer"
+          >
+            <span className="text-cyan-400 font-mono">⚡ Deslizar abajo</span>
+            <span>para ver la interfaz en tiempo real</span>
+            <ChevronDown className="w-4 h-4 text-cyan-400 group-hover:translate-y-1 transition-transform animate-bounce" />
+          </button>
+        </div>
+
         {/* INTERACTIVE DESKTOP CLIENT MOCKUP */}
         <div id="mockup-preview" className="max-w-6xl mx-auto text-left relative">
           <div className="text-center mb-6">
@@ -496,7 +535,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
               Prueba la interfaz de Kova OS en tiempo real
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Interactúa con los canales, activa o silencia el micrófono, envía mensajes y recibe respuestas de Gemini.
+              Prueba los canales de texto, cambia de sala de voz o prueba los comandos y el chat en tiempo real.
             </p>
           </div>
 
@@ -509,12 +548,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                   <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
                   <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                   <span className="ml-3 text-xs font-mono text-slate-400 hidden sm:inline">
-                    Kova OS Desktop v1.0.0 • Servidor Oficial Kova HQ
+                    Kova OS Desktop v1.0.0 • Espacio Principal
                   </span>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] font-mono text-cyan-400 bg-cyan-950/40 px-3 py-1 rounded-full border border-cyan-500/20">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>DSP 1.1ms • Gemini 2.5 Conectado</span>
+                  <span>Audio HD 1.1ms • Conexión Cifrada</span>
                 </div>
               </div>
 
@@ -571,10 +610,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                 </div>
 
                 {/* Channel Sidebar */}
-                <div className="w-56 bg-[#0c101a] border-r border-white/[0.06] flex flex-col justify-between shrink-0 hidden md:flex">
+                <div className="w-52 bg-[#0c0f1a] border-r border-white/[0.06] flex flex-col justify-between shrink-0">
                   <div>
-                    {/* Server Header */}
-                    <div className="p-3.5 border-b border-white/[0.06] flex items-center justify-between">
+                    {/* Server Header Dropdown */}
+                    <div className="h-12 border-b border-white/[0.06] px-4 flex items-center justify-between font-bold text-white text-xs">
                       <span className="font-extrabold text-white text-xs font-['Outfit'] tracking-wide">
                         Kova Headquarters
                       </span>
@@ -605,16 +644,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                       <button
                         onClick={() => {
                           soundFx.playReactionAdded();
-                          setActiveChannel('ia-gemini');
+                          setActiveChannel('anuncios');
                         }}
                         className={`w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2 font-medium cursor-pointer transition-colors ${
-                          activeChannel === 'ia-gemini'
+                          activeChannel === 'anuncios'
                             ? 'bg-cyan-600/20 text-cyan-300 font-semibold'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
                         }`}
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>ia-gemini-2.5</span>
+                        <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>anuncios</span>
                       </button>
 
                       <button
@@ -633,14 +672,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                       </button>
 
                       <div className="text-[10px] font-bold text-slate-500 font-mono uppercase px-2 pt-4">
-                        Canales de Voz 3D
+                        Canales de Voz
                       </div>
 
                       <div className="px-2.5 py-2 rounded-xl bg-purple-950/30 border border-purple-500/20 text-slate-300">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="flex items-center gap-1.5 font-bold text-white text-[11px]">
                             <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Sala Radar 3D</span>
+                            <span>Voz General HD</span>
                           </span>
                           <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300 font-bold">
                             3 ACTIVOS
@@ -713,13 +752,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                       <span className="font-bold text-white text-xs font-['Outfit']">
                         {activeChannel === 'general'
                           ? 'chat-general'
-                          : activeChannel === 'ia-gemini'
-                          ? 'ia-gemini-2.5'
+                          : activeChannel === 'anuncios'
+                          ? 'anuncios'
                           : 'bots-discord'}
                       </span>
                       <span className="text-slate-500 text-xs hidden sm:inline">|</span>
                       <span className="text-[11px] text-slate-400 hidden sm:inline">
-                        Canal oficial de Kova OS con cifrado local y soporte multimedia
+                        Canal oficial de Kova con cifrado local y soporte multimedia
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -734,39 +773,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                     {mockMessages.map((msg) => (
                       <div
                         key={msg.id}
-                        className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200 ${
-                          msg.isAi ? 'p-3 rounded-2xl bg-cyan-950/15 border border-cyan-500/20' : 'p-1.5'
-                        }`}
+                        className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200 p-1.5`}
                       >
                         <div
                           className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${msg.avatarBg} flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-md`}
                         >
-                          {msg.isAi ? <Sparkles className="w-4 h-4 text-white" /> : msg.user[0]}
+                          {msg.user[0]}
                         </div>
-
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-white">{msg.user}</span>
-                            <span
-                              className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                msg.isAi
-                                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                                  : 'bg-purple-500/20 text-purple-300'
-                              }`}
-                            >
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="font-bold text-white text-xs">{msg.user}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-md font-mono bg-white/[0.06] text-slate-400">
                               {msg.role}
                             </span>
-                            <span className="text-[10px] text-slate-500">{msg.time}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{msg.time}</span>
                           </div>
-                          <p className="text-slate-200 mt-1 leading-relaxed text-xs">{msg.text}</p>
+                          <p className="text-slate-300 leading-relaxed break-words">{msg.text}</p>
                         </div>
                       </div>
                     ))}
 
                     {isAiTyping && (
                       <div className="flex items-center gap-2 text-xs text-cyan-400 font-mono p-2">
-                        <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                        <span>Gemini 2.5 Flash está sintetizando respuesta contextual...</span>
+                        <Activity className="w-3.5 h-3.5 animate-pulse" />
+                        <span>Kova Bot está procesando respuesta...</span>
                       </div>
                     )}
                   </div>
@@ -775,24 +805,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                   <div className="p-3 bg-[#070a12] border-t border-white/[0.06] space-y-2">
                     {/* Command Quick Chips */}
                     <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase font-mono mr-1">Prueba rápida:</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase font-mono mr-1">Comandos:</span>
                       <button
                         type="button"
                         onClick={() => {
-                          setMockInput('¿Por qué Kova es más rápido que Discord?');
+                          setMockInput('!rendimiento');
                         }}
                         className="px-2 py-0.8 rounded-md bg-[#121624] hover:bg-purple-600/20 text-purple-300 border border-purple-500/30 font-mono text-[10px] transition-all cursor-pointer"
                       >
-                        ⚡ ¿Por qué Kova es más rápido?
+                        ⚡ !rendimiento
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setMockInput('¿Cómo funciona la autenticación 2FA en Kova?');
+                          setMockInput('!seguridad');
                         }}
                         className="px-2 py-0.8 rounded-md bg-[#121624] hover:bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 font-mono text-[10px] transition-all cursor-pointer"
                       >
-                        🛡️ Seguridad 2FA
+                        🛡️ !seguridad
                       </button>
                       <button
                         type="button"
@@ -809,7 +839,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                         type="text"
                         value={mockInput}
                         onChange={(e) => setMockInput(e.target.value)}
-                        placeholder="Escribe un mensaje o pregunta en vivo a Kova..."
+                        placeholder="Escribe un mensaje en el chat..."
                         className="flex-1 bg-[#121624] border border-white/[0.08] focus:border-cyan-500 rounded-xl py-2.5 px-4 text-xs text-white placeholder-slate-500 outline-none transition-all"
                       />
 
@@ -841,20 +871,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                       </div>
                       <div>
                         <div className="font-bold text-white text-xs">Juanpi1x</div>
-                        <div className="text-[9px] text-amber-400 font-mono">Fundador</div>
+                        <div className="text-[9px] text-amber-400 font-mono">Admin</div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <div className="relative">
-                        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-cyan-400 to-purple-600 flex items-center justify-center font-bold text-white text-[11px]">
-                          <Sparkles className="w-3.5 h-3.5" />
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center font-bold text-white text-[11px]">
+                          S
                         </div>
                         <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[#0a0d17]" />
                       </div>
                       <div>
-                        <div className="font-bold text-cyan-300 text-xs">Gemini 2.5</div>
-                        <div className="text-[9px] text-cyan-400 font-mono">IA Oficial</div>
+                        <div className="font-bold text-slate-200 text-xs">Sofia</div>
+                        <div className="text-[9px] text-indigo-400 font-mono">Moderador</div>
                       </div>
                     </div>
 
@@ -878,125 +908,74 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
         </div>
       </section>
 
-      {/* 3D VOICE RADAR & AUDIO DSP PLAYGROUND */}
-      <section id="voice-radar" className="relative z-10 py-20 px-6 max-w-7xl mx-auto">
+      {/* HIGH-FIDELITY VOICE & AUDIO DSP */}
+      <section id="audio-hd" className="relative z-10 py-20 px-6 max-w-7xl mx-auto">
         <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-[#0e1322] via-[#0b0e1a] to-[#070912] border border-cyan-500/20 shadow-2xl relative overflow-hidden">
           <div className="max-w-3xl mb-10">
             <span className="text-xs font-mono font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Radio className="w-4 h-4 text-cyan-400" />
-              RADAR DE VOZ ESPACIAL 3D & DSP EN RUST
+              <Volume2 className="w-4 h-4 text-cyan-400" />
+              ARQUITECTURA DE AUDIO HD & BAJA LATENCIA
             </span>
             <h2 className="text-3xl sm:text-4xl font-black text-white font-['Outfit'] mt-2 mb-3">
-              Latencia de 1.1ms y posicionamiento tridimensional
+              Canales de Voz a 48kHz con Latencia Ultra Baja
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Kova procesa cada stream de audio con un motor DSP escrito en Rust que reduce la latencia perceptiva a cero y te permite identificar con precisión la dirección de la voz de tus compañeros en juegos competitivos.
+              Kova procesa cada flujo de comunicación mediante pipelines de audio en Rust y WebRTC nativo, optimizando la transmisión para máxima fidelidad vocal sin interrupciones ni retrasos.
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            {/* Visual Radar Screen */}
-            <div className="relative w-full max-w-md mx-auto aspect-square rounded-full border-2 border-cyan-500/30 bg-[#060913] flex items-center justify-center overflow-hidden shadow-2xl shadow-cyan-500/10">
-              {/* Radar concentric rings */}
-              <div className="absolute inset-8 rounded-full border border-cyan-500/20" />
-              <div className="absolute inset-20 rounded-full border border-cyan-500/15" />
-              <div className="absolute inset-32 rounded-full border border-cyan-500/10" />
-
-              {/* Crosshair lines */}
-              <div className="absolute inset-x-0 h-[1px] bg-cyan-500/20" />
-              <div className="absolute inset-y-0 w-[1px] bg-cyan-500/20" />
-
-              {/* Rotating Sweep Beam */}
-              <div
-                className="absolute inset-0 origin-center pointer-events-none animate-spin"
-                style={{
-                  animationDuration: '4s',
-                  background: 'conic-gradient(from 0deg, transparent 270deg, rgba(6, 182, 212, 0.3) 360deg)',
-                }}
-              />
-
-              {/* Center User Node */}
-              <div className="relative z-10 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-400 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-lg shadow-cyan-400/40 border-2 border-white">
-                Tú
+            {/* Audio Specs & Live Equalizer */}
+            <div className="p-6 rounded-2xl bg-[#070a14] border border-white/[0.08] space-y-4">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-white flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  <span>Monitoreo de Audio en Tiempo Real</span>
+                </span>
+                <span className="text-emerald-400 font-mono font-bold">1.1 ms • 48kHz / 32-bit Float</span>
               </div>
 
-              {/* Node 1: Left Ear Sound (Friend 1) */}
-              <button
-                onClick={() => {
-                  soundFx.playSoundboardFx('arcade');
-                  toast.info('Canal Izquierdo: Jugador 1 (Oído Izquierdo 3D)');
-                }}
-                className="absolute left-10 top-24 px-3 py-1.5 rounded-full bg-purple-950/80 border border-purple-500/50 text-white text-[11px] font-bold flex items-center gap-1.5 hover:scale-110 transition-transform cursor-pointer shadow-lg"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>Alex (Izquierda)</span>
-              </button>
+              {/* Animated Equalizer Bars */}
+              <div className="flex items-end gap-1.5 h-20 pt-2">
+                {[40, 75, 55, 90, 65, 80, 45, 95, 70, 85, 60, 90, 75, 50, 80, 65, 95, 45, 70, 60].map((h, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 bg-gradient-to-t from-cyan-500 via-indigo-500 to-purple-500 rounded-t-sm transition-all duration-300"
+                    style={{
+                      height: `${h}%`,
+                      opacity: 0.7 + (i % 3) * 0.15,
+                    }}
+                  />
+                ))}
+              </div>
 
-              {/* Node 2: Right Ear Sound (Friend 2) */}
-              <button
-                onClick={() => {
-                  soundFx.playSoundboardFx('airhorn');
-                  toast.info('Canal Derecho: Jugador 2 (Oído Derecho 3D)');
-                }}
-                className="absolute right-12 bottom-24 px-3 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/50 text-white text-[11px] font-bold flex items-center gap-1.5 hover:scale-110 transition-transform cursor-pointer shadow-lg"
-              >
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                <span>Sofia (Derecha)</span>
-              </button>
-
-              {/* Node 3: Front (Music Bot) */}
-              <button
-                onClick={() => {
-                  soundFx.playSoundboardFx('cyberhorn');
-                  toast.info('Canal Frontal: FredBoat Lofi Bot');
-                }}
-                className="absolute top-8 px-3 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-white text-[11px] font-bold flex items-center gap-1.5 hover:scale-110 transition-transform cursor-pointer shadow-lg"
-              >
-                <Music className="w-3 h-3 text-emerald-400" />
-                <span>Lofi Bot (Frente)</span>
-              </button>
+              <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] text-[11px] font-mono text-slate-400">
+                <span>Bitrate: 384 kbps Opus</span>
+                <span className="text-emerald-400">Buffer: Cero retardo</span>
+              </div>
             </div>
 
-            {/* Audio Specs & Live Equalizer */}
-            <div className="space-y-6">
-              <div className="p-5 rounded-2xl bg-[#070a14] border border-white/[0.08] space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-white flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-emerald-400" />
-                    <span>Monitor de Audio DSP en Tiempo Real</span>
-                  </span>
-                  <span className="text-emerald-400 font-mono font-bold">1.1 ms (48kHz / 32-bit Float)</span>
-                </div>
-
-                {/* Animated Equalizer Bars */}
-                <div className="flex items-end gap-1.5 h-16 pt-2">
-                  {[40, 75, 55, 90, 65, 80, 45, 95, 70, 85, 60, 90, 75, 50, 80, 65, 95, 45].map((h, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 bg-gradient-to-t from-cyan-500 to-purple-500 rounded-t-sm transition-all duration-300"
-                      style={{
-                        height: `${h}%`,
-                        opacity: 0.7 + (i % 3) * 0.15,
-                      }}
-                    />
-                  ))}
-                </div>
+            {/* Quality Cards */}
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-[#090d18] border border-white/[0.06]">
+                <div className="font-bold text-white mb-1 text-xs sm:text-sm">Supresión Avanzada de Ruido</div>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Aísla automáticamente ruidos ambientales, pulsaciones mecánicas de teclado y ecos acústicos garantizando una señal vocal limpia y natural.
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="p-4 rounded-xl bg-[#090d18] border border-white/[0.06]">
-                  <div className="font-bold text-white mb-1">Cancelación de Ruido Krisp-Grade</div>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Filtra automáticamente ruidos mecánicos de teclados, ventiladores y ecos sin alterar la calidez de tu voz.
-                  </p>
-                </div>
+              <div className="p-4 rounded-xl bg-[#090d18] border border-white/[0.06]">
+                <div className="font-bold text-white mb-1 text-xs sm:text-sm">Cifrado de Voz Extremo a Extremo</div>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Tus comunicaciones viajan cifradas con los estándares WebRTC DTLS-SRTP, asegurando total privacidad en canales de voz privados y públicos.
+                </p>
+              </div>
 
-                <div className="p-4 rounded-xl bg-[#090d18] border border-white/[0.06]">
-                  <div className="font-bold text-white mb-1">Cifrado de Voz Extremo a Extremo</div>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Tus llamadas viajan mediante WebRTC seguro con cifrado DTLS-SRTP, garantizando total privacidad.
-                  </p>
-                </div>
+              <div className="p-4 rounded-xl bg-[#090d18] border border-white/[0.06]">
+                <div className="font-bold text-white mb-1 text-xs sm:text-sm">Consumo Ultra Eficiente</div>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  A diferencia de aplicaciones tradicionales que saturan la CPU, el motor nativo de Kova mantiene el uso de procesador en menos del 1%.
+                </p>
               </div>
             </div>
           </div>
@@ -1096,204 +1075,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
         </div>
       </section>
 
-      {/* DOMAIN .COM & FREE DOMAIN HUB */}
-      <section id="domain-hub" className="relative z-10 py-20 px-6 max-w-7xl mx-auto">
-        <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-[#0c1122] via-[#090d1a] to-[#060810] border-2 border-cyan-500/30 shadow-2xl relative overflow-hidden">
-          <div className="max-w-3xl mb-8">
-            <span className="text-xs font-mono font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Globe className="w-4 h-4 text-cyan-400" />
-              GUÍA DEFINITIVA DE DOMINIO .COM Y ALTERNATIVAS GRATIS
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-black text-white font-['Outfit'] mt-2 mb-3">
-              ¿Cómo tener Kova en tu propio dominio .com?
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Muchos usuarios se preguntan si un dominio <strong>.com</strong> puede ser 100% gratuito. Aquí te explicamos con total transparencia cómo funciona el registro global, cómo reclamar dominios gratis y cómo conectar cualquier .com a Kova sin costo de hosting.
-            </p>
-          </div>
 
-          {/* Current Live URL Card */}
-          <div className="p-5 rounded-2xl bg-black/50 border border-emerald-500/30 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                <Globe className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] font-mono text-emerald-400 uppercase font-bold block">
-                  TU WEB YA ESTÁ EN VIVO AHORA MISMO (100% GRATIS)
-                </span>
-                <a
-                  href="https://k2nchin.github.io/kova/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-sm sm:text-base font-mono text-white font-bold hover:underline"
-                >
-                  https://k2nchin.github.io/kova/
-                </a>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={copyLiveUrl}
-                className="px-4 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-white/[0.1]"
-              >
-                {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedUrl ? '¡Copiado!' : 'Copiar URL'}</span>
-              </button>
-
-              <button
-                onClick={() => openExternalUrl('https://k2nchin.github.io/kova/')}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Abrir en vivo</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Three Ways to Get Domain */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            {/* Option 1: Free Subdomains */}
-            <div className="p-6 rounded-2xl bg-[#101526] border border-white/[0.06] flex flex-col justify-between">
-              <div>
-                <div className="text-xs font-mono font-bold text-emerald-400 mb-1">100% GRATIS DE POR VIDA</div>
-                <h3 className="text-base font-bold text-white font-['Outfit'] mb-2">Subdominios Cloud Gratuitos</h3>
-                <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                  No pagas absolutamente nada. La web cuenta con certificado SSL automático (HTTPS), CDN mundial de Cloudflare / Fastly sin límites y sin renovaciones.
-                </p>
-                <ul className="text-[11px] space-y-1.5 text-slate-300 font-mono">
-                  <li>• k2nchin.github.io/kova (Activo)</li>
-                  <li>• kova.vercel.app (Configurado)</li>
-                  <li>• kova.is-a.dev (Open Source)</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Option 2: Student / Promo .com */}
-            <div className="p-6 rounded-2xl bg-[#101526] border border-white/[0.06] flex flex-col justify-between">
-              <div>
-                <div className="text-xs font-mono font-bold text-cyan-400 mb-1">ESTUDIANTES / EDU</div>
-                <h3 className="text-base font-bold text-white font-['Outfit'] mb-2">Dominio Gratis por 1 Año</h3>
-                <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                  A través del <strong>GitHub Student Developer Pack</strong> obtienes un dominio gratis (.me, .tech o cupones para .com) en Namecheap junto con certificados SSL.
-                </p>
-              </div>
-
-              <button
-                onClick={() => openExternalUrl('https://education.github.com/pack')}
-                className="w-full py-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold text-xs border border-cyan-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <span>Reclamar en GitHub Education</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Option 3: Own .com Domain */}
-            <div className="p-6 rounded-2xl bg-[#101526] border border-purple-500/30 flex flex-col justify-between">
-              <div>
-                <div className="text-xs font-mono font-bold text-purple-400 mb-1">PROPIO Y PROFESIONAL</div>
-                <h3 className="text-base font-bold text-white font-['Outfit'] mb-2">Tu Propio Dominio .com</h3>
-                <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                  Por unos ~$8.99/año en <strong>Cloudflare Registrar</strong> o <strong>Namecheap</strong>, adquieres <code>kovachat.com</code> o <code>getkova.com</code> y el hosting aquí es <strong>$0 para siempre</strong>.
-                </p>
-              </div>
-
-              <div className="text-[11px] font-mono text-purple-300 bg-purple-950/40 p-2.5 rounded-xl border border-purple-500/20">
-                Hosting: $0.00 USD • SSL: Gratis
-              </div>
-            </div>
-          </div>
-
-          {/* Interactive DNS Wizard for Custom .com */}
-          <div className="p-6 rounded-2xl bg-[#080b14] border border-white/[0.08]">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-              <div>
-                <div className="text-xs font-mono font-bold text-cyan-400 uppercase">ASISTENTE DE CONFIGURACIÓN DNS</div>
-                <h4 className="text-base font-bold text-white font-['Outfit']">
-                  Conecta tu dominio .com a este repositorio en 2 minutos
-                </h4>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={copyDnsRecords}
-                  className="px-3 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-white/[0.1]"
-                >
-                  {copiedDns ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedDns ? '¡Copiado!' : 'Copiar Registros DNS'}</span>
-                </button>
-
-                <button
-                  onClick={downloadCnameFile}
-                  className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Descargar CNAME</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="text-[11px] font-mono text-slate-400 block mb-1">
-                Escribe el dominio que quieres vincular (ej. kovachat.com):
-              </label>
-              <input
-                type="text"
-                value={customDomainInput}
-                onChange={(e) => setCustomDomainInput(e.target.value)}
-                placeholder="ej. kovachat.com"
-                className="w-full max-w-md bg-[#121624] border border-white/[0.1] rounded-xl py-2 px-3.5 text-xs font-mono text-white outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono border border-white/[0.06] rounded-xl overflow-hidden bg-black/40">
-                <thead>
-                  <tr className="bg-white/[0.05] border-b border-white/[0.06] text-slate-300">
-                    <th className="p-3">Tipo</th>
-                    <th className="p-3">Nombre / Host</th>
-                    <th className="p-3">Valor / Destino</th>
-                    <th className="p-3">Propósito</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04] text-slate-300">
-                  <tr>
-                    <td className="p-3 text-cyan-400 font-bold">A</td>
-                    <td className="p-3">@</td>
-                    <td className="p-3 text-emerald-400 font-bold">185.199.108.153</td>
-                    <td className="p-3 text-slate-400 font-sans">GitHub Pages Anycast IP 1</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-cyan-400 font-bold">A</td>
-                    <td className="p-3">@</td>
-                    <td className="p-3 text-emerald-400 font-bold">185.199.109.153</td>
-                    <td className="p-3 text-slate-400 font-sans">GitHub Pages Anycast IP 2</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-cyan-400 font-bold">A</td>
-                    <td className="p-3">@</td>
-                    <td className="p-3 text-emerald-400 font-bold">185.199.110.153</td>
-                    <td className="p-3 text-slate-400 font-sans">GitHub Pages Anycast IP 3</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-cyan-400 font-bold">A</td>
-                    <td className="p-3">@</td>
-                    <td className="p-3 text-emerald-400 font-bold">185.199.111.153</td>
-                    <td className="p-3 text-slate-400 font-sans">GitHub Pages Anycast IP 4</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 text-purple-400 font-bold">CNAME</td>
-                    <td className="p-3">www</td>
-                    <td className="p-3 text-purple-300 font-bold">k2nchin.github.io</td>
-                    <td className="p-3 text-slate-400 font-sans">Redirección automática www</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* COMPARISON MATRIX */}
       <section id="comparison" className="relative z-10 py-16 px-6 max-w-7xl mx-auto">
@@ -1339,12 +1121,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
                 <td className="p-4 text-slate-400">120 - 250 ms</td>
               </tr>
               <tr>
-                <td className="p-4 font-sans font-bold text-white">Asistente IA Contextual</td>
+                <td className="p-4 font-sans font-bold text-white">Arquitectura & Portabilidad</td>
                 <td className="p-4 text-emerald-400 font-bold bg-purple-950/20 border-x border-purple-500/20">
-                  Gemini 2.5 Flash Oficial Incluido
+                  Binario Nativo Rust + Modo Portable
                 </td>
-                <td className="p-4 text-slate-500">Ninguno (o con bots de pago)</td>
-                <td className="p-4 text-slate-500">Add-on de pago ($10/mes)</td>
+                <td className="p-4 text-slate-400">Instalación pesada Electron</td>
+                <td className="p-4 text-slate-400">Instalación pesada Electron</td>
               </tr>
               <tr>
                 <td className="p-4 font-sans font-bold text-white">Creador de Bots Visual</td>
@@ -1545,7 +1327,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
       </section>
 
       {/* FAQ ACCORDION */}
-      <section className="relative z-10 py-16 px-6 max-w-4xl mx-auto mb-20">
+      <section id="faq" className="relative z-10 py-16 px-6 max-w-4xl mx-auto mb-20">
         <div className="text-center mb-10">
           <span className="text-xs font-mono font-bold tracking-widest text-cyan-400 uppercase">PREGUNTAS FRECUENTES</span>
           <h2 className="text-2xl sm:text-3xl font-black text-white font-['Outfit'] mt-1">
@@ -1585,12 +1367,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
       <footer className="relative z-10 border-t border-white/[0.08] bg-[#06080e] py-12 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-slate-500">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-400 flex items-center justify-center text-white font-black text-xs shadow-md">
-              K
+            <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#101322] border border-purple-500/30 flex items-center justify-center shadow-md">
+              <img src="./kova-logo.png" alt="Kova Logo" className="w-6 h-6 object-contain" />
             </div>
             <div>
-              <span className="font-bold text-slate-300 font-['Outfit'] text-sm block">KOVA OS DESKTOP</span>
-              <span>© 2026 Kova Project. Desarrollado por k2nchin. Código Abierto bajo Licencia MIT.</span>
+              <span className="font-bold text-slate-300 font-['Outfit'] text-sm block">KOVA</span>
+              <span>© 2026 Kova. Desarrollado por k2nchin. Código Abierto bajo Licencia MIT.</span>
             </div>
           </div>
 
@@ -1617,6 +1399,69 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
           </div>
         </div>
       </footer>
+
+      {/* FLOATING QUICK-SLIDE NAVIGATION DOCK (RIGHT EDGE) */}
+      <aside
+        aria-label="Navegador de secciones"
+        className="fixed right-3 sm:right-5 top-1/2 -translate-y-1/2 z-40 hidden md:flex flex-col items-center gap-2 p-2 rounded-2xl bg-[#0b0e17]/90 border border-white/[0.12] shadow-2xl backdrop-blur-xl animate-in fade-in duration-300"
+      >
+        {/* Slide Previous (Up) Button */}
+        <button
+          onClick={handleSlidePrev}
+          className="p-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] text-slate-400 hover:text-white transition-all cursor-pointer group"
+          title="Slide Arriba (Sección Anterior)"
+        >
+          <ChevronUp className="w-4 h-4 text-cyan-400 group-hover:-translate-y-0.5 transition-transform" />
+        </button>
+
+        {/* Section Dots Indicator */}
+        <div className="flex flex-col gap-1.5 py-1">
+          {SECTIONS.map((sec) => {
+            const isActive = activeSectionId === sec.id;
+            return (
+              <button
+                key={sec.id}
+                onClick={() => handleScrollToSection(sec.id)}
+                className="group relative flex items-center justify-center p-1 cursor-pointer"
+                title={`Ir a ${sec.label}`}
+              >
+                <span
+                  className={`block rounded-full transition-all duration-300 ${
+                    isActive
+                      ? 'w-2.5 h-6 bg-gradient-to-b from-purple-400 via-indigo-400 to-cyan-400 shadow-lg shadow-cyan-500/50'
+                      : 'w-2 h-2 bg-white/20 group-hover:bg-white/60 group-hover:scale-125'
+                  }`}
+                />
+                {/* Floating Tooltip */}
+                <span className="absolute right-8 px-2.5 py-1 rounded-xl bg-[#090c14]/95 text-white text-[11px] font-semibold border border-white/[0.12] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap shadow-2xl">
+                  {sec.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Slide Next (Down) Button */}
+        <button
+          onClick={handleSlideNext}
+          className="p-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] text-slate-400 hover:text-white transition-all cursor-pointer group"
+          title="Slide Abajo (Siguiente Sección)"
+        >
+          <ChevronDown className="w-4 h-4 text-purple-400 group-hover:translate-y-0.5 transition-transform" />
+        </button>
+      </aside>
+
+      {/* FLOATING BACK TO TOP BUTTON */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 z-40 p-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 text-white shadow-2xl shadow-purple-900/60 hover:scale-110 active:scale-95 transition-all cursor-pointer flex items-center gap-2 text-xs font-bold border border-white/[0.15] animate-in fade-in zoom-in-95 duration-200"
+          title="Subir al inicio"
+        >
+          <ArrowUp className="w-4 h-4" />
+          <span className="hidden sm:inline">Subir</span>
+        </button>
+      )}
     </div>
   );
 };

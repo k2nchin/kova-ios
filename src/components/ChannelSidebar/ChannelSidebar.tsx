@@ -18,8 +18,13 @@ import {
   Sparkles,
   ArrowUpRight,
   Bot,
+  Mic,
   MicOff,
   Volume2,
+  Shield,
+  LogOut,
+  PhoneOff,
+  Music2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
@@ -35,8 +40,13 @@ export const ChannelSidebar: React.FC = () => {
     deleteServer,
     currentUser,
     setCurrentUser,
+    toggleMute,
+    toggleDeafen,
     joinVoiceChannel,
+    leaveVoiceChannel,
+    isInVoice,
     activeVoiceChannelId,
+    setIsSoundboardOpen,
     openUserProfile,
     setIsCreateChannelOpen,
     setIsCreateCategoryOpen,
@@ -214,13 +224,25 @@ export const ChannelSidebar: React.FC = () => {
         <div className="group/chan flex items-center justify-between rounded hover:bg-white/[0.04] transition-colors h-[32px] px-1">
           <button
             onClick={() => {
-              setActiveChannelId(chan.id);
               if (chan.type === 'voice') {
+                if (isVoiceConnected) {
+                  // User clicked the voice channel they are currently in -> Leave voice and return to text channel
+                  leaveVoiceChannel();
+                  const firstText = activeServer.channels.find((c) => c.type === 'text' || c.type === 'announcements');
+                  if (firstText) {
+                    setActiveChannelId(firstText.id);
+                  }
+                  toast.info(`Te has desconectado de ${chan.name}`);
+                  return;
+                }
+                setActiveChannelId(chan.id);
                 joinVoiceChannel(chan.id);
+              } else {
+                setActiveChannelId(chan.id);
               }
             }}
             className={`channel-row flex-1 cursor-pointer ${isCurrent ? 'is-active' : ''}`}
-            title={chan.type === 'voice' ? (isVoiceConnected ? 'En este canal de voz' : 'Hacer clic para entrar al canal de voz') : undefined}
+            title={chan.type === 'voice' ? (isVoiceConnected ? 'Hacer clic para desconectar de la voz' : 'Hacer clic para entrar al canal de voz') : undefined}
           >
             <span className="channel-icon">
               {chan.type === 'voice' ? (
@@ -292,7 +314,12 @@ export const ChannelSidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col space-y-3">
         {/* 1. Workspace Header */}
         <div className="workspace-heading px-1 pt-1 pb-2 border-b border-white/[0.05] relative">
-          <div className="workspace-brand">
+          <div className="workspace-brand flex items-center gap-2">
+            <img
+              src="/kova-logo.png"
+              alt="Kova"
+              className="w-5 h-5 object-contain"
+            />
             <span className="wordmark">
               KOV<span>A</span>
             </span>
@@ -311,7 +338,17 @@ export const ChannelSidebar: React.FC = () => {
           {isServerMenuOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setIsServerMenuOpen(false)} />
-              <div className="absolute top-full left-1 right-1 z-50 mt-1 p-1.5 rounded-2xl bg-[#141824] border border-white/[0.1] shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute top-full left-1 right-1 z-50 mt-1 p-1.5 rounded-2xl bg-[#141824] border border-white/[0.1] shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 text-slate-200">
+                <button
+                  onClick={() => {
+                    setIsServerMenuOpen(false);
+                    openInviteModal(activeServer.id);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-cyan-300 hover:bg-cyan-500/15 transition-colors cursor-pointer text-left font-semibold"
+                >
+                  <UserPlus size={14} />
+                  <span>Invitar personas</span>
+                </button>
                 <button
                   onClick={() => {
                     setIsServerMenuOpen(false);
@@ -337,12 +374,24 @@ export const ChannelSidebar: React.FC = () => {
                 <button
                   onClick={() => {
                     setIsServerMenuOpen(false);
-                    openInviteModal(activeServer.id);
+                    toast.info(`Notificaciones configuradas para ${activeServer.name}`);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-300 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-medium"
+                >
+                  <Bell size={14} className="text-slate-400" />
+                  <span>Ajustes de Notificaciones</span>
+                </button>
+                <div className="h-[1px] bg-white/[0.06] my-1" />
+                <button
+                  onClick={() => {
+                    setIsServerMenuOpen(false);
+                    setServerSettingsTab('overview');
+                    setIsServerSettingsOpen(true);
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-semibold"
                 >
-                  <UserPlus size={14} className="text-cyan-400" />
-                  <span>Invitar Amigos</span>
+                  <Settings size={14} className="text-slate-400" />
+                  <span>Configuración del Servidor</span>
                 </button>
                 <button
                   onClick={() => {
@@ -352,8 +401,8 @@ export const ChannelSidebar: React.FC = () => {
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-semibold"
                 >
-                  <Settings size={14} className="text-slate-400" />
-                  <span>Ajustes del Servidor</span>
+                  <Shield size={14} className="text-amber-400" />
+                  <span>Roles y Permisos</span>
                 </button>
                 <button
                   onClick={() => {
@@ -363,126 +412,47 @@ export const ChannelSidebar: React.FC = () => {
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-semibold"
                 >
                   <Bot size={14} className="text-indigo-400" />
-                  <span>Directorio de Bots y Apps</span>
+                  <span>Integraciones y Bots</span>
                 </button>
                 <div className="h-[1px] bg-white/[0.06] my-1" />
-                <button
-                  onClick={() => {
-                    setIsServerMenuOpen(false);
-                    if (window.confirm(`¿Seguro que deseas eliminar el servidor "${activeServer.name}"?`)) {
+                {activeServer.ownerId === currentUser.id ? (
+                  <button
+                    onClick={() => {
+                      setIsServerMenuOpen(false);
+                      if (window.confirm(`¿Seguro que deseas eliminar el servidor "${activeServer.name}"?`)) {
+                        deleteServer(activeServer.id);
+                      }
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer text-left font-semibold"
+                  >
+                    <Trash2 size={14} />
+                    <span>Eliminar Servidor</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setIsServerMenuOpen(false);
                       deleteServer(activeServer.id);
-                    }
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer text-left font-semibold"
-                >
-                  <Trash2 size={14} />
-                  <span>Eliminar Servidor</span>
-                </button>
+                      toast.info(`Has salido del servidor "${activeServer.name}"`);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-amber-400 hover:bg-amber-500/15 transition-colors cursor-pointer text-left font-semibold"
+                  >
+                    <LogOut size={14} />
+                    <span>Salir del Servidor</span>
+                  </button>
+                )}
               </div>
             </>
           )}
         </div>
 
-        {/* 2. Top Action Pills (AI & Activity) */}
-        <div className="space-y-1 relative">
-          <button
-            onClick={() => setIsKovaAIOpen(true)}
-            className="sidebar-action cursor-pointer"
-            title="Ver resumen inteligente"
-          >
-            <Sparkles size={15} className="text-[#b89cff]" />
-            <span>Resumen inteligente</span>
-            <span className="new-label">AI</span>
-          </button>
-
-          <button
-            onClick={() => setIsActivityOpen(!isActivityOpen)}
-            className="sidebar-action cursor-pointer"
-            title="Ver actividad reciente"
-          >
-            <Bell size={15} className="text-[#72e4d0]" />
-            <span>Actividad</span>
-            <span className="activity-dot" />
-          </button>
-
-          {/* Activity Drawer Popover */}
-          {isActivityOpen && (
-            <div className="absolute top-18 left-0 right-0 z-50 p-3 rounded-2xl bg-[#141824] border border-white/[0.1] shadow-2xl space-y-2 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase font-mono tracking-wider">
-                  ACTIVIDAD RECIENTE
-                </span>
-                <button
-                  onClick={() => setIsActivityOpen(false)}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <X size={13} />
-                </button>
-              </div>
-
-              <div className="space-y-1.5">
-                {recentActivities.map((act) => (
-                  <button
-                    key={act.id}
-                    onClick={() => {
-                      setActiveChannelId(act.channelId);
-                      setIsActivityOpen(false);
-                      toast.success(`Saltando a #${act.channelName}`);
-                    }}
-                    className="w-full p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-left transition-colors flex items-start justify-between gap-2 cursor-pointer group"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-200 group-hover:text-white truncate">
-                        {act.title}
-                      </div>
-                      <div className="text-[10px] text-cyan-400 font-mono">
-                        #{act.channelName} · {act.time}
-                      </div>
-                    </div>
-                    <ArrowUpRight size={13} className="text-slate-500 group-hover:text-cyan-400 shrink-0 mt-0.5" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 3. Status & Story Shortcut */}
-        <div className="flex items-center gap-3 py-1.5 px-2 rounded-xl bg-[#171b25]/60 border border-white/[0.04]">
-          <div
-            onClick={() => setIsCreateStoryOpen(true)}
-            className="flex flex-col items-center gap-1 cursor-pointer group shrink-0"
-            title="Subir historia"
-          >
-            <div className="w-8 h-8 rounded-full bg-[#171b25] border border-dashed border-[#72e4d0]/40 group-hover:border-[#72e4d0] flex items-center justify-center text-[#72e4d0] transition-all">
-              <Plus size={14} />
-            </div>
-            <span className="text-[9px] text-[#778398] group-hover:text-white transition-colors leading-none whitespace-nowrap">
-              Historia
-            </span>
-          </div>
-
-          <div
-            onClick={() => setIsStatusModalOpen(true)}
-            className="text-[11px] text-[#778398] leading-tight min-w-0 flex-1 cursor-pointer hover:text-white transition-colors"
-          >
-            {currentUser.customStatus ? (
-              <span className="text-[#72e4d0] font-medium truncate block">
-                {currentUser.customStatus}
-              </span>
-            ) : (
-              'Pulsa para definir tu estado...'
-            )}
-          </div>
-        </div>
-
-        {/* 4. Quick Search Trigger (Ctrl+K) */}
+        {/* Quick Search Trigger (Ctrl+K) */}
         <div
           onClick={() => setIsCommandPaletteOpen(true)}
           className="sidebar-search cursor-pointer hover:border-white/[0.15] transition-colors"
         >
           <Search size={15} />
-          <span>Buscar en Kova</span>
+          <span>Buscar canal...</span>
           <kbd>Ctrl + K</kbd>
         </div>
 
@@ -626,6 +596,132 @@ export const ChannelSidebar: React.FC = () => {
             </div>
           )}
         </nav>
+      </div>
+
+      {/* 5. Discord Style Active Voice Connection Status Bar */}
+      {activeVoiceChannelId && (
+        <div className="mb-2 p-2.5 rounded-xl bg-[#111f18] border border-emerald-500/30 flex items-center justify-between animate-in fade-in slide-in-from-bottom-2 duration-150 shrink-0 shadow-lg">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold text-emerald-400 leading-none truncate font-['Outfit']">
+                Voz conectada
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono leading-tight truncate mt-0.5">
+                {activeServer.channels.find((c) => c.id === activeVoiceChannelId)?.name || 'Canal de voz'} · RTC 11ms
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Soundboard FX button */}
+            <button
+              onClick={() => setIsSoundboardOpen(true)}
+              className="p-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-pink-400 hover:text-pink-300 transition-all cursor-pointer"
+              title="Abrir Soundboard"
+            >
+              <Music2 size={13} />
+            </button>
+
+            {/* Disconnect red phone button */}
+            <button
+              onClick={() => {
+                leaveVoiceChannel();
+                const firstText = activeServer.channels.find((c) => c.type === 'text' || c.type === 'announcements');
+                if (firstText) {
+                  setActiveChannelId(firstText.id);
+                }
+                toast.info('Te has desconectado del canal de voz');
+              }}
+              className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 transition-all cursor-pointer"
+              title="Desconectarse del canal de voz"
+            >
+              <PhoneOff size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 6. User Profile & Settings Footer (Discord Style) */}
+      <div className="pt-2 mt-2 border-t border-white/[0.06] flex items-center justify-between px-1.5 py-1 rounded-xl bg-[#090b10] shrink-0">
+        <div
+          onClick={() => openUserProfile(currentUser)}
+          className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer hover:bg-white/[0.04] p-1 -ml-1 rounded-lg transition-colors group"
+          title="Ver tu perfil de usuario"
+        >
+          <div className="relative shrink-0">
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.displayName}
+                className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shadow-sm">
+                {currentUser.displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span
+              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#090b10] ${
+                currentUser.status === 'online'
+                  ? 'bg-emerald-400'
+                  : currentUser.status === 'idle'
+                  ? 'bg-amber-400'
+                  : currentUser.status === 'dnd'
+                  ? 'bg-rose-500'
+                  : 'bg-slate-500'
+              }`}
+            />
+          </div>
+
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-bold text-white truncate leading-tight group-hover:text-purple-300 transition-colors">
+              {currentUser.displayName}
+            </span>
+            <span className="text-[10px] text-slate-400 truncate font-mono">
+              @{currentUser.username}
+            </span>
+          </div>
+        </div>
+
+        {/* Action icons: Soundboard, Mic, Headphones, User Settings */}
+        <div className="flex items-center gap-0.5 shrink-0 text-slate-400">
+          <button
+            onClick={() => setIsSoundboardOpen(true)}
+            className="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-pink-400 transition-colors cursor-pointer text-slate-400"
+            title="Panel de Sonidos (Soundboard)"
+          >
+            <Music2 size={15} />
+          </button>
+
+          <button
+            onClick={toggleMute}
+            className={`p-1.5 rounded-lg hover:bg-white/[0.08] transition-colors cursor-pointer ${
+              currentUser.isMuted ? 'text-rose-400 hover:text-rose-300' : 'hover:text-white'
+            }`}
+            title={currentUser.isMuted ? 'Activar micrófono' : 'Silenciar micrófono'}
+          >
+            {currentUser.isMuted ? <MicOff size={15} /> : <Mic size={15} />}
+          </button>
+
+          <button
+            onClick={toggleDeafen}
+            className={`p-1.5 rounded-lg hover:bg-white/[0.08] transition-colors cursor-pointer ${
+              currentUser.isDeafened ? 'text-rose-400 hover:text-rose-300' : 'hover:text-white'
+            }`}
+            title={currentUser.isDeafened ? 'Desensordecer' : 'Ensordecer'}
+          >
+            <Headphones size={15} className={currentUser.isDeafened ? 'text-rose-400' : ''} />
+          </button>
+
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-white transition-colors cursor-pointer text-slate-400 hover:rotate-45 transition-transform duration-200"
+            title="Ajustes de Usuario (Configuración)"
+          >
+            <Settings size={15} />
+          </button>
+        </div>
       </div>
 
       {/* Status Modal */}

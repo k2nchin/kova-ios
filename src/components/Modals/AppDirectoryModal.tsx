@@ -67,7 +67,7 @@ export const AppDirectoryModal: React.FC = () => {
 
   const categories = [
     { id: 'all', label: 'Todos', icon: Bot },
-    { id: 'ai', label: 'Inteligencia Artificial', icon: Sparkles },
+    { id: 'ai', label: 'Utilidades', icon: Sparkles },
     { id: 'music', label: 'Música', icon: Music },
     { id: 'moderation', label: 'Moderación', icon: Shield },
     { id: 'fun', label: 'Memes & Juegos', icon: Smile },
@@ -368,7 +368,7 @@ export const AppDirectoryModal: React.FC = () => {
                   <span>Estudio de Bots Personalizados Kova</span>
                 </h3>
                 <p className="text-xs text-slate-300">
-                  Crea tu propio bot conectado a Google Gemini o con respuestas automáticas por palabras clave.
+                  Crea tu propio bot conectado a Kova IA o con respuestas automáticas por palabras clave.
                 </p>
               </div>
 

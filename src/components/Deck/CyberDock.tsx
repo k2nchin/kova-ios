@@ -40,7 +40,6 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
     { mode: 'split', label: 'Modo Split (Tiling)', icon: <Columns className="w-4 h-4" /> },
     { mode: 'chat_focus', label: 'Chat Focus', icon: <MessageSquare className="w-4 h-4" /> },
     { mode: 'direct_messages', label: 'Mensajes Directos & Amigos', icon: <Users className="w-4 h-4" /> },
-    { mode: 'voice_radar', label: 'Radar 3D Audio', icon: <Compass className="w-4 h-4" /> },
     { mode: 'pulse_feed', label: 'Pulse Hub', icon: <LayoutGrid className="w-4 h-4" /> },
   ];
 
@@ -68,15 +67,8 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
           })}
         </div>
 
-        {/* Quick Tools: AI Copilot, Code Playground, Arcade, Soundboard */}
+        {/* Quick Tools: Soundboard, Code Playground, Arcade */}
         <div className="flex items-center gap-1 pr-2 border-r border-white/[0.08]">
-          <button
-            onClick={() => setIsKovaAIOpen(true)}
-            className="p-2 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white transition-all border border-purple-500/30"
-            title="Kova AI Assistant"
-          >
-            <Sparkles className="w-4 h-4 animate-pulse" />
-          </button>
 
           <button
             onClick={() => setIsSoundboardOpen(true)}

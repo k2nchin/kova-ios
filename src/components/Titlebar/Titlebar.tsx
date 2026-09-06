@@ -8,8 +8,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Palette,
+  Settings,
 } from 'lucide-react';
-import { SoundscapePlayer } from '../Audio/SoundscapePlayer';
 import { useApp } from '../../context/AppContext';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { toast } from 'sonner';
@@ -36,7 +36,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   sidebarCollapsed = false,
   onToggleSidebar,
 }) => {
-  const { theme, setTheme, setIsCommandPaletteOpen } = useApp();
+  const { theme, setTheme, setIsCommandPaletteOpen, setIsSettingsOpen } = useApp();
   const [isMaximized, setIsMaximized] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
 
@@ -83,11 +83,9 @@ export const Titlebar: React.FC<TitlebarProps> = ({
     >
       {/* Left: KOVA Ribbon Logo + Brand + Sidebar Collapse Toggle */}
       <div className="flex items-center gap-2.5 no-drag">
-        {/* Ribbon Purple Logo */}
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#6d28d9] via-[#8b5cf6] to-[#a855f7] flex items-center justify-center text-white shadow-lg shadow-purple-950/60 ring-1 ring-purple-400/20">
-          <span className="font-['Outfit'] font-black text-lg tracking-tight leading-none text-white select-none">
-            K
-          </span>
+        {/* Official 3D Isometric Logo */}
+        <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#101322] border border-purple-500/30 flex items-center justify-center shadow-lg shadow-purple-950/60 ring-1 ring-purple-400/20">
+          <img src="/kova-logo.png" alt="Kova" className="w-7 h-7 object-contain" />
         </div>
 
         {/* Wordmark */}
@@ -177,7 +175,14 @@ export const Titlebar: React.FC<TitlebarProps> = ({
           )}
         </div>
 
-        <SoundscapePlayer />
+        {/* Global App Settings Button */}
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all cursor-pointer hover:rotate-45 duration-200"
+          title="Ajustes de la aplicación (Ctrl+,)"
+        >
+          <Settings size={15} />
+        </button>
 
         {/* Window Controls: Minimize, Maximize, Close */}
         <div className="flex items-center ml-1 border-l border-white/[0.06] pl-1">

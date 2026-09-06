@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
-import { GoogleConfirmModal, GoogleAccount } from './GoogleConfirmModal';
 import { GoogleRealAuthModal } from './GoogleRealAuthModal';
 import {
   getStoredGoogleClientId,
@@ -41,7 +40,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   } = useApp();
   const [isRegister, setIsRegister] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [isRealGoogleModalOpen, setIsRealGoogleModalOpen] = useState(false);
 
   // 2FA Challenge state
@@ -107,7 +105,39 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   }, []);
 
   const handleOpenGoogleConfirm = () => {
-    setIsGoogleModalOpen(true);
+    const clientId = getStoredGoogleClientId();
+    setIsLoading(true);
+    const toastId = toast.loading('Abriendo ventana de Google...');
+
+    // Safety timeout: if Google popup is closed or blocked, reset loading after 8s
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+      toast.dismiss(toastId);
+    }, 8000);
+
+    try {
+      openRealGoogleSignIn(
+        clientId,
+        (user: RealGoogleUser) => {
+          clearTimeout(timeout);
+          setIsLoading(false);
+          toast.dismiss(toastId);
+          handleRealGoogleSuccess(user);
+        },
+        (err: string) => {
+          clearTimeout(timeout);
+          setIsLoading(false);
+          toast.dismiss(toastId);
+          console.warn('[Google OAuth Error]', err);
+          toast.error(err || 'No se pudo completar el inicio de sesión con Google');
+        }
+      );
+    } catch (e: any) {
+      clearTimeout(timeout);
+      setIsLoading(false);
+      toast.dismiss(toastId);
+      toast.error(e?.message || 'Error al conectar con Google');
+    }
   };
 
   const executeOrChallenge2FA = (loginCallback: () => void) => {
@@ -133,18 +163,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
         customStatus: 'Conectado con Google OAuth',
       });
       toast.success(`¡Autenticado con Google con éxito! Bienvenido, ${user.name}`);
-    });
-  };
-
-  const handleGoogleAccountConfirmed = (account: GoogleAccount) => {
-    setIsGoogleModalOpen(false);
-    executeOrChallenge2FA(() => {
-      loginWithGoogle({
-        username: account.email.split('@')[0],
-        displayName: account.name,
-        avatar: account.avatar,
-      });
-      toast.success(`¡Cuenta de Google verificada! Bienvenido, ${account.name}`);
     });
   };
 
@@ -225,15 +243,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
     }, 700);
   };
 
-  const handleGuestLogin = () => {
-    loginWithGoogle({
-      username: 'invitado_kova',
-      displayName: 'Explorador Invitado',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    });
-    toast.info('Entraste como Explorador Invitado');
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#07090e] overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Background Animated Gradient Aura */}
@@ -255,10 +264,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
       <div className="relative w-full max-w-md mx-4 p-8 rounded-3xl bg-[#0e111a]/85 border border-white/[0.1] shadow-2xl backdrop-blur-2xl glow-purple animate-in zoom-in-95 duration-200">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-cyan-400 p-0.5 shadow-lg shadow-purple-500/30 flex items-center justify-center">
-            <div className="w-full h-full bg-[#0b0d14] rounded-2xl flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-cyan-400" />
-            </div>
+          <div className="relative w-14 h-14 flex items-center justify-center">
+            <img
+              src="/kova-logo.png"
+              alt="Kova Logo"
+              className="w-14 h-14 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]"
+            />
           </div>
           <div>
             <h1 className="text-2xl font-black text-white font-['Outfit'] tracking-wider">
@@ -550,39 +561,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
           </>
         )}
 
-        {/* Guest Mode Explorer Option & Landing Page */}
-        <div className="mt-5 pt-4 border-t border-white/[0.06] flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handleGuestLogin}
-            className="text-[11px] text-slate-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>Entrar como Invitado</span>
-          </button>
-
-          {onShowLanding ? (
-            <button
-              type="button"
-              onClick={onShowLanding}
-              className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 cursor-pointer font-medium"
-            >
-              <span>🌐 Ver Web & Descargas</span>
-            </button>
-          ) : (
-            <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
-              <ShieldCheck className="w-3 h-3" /> Tauri v2 Seguro
-            </span>
-          )}
+        {/* Security Badge */}
+        <div className="mt-5 pt-4 border-t border-white/[0.06] flex items-center justify-center">
+          <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Autenticación Segura E2EE
+          </span>
         </div>
       </div>
-
-      {/* Google Account Confirmation Modal */}
-      <GoogleConfirmModal
-        isOpen={isGoogleModalOpen}
-        onClose={() => setIsGoogleModalOpen(false)}
-        onConfirm={handleGoogleAccountConfirmed}
-      />
 
       {/* Real Google OAuth Modal */}
       <GoogleRealAuthModal
@@ -591,7 +576,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
         onSuccess={handleRealGoogleSuccess}
         onFallbackSimulated={() => {
           setIsRealGoogleModalOpen(false);
-          setIsGoogleModalOpen(true);
+          handleOpenGoogleConfirm();
         }}
       />
     </div>

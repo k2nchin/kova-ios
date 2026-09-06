@@ -100,7 +100,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
     <div
       className={`group relative flex gap-4 px-4 py-1.5 hover:bg-[#2e3035]/60 transition-colors ${
         message.pinned ? 'bg-[#5865f2]/10 border-l-2 border-[#5865f2]' : ''
-      } ${message.aiGenerated ? 'bg-purple-950/15 border-l-2 border-purple-400/40' : ''}`}
+      }`}
     >
       {/* 1. Author Avatar */}
       <div className="relative shrink-0 mt-0.5">
@@ -110,11 +110,6 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
           onClick={() => openUserProfile(message.author)}
           className="w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-90 transition-opacity hover:scale-105"
         />
-        {message.aiGenerated && (
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-[8px] text-white shadow-sm ring-2 ring-[#313338]">
-            ✦
-          </div>
-        )}
       </div>
 
       {/* 2. Message Body */}
@@ -140,16 +135,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
             )}
           </span>
 
-          {/* Badges */}
-          {message.aiGenerated && (
-            <span className="flex items-center gap-1 px-1.5 py-0.2 rounded bg-[#7c3aed] text-white text-[10px] font-bold font-mono uppercase">
-              <Sparkles className="w-2.5 h-2.5" />
-              KOVA AI
-            </span>
-          )}
-
-          {message.author.tag === 'BOT' && !message.aiGenerated && (
-            <span className="px-1.5 py-0.5 rounded-md bg-[#7c3aed] text-white text-[10px] font-extrabold uppercase tracking-wider">
+          {/* Discord Standard BOT Tag */}
+          {message.author.tag === 'BOT' && (
+            <span className="px-1.5 py-0.5 rounded-md bg-[#5865F2] text-white text-[10px] font-extrabold uppercase tracking-wider">
               BOT
             </span>
           )}

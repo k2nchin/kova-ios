@@ -16,33 +16,33 @@ interface GoogleConfirmModalProps {
   onConfirm: (account: GoogleAccount) => void;
 }
 
-const PRESET_ACCOUNTS: GoogleAccount[] = [
-  {
-    id: 'google_juanpi_main',
-    name: 'Juan Jesús Enrique Peralta',
-    email: 'juanpi1x@gmail.com',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'google_k2nchin',
-    name: 'k2nchin',
-    email: 'k2nchin@gmail.com',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'google_juanpi_dev',
-    name: 'Juanpi Developer',
-    email: 'juanpi.dev@gmail.com',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-  },
-];
-
 export const GoogleConfirmModal: React.FC<GoogleConfirmModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
 }) => {
-  const [step, setStep] = useState<'choose' | 'confirm' | 'custom_email'>('choose');
+  const [savedAccounts, setSavedAccounts] = useState<GoogleAccount[]>(() => {
+    try {
+      const stored = localStorage.getItem('kova.google_saved_accounts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  const [step, setStep] = useState<'choose' | 'confirm' | 'custom_email'>(() => {
+    try {
+      const stored = localStorage.getItem('kova.google_saved_accounts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return 'choose';
+      }
+    } catch {}
+    return 'custom_email';
+  });
+
   const [selectedAccount, setSelectedAccount] = useState<GoogleAccount | null>(null);
   const [customName, setCustomName] = useState('');
   const [customEmail, setCustomEmail] = useState('');
@@ -55,20 +55,41 @@ export const GoogleConfirmModal: React.FC<GoogleConfirmModalProps> = ({
     setStep('confirm');
   };
 
+  const handleRemoveAccount = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = savedAccounts.filter((a) => a.id !== id);
+    setSavedAccounts(updated);
+    try {
+      localStorage.setItem('kova.google_saved_accounts', JSON.stringify(updated));
+    } catch {}
+    if (updated.length === 0) {
+      setStep('custom_email');
+    }
+  };
+
   const handleCustomAccountSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customEmail || !customEmail.includes('@')) {
       toast.error('Ingresa una cuenta de correo válida de Google');
       return;
     }
-    const name = customName.trim() || customEmail.split('@')[0];
+    const cleanEmail = customEmail.trim().toLowerCase();
+    const name = customName.trim() || cleanEmail.split('@')[0];
     const acc: GoogleAccount = {
       id: `google_${Date.now()}`,
       name,
-      email: customEmail.trim(),
-      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${customEmail}`,
+      email: cleanEmail,
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}`,
     };
     setSelectedAccount(acc);
+
+    // Save to device's remembered Google accounts
+    try {
+      const updated = [acc, ...savedAccounts.filter((a) => a.email !== acc.email)].slice(0, 5);
+      setSavedAccounts(updated);
+      localStorage.setItem('kova.google_saved_accounts', JSON.stringify(updated));
+    } catch {}
+
     setStep('confirm');
   };
 
@@ -78,7 +99,7 @@ export const GoogleConfirmModal: React.FC<GoogleConfirmModalProps> = ({
     setTimeout(() => {
       setIsAuthorizing(false);
       onConfirm(selectedAccount);
-    }, 1100);
+    }, 800);
   };
 
   return (
@@ -131,24 +152,35 @@ export const GoogleConfirmModal: React.FC<GoogleConfirmModalProps> = ({
             </div>
 
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
-              {PRESET_ACCOUNTS.map((acc) => (
-                <button
+              {savedAccounts.map((acc) => (
+                <div
                   key={acc.id}
                   onClick={() => handleSelectAccount(acc)}
-                  className="w-full flex items-center gap-3.5 p-3.5 hover:bg-slate-50 transition-colors text-left cursor-pointer group"
+                  className="w-full flex items-center justify-between p-3.5 hover:bg-slate-50 transition-colors text-left cursor-pointer group"
                 >
-                  <img
-                    src={acc.avatar}
-                    alt={acc.name}
-                    className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-100"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors truncate">
-                      {acc.name}
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <img
+                      src={acc.avatar}
+                      alt={acc.name}
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-100"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+                        {acc.name}
+                      </div>
+                      <div className="text-xs text-slate-500 truncate">{acc.email}</div>
                     </div>
-                    <div className="text-xs text-slate-500 truncate">{acc.email}</div>
                   </div>
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemoveAccount(acc.id, e)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Eliminar de esta lista"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               ))}
 
               {/* Add custom account button */}
@@ -183,14 +215,16 @@ export const GoogleConfirmModal: React.FC<GoogleConfirmModalProps> = ({
         {/* STEP 2: CUSTOM EMAIL INPUT */}
         {step === 'custom_email' && (
           <form onSubmit={handleCustomAccountSubmit} className="p-7 space-y-4">
-            <button
-              type="button"
-              onClick={() => setStep('choose')}
-              className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Volver a la lista de cuentas</span>
-            </button>
+            {savedAccounts.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setStep('choose')}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline cursor-pointer mb-2"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Volver a cuentas guardadas</span>
+              </button>
+            )}
 
             <div className="space-y-1">
               <h2 className="text-xl font-medium text-slate-900 font-['Outfit']">Ingresa tu cuenta Google</h2>

@@ -172,7 +172,6 @@ export type WorkspaceLayoutMode =
   | 'chat_focus'
   | 'stories_feed'
   | 'pulse_feed'
-  | 'voice_radar'
   | 'direct_messages';
 
 export interface BotAutoResponse {

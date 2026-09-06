@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
-import { SpatialAudioRadar } from './SpatialAudioRadar';
 import { soundFx } from '../../utils/soundEffects';
 
 export const VoiceRoom: React.FC = () => {
@@ -41,6 +40,7 @@ export const VoiceRoom: React.FC = () => {
     toggleScreenShare,
     joinVoiceChannel,
     leaveVoiceChannel,
+    setActiveChannelId,
     isInVoice,
     activeVoiceChannelId,
     setIsSoundboardOpen,
@@ -55,8 +55,6 @@ export const VoiceRoom: React.FC = () => {
   const [dotsActive, setDotsActive] = useState([false, false, false, false, false, false, false, false, false]);
   const [isMicHardwareAvailable, setIsMicHardwareAvailable] = useState(true);
 
-  // Stage View Mode: 'grid' | 'radar'
-  const [stageViewMode, setStageViewMode] = useState<'grid' | 'radar'>('grid');
   // Integrated Voice Text Chat Drawer
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -321,9 +319,24 @@ export const VoiceRoom: React.FC = () => {
   // 2. REAL MICROPHONE, WEBRTC AUDIO & ANTIRRUIDO DSP ENGINE
   // ============================================================================
 
+  // Refs to track live mute/deafen without re-creating Web Audio pipeline
+  const isMutedRef = useRef(currentUser.isMuted);
+  const isDeafenedRef = useRef(currentUser.isDeafened);
+  useEffect(() => {
+    isMutedRef.current = currentUser.isMuted;
+  }, [currentUser.isMuted]);
+  useEffect(() => {
+    isDeafenedRef.current = currentUser.isDeafened;
+  }, [currentUser.isDeafened]);
+
   const startAudioPipeline = useCallback(async () => {
     // If already running, return
-    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') return;
+    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
+      return;
+    }
 
     try {
       const AudioCtxClass =
@@ -391,7 +404,7 @@ export const VoiceRoom: React.FC = () => {
 
         // Noise gate threshold: higher when antirruido is on to silence background hum
         const threshold = antirruido ? 18 : 8;
-        const isSpeakingNow = avg > threshold && !currentUser.isMuted && !currentUser.isDeafened;
+        const isSpeakingNow = avg > threshold && !isMutedRef.current && !isDeafenedRef.current;
 
         setCurrentUser((prev) => (prev.isSpeaking !== isSpeakingNow ? { ...prev, isSpeaking: isSpeakingNow } : prev));
 
@@ -406,7 +419,7 @@ export const VoiceRoom: React.FC = () => {
     } catch (err) {
       console.error('[AudioEngine] Error al inicializar Web Audio:', err);
     }
-  }, [antirruido, currentUser.isMuted, currentUser.isDeafened, setCurrentUser]);
+  }, [antirruido, setCurrentUser]);
 
   const stopAudioPipeline = useCallback(() => {
     if (animFrameRef.current) {
@@ -468,19 +481,25 @@ export const VoiceRoom: React.FC = () => {
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        toggleCamera();
-        toast.info('Modo avatar de video activo');
+        toast.error('Tu navegador no permite el acceso a la cámara en este entorno.');
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720 },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
       });
       setCameraStream(stream);
       if (!currentUser.isCameraOn) toggleCamera();
-      toast.success('Cámara web activada');
-    } catch {
-      toggleCamera();
-      toast.info('Modo avatar de video activo');
+      toast.success('Cámara web activada con éxito');
+    } catch (err: any) {
+      console.warn('[Camera] No se pudo acceder a la cámara:', err);
+      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        toast.error('Permiso de cámara denegado. Por favor permite el acceso a la cámara en tu navegador.');
+      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+        toast.error('No se detectó ninguna cámara web conectada.');
+      } else {
+        toast.error(`Error al activar cámara: ${err?.message || 'Dispositivo no disponible'}`);
+      }
     }
   };
 
@@ -521,6 +540,13 @@ export const VoiceRoom: React.FC = () => {
       }
       stopAudioPipeline();
       leaveVoiceChannel();
+
+      // Automatically return to the first text channel in the server instead of staying on voice stage
+      const firstTextChannel = activeServer.channels.find((c) => c.type === 'text' || c.type === 'announcements');
+      if (firstTextChannel) {
+        setActiveChannelId(firstTextChannel.id);
+      }
+
       toast.info('Desconectado del canal de voz');
     } else {
       joinVoiceChannel(activeChannel.id);
@@ -566,43 +592,6 @@ export const VoiceRoom: React.FC = () => {
 
             {/* Stage View & Controls Right Buttons */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {/* Test Audio Output */}
-              <button
-                onClick={testAudioOutput}
-                className="px-2.5 py-1.5 rounded-xl bg-[#141824] hover:bg-[#1c2234] border border-white/[0.06] text-slate-300 hover:text-white text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                title="Probar sonido en auriculares / altavoces"
-              >
-                <Volume1 size={13} className="text-cyan-400" />
-                <span className="hidden sm:inline">Probar Audio</span>
-              </button>
-
-              {/* Toggle Grid vs Radar 3D */}
-              <div className="flex items-center p-0.5 rounded-xl bg-[#141824] border border-white/[0.06]">
-                <button
-                  onClick={() => setStageViewMode('grid')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    stageViewMode === 'grid'
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Vista de cuadrícula de participantes"
-                >
-                  Cuadrícula
-                </button>
-                <button
-                  onClick={() => setStageViewMode('radar')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer ${
-                    stageViewMode === 'radar'
-                      ? 'bg-cyan-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title="Audio espacial 3D interactivo"
-                >
-                  <Compass size={12} />
-                  <span>Radar 3D</span>
-                </button>
-              </div>
-
               {/* Soundboard trigger */}
               <button
                 onClick={() => {
@@ -713,12 +702,7 @@ export const VoiceRoom: React.FC = () => {
 
         {/* 2. Main Center Stage */}
         <div className="flex-1 my-3 rounded-2xl bg-[#080b11] border border-white/[0.05] p-3 flex flex-col justify-center items-center relative overflow-hidden min-h-[360px]">
-          {/* Radar Mode Switch */}
-          {stageViewMode === 'radar' ? (
-            <div className="w-full h-full">
-              <SpatialAudioRadar />
-            </div>
-          ) : screenStream ? (
+          {screenStream ? (
             /* Active Live Screen Share Player Mode */
             <div className="w-full h-full flex flex-col items-center justify-center relative rounded-xl overflow-hidden bg-black">
               <video

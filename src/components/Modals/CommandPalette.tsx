@@ -70,22 +70,6 @@ export const CommandPalette: React.FC = () => {
 
         {/* Results */}
         <div className="p-3 max-h-80 overflow-y-auto space-y-4">
-          {/* Quick AI Action */}
-          {query.trim() && (
-            <div>
-              <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider px-2 mb-1">
-                Comando Kova AI
-              </div>
-              <button
-                onClick={() => handleAskAIQuick(query)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-purple-600/10 hover:bg-purple-600/20 text-purple-200 border border-purple-500/20 text-xs text-left transition-colors"
-              >
-                <Sparkles className="w-4 h-4 text-purple-400" />
-                <span>Preguntar a Kova AI: <strong>"{query}"</strong></span>
-              </button>
-            </div>
-          )}
-
           {/* Channels */}
           {matchingChannels.length > 0 && (
             <div>

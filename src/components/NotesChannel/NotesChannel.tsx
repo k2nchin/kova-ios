@@ -56,15 +56,6 @@ export const NotesChannel: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* AI enhance note */}
-          <button
-            onClick={handleAskAIImprove}
-            className="flex items-center gap-1.5 px-3 py-1 bg-purple-600/20 hover:bg-purple-600 text-purple-200 hover:text-white rounded-lg text-xs font-semibold border border-purple-500/30 transition-all shadow-sm"
-            title="Mejorar redacción con IA"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-            <span>Kova AI Doc</span>
-          </button>
 
           {/* Toggle Preview / Edit mode */}
           <button

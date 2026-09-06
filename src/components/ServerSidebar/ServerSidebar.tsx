@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
-import { Plus, CircleHelp, Sparkles, Trash2, MessageSquare, Compass } from 'lucide-react';
+import {
+  Plus,
+  CircleHelp,
+  Sparkles,
+  Trash2,
+  MessageSquare,
+  Compass,
+  UserPlus,
+  FolderPlus,
+  Settings,
+  Bell,
+  LogOut,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 
@@ -14,6 +26,14 @@ export const ServerSidebar: React.FC = () => {
     isDMViewActive,
     setIsDMViewActive,
     setIsDiscoveryOpen,
+    currentUser,
+    openInviteModal,
+    setIsCreateChannelOpen,
+    setIsCreateCategoryOpen,
+    setIsServerSettingsOpen,
+    setIsSettingsOpen,
+    setPresetChannelType,
+    setPresetCategoryId,
   } = useApp();
 
   const [hoveredServerId, setHoveredServerId] = useState<string | null>(null);
@@ -41,14 +61,18 @@ export const ServerSidebar: React.FC = () => {
 
         <button
           onClick={() => setIsDMViewActive(true)}
-          className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer overflow-hidden relative shadow-md ${
+          className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer overflow-hidden relative shadow-md p-1.5 ${
             isDMViewActive
-              ? 'bg-gradient-to-tr from-purple-600 to-indigo-600 text-white shadow-purple-500/30 scale-105 rounded-xl border border-white/20 glow-purple'
-              : 'bg-[#161a24] text-slate-400 hover:text-white hover:bg-[#202534] hover:rounded-xl border border-white/[0.04]'
+              ? 'bg-[#1b172e] text-white shadow-purple-500/30 scale-105 rounded-xl border border-purple-500/50 glow-purple'
+              : 'bg-[#141620] hover:bg-[#1e1c2e] hover:rounded-xl border border-white/[0.04]'
           }`}
-          title="Mensajes Directos e Inicio"
+          title="Kova Inicio y Mensajes Directos"
         >
-          <MessageSquare size={18} />
+          <img
+            src="/kova-logo.png"
+            alt="Kova"
+            className="w-full h-full object-contain"
+          />
         </button>
       </div>
 
@@ -128,17 +152,99 @@ export const ServerSidebar: React.FC = () => {
                     className="fixed inset-0 z-40"
                     onClick={() => setContextMenuServerId(null)}
                   />
-                  <div className="absolute left-[54px] top-0 z-50 w-44 p-1.5 rounded-2xl bg-[#141824] border border-white/[0.1] shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100">
-                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500 font-mono tracking-wider truncate">
-                      {server.name}
+                  <div className="absolute left-[54px] top-0 z-50 w-56 p-1.5 rounded-2xl bg-[#131622] border border-white/[0.1] shadow-2xl space-y-1 animate-in fade-in zoom-in-95 duration-100 text-slate-200">
+                    <div className="px-3 py-1.5 border-b border-white/[0.06] mb-1">
+                      <div className="text-xs font-bold text-white truncate">{server.name}</div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {server.ownerId === currentUser.id ? '👑 Eres el Propietario' : 'Miembro del servidor'}
+                      </div>
                     </div>
+
                     <button
-                      onClick={(e) => handleDeleteServer(e, server.id, server.name)}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 transition-colors cursor-pointer text-left font-semibold"
+                      onClick={() => {
+                        setContextMenuServerId(null);
+                        openInviteModal(server.id);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs text-cyan-300 hover:bg-cyan-500/15 transition-colors cursor-pointer text-left font-semibold"
                     >
-                      <Trash2 size={13} />
-                      <span>Eliminar espacio</span>
+                      <UserPlus size={14} />
+                      <span>Invitar personas</span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setContextMenuServerId(null);
+                        setActiveServerId(server.id);
+                        setPresetChannelType('text');
+                        setPresetCategoryId(undefined);
+                        setIsCreateChannelOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-semibold"
+                    >
+                      <Plus size={14} />
+                      <span>Crear canal</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setContextMenuServerId(null);
+                        setActiveServerId(server.id);
+                        setIsCreateCategoryOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-semibold"
+                    >
+                      <FolderPlus size={14} />
+                      <span>Crear categoría</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setContextMenuServerId(null);
+                        toast.info(`Notificaciones de "${server.name}" actualizadas`);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs text-slate-300 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-medium"
+                    >
+                      <Bell size={14} />
+                      <span>Ajustes de notificaciones</span>
+                    </button>
+
+                    <div className="h-[1px] bg-white/[0.06] my-1" />
+
+                    <button
+                      onClick={() => {
+                        setContextMenuServerId(null);
+                        setActiveServerId(server.id);
+                        setIsServerSettingsOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs text-slate-200 hover:bg-white/[0.08] transition-colors cursor-pointer text-left font-semibold"
+                    >
+                      <Settings size={14} />
+                      <span>Configuración del servidor</span>
+                    </button>
+
+                    <div className="h-[1px] bg-white/[0.06] my-1" />
+
+                    {server.ownerId === currentUser.id ? (
+                      <button
+                        onClick={(e) => handleDeleteServer(e, server.id, server.name)}
+                        className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 transition-colors cursor-pointer text-left font-semibold"
+                      >
+                        <Trash2 size={14} />
+                        <span>Eliminar servidor</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setContextMenuServerId(null);
+                          deleteServer(server.id);
+                          toast.info(`Has salido de "${server.name}"`);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs text-amber-400 hover:bg-amber-500/15 transition-colors cursor-pointer text-left font-semibold"
+                      >
+                        <LogOut size={14} />
+                        <span>Salir del servidor</span>
+                      </button>
+                    )}
                   </div>
                 </>
               )}
@@ -168,7 +274,15 @@ export const ServerSidebar: React.FC = () => {
       </div>
 
       {/* 3. Rail Bottom Controls */}
-      <div className="rail-bottom mt-auto flex flex-col items-center gap-2.5 pt-2 border-t border-white/[0.05] w-full">
+      <div className="rail-bottom mt-auto flex flex-col items-center gap-2 pt-2 border-t border-white/[0.05] w-full">
+        <button
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer hover:rotate-45 transition-transform duration-200"
+          aria-label="Ajustes de Usuario"
+          onClick={() => setIsSettingsOpen(true)}
+          title="Ajustes de Usuario (Configuración)"
+        >
+          <Settings size={16} />
+        </button>
         <button
           className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
           aria-label="Ayuda"

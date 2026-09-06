@@ -25,7 +25,6 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
-import { getGeminiApiKey, setGeminiApiKey, askGemini } from '../../services/geminiService';
 
 function PreferenceToggle({
   label,
@@ -110,30 +109,7 @@ export const SettingsModal: React.FC = () => {
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false);
   const [customAvatarInput, setCustomAvatarInput] = useState('');
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'perfil' | 'apariencia' | 'voz' | 'notificaciones' | 'privacidad' | 'atajos' | 'espacios' | 'ia'>('perfil');
-  const [geminiKey, setGeminiKey] = useState(() => getGeminiApiKey());
-  const [isTestingGemini, setIsTestingGemini] = useState(false);
-
-  const handleSaveGeminiKey = () => {
-    if (!geminiKey.trim()) {
-      toast.error('La clave de API no puede estar vacía');
-      return;
-    }
-    setGeminiApiKey(geminiKey.trim());
-    toast.success('Clave de API de Gemini guardada correctamente');
-  };
-
-  const handleTestGemini = async () => {
-    setIsTestingGemini(true);
-    try {
-      const reply = await askGemini('Hola Kova AI, responde en una frase corta que estás operativo.');
-      toast.success(`Gemini responde: ${reply.slice(0, 80)}...`);
-    } catch (err) {
-      toast.error('No se pudo conectar con Gemini API');
-    } finally {
-      setIsTestingGemini(false);
-    }
-  };
+  const [activeTab, setActiveTab] = useState<'perfil' | 'apariencia' | 'voz' | 'notificaciones' | 'privacidad' | 'atajos' | 'espacios'>('perfil');
 
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
@@ -303,16 +279,6 @@ export const SettingsModal: React.FC = () => {
               onClick={() => setActiveTab('atajos')}
             >
               <Keyboard size={15} /> Atajos de teclado
-            </button>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'ia'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('ia')}
-            >
-              <Sparkles size={15} className="text-purple-400" /> Kova AI (Gemini)
             </button>
 
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1.5">
@@ -957,107 +923,7 @@ export const SettingsModal: React.FC = () => {
               </SettingsSection>
             )}
 
-            {/* TAB: IA GEMINI */}
-            {activeTab === 'ia' && (
-              <div className="space-y-6 max-w-2xl">
-                <SettingsSection
-                  title="Google Gemini AI Engine"
-                  description="Kova AI está impulsado directamente por Google Gemini para análisis inteligente de canales, traducciones multilingües y minutas ejecutivas."
-                >
-                  {/* Status Card */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/40 via-indigo-950/20 to-[#141824] border border-purple-500/30 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-purple-300">
-                        <Sparkles size={20} className="animate-pulse" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-white">Google Generative AI</h4>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">
-                            🟢 Conectado
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          Modelo preferente: <span className="text-purple-300 font-mono">gemini-3.6-flash</span>
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleTestGemini}
-                      disabled={isTestingGemini}
-                      className="px-3.5 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
-                    >
-                      {isTestingGemini ? 'Probando...' : 'Probar conexión'}
-                    </button>
-                  </div>
 
-                  {/* API Key Input */}
-                  <div className="p-4 rounded-2xl bg-[#141824] border border-white/[0.06] space-y-3">
-                    <div>
-                      <label className="text-xs font-bold text-slate-200 block">
-                        Clave de API de Gemini
-                      </label>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Detectada e importada automáticamente de tus proyectos locales. Si cambias de clave, puedes guardarla aquí.
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={geminiKey}
-                        onChange={(e) => setGeminiKey(e.target.value)}
-                        placeholder="AQ.Ab8RN6KSrX1O..."
-                        className="flex-1 px-3 py-2 rounded-xl bg-[#0c0e17] border border-white/[0.1] text-xs font-mono text-slate-200 focus:outline-none focus:border-purple-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveGeminiKey}
-                        className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                      >
-                        Guardar
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Capabilities Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <div className="p-3.5 rounded-2xl bg-[#141824] border border-white/[0.06]">
-                      <h5 className="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
-                        <span>⚡ Resúmenes en vivo</span>
-                      </h5>
-                      <p className="text-[11px] text-slate-400">
-                        Sintetiza la conversación de cualquier canal con análisis de acuerdos y tareas pendientes.
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-2xl bg-[#141824] border border-white/[0.06]">
-                      <h5 className="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
-                        <span>🌐 Traducción Neuronal</span>
-                      </h5>
-                      <p className="text-[11px] text-slate-400">
-                        Traduce mensajes a inglés, japonés, francés o alemán conservando el contexto natural del chat.
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-2xl bg-[#141824] border border-white/[0.06]">
-                      <h5 className="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
-                        <span>📝 Minutas a Notas Markdown</span>
-                      </h5>
-                      <p className="text-[11px] text-slate-400">
-                        Genera actas formales de reunión con un clic y las almacena organizadas en tus documentos.
-                      </p>
-                    </div>
-                    <div className="p-3.5 rounded-2xl bg-[#141824] border border-white/[0.06]">
-                      <h5 className="text-xs font-bold text-white flex items-center gap-1.5 mb-1">
-                        <span>💬 Comando de Chat /ai</span>
-                      </h5>
-                      <p className="text-[11px] text-slate-400">
-                        Escribe <span className="font-mono text-purple-300">/ai [tu pregunta]</span> directamente en la barra de chat para invocar a Gemini.
-                      </p>
-                    </div>
-                  </div>
-                </SettingsSection>
-              </div>
-            )}
           </div>
         </div>
 

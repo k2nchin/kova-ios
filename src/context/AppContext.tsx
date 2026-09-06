@@ -38,6 +38,8 @@ import {
   translateTextWithGemini,
   generateMeetingMinutesWithGemini,
 } from '../services/geminiService';
+import { api, setAuthToken, clearAuthToken } from '../services/apiClient';
+import { connectSocket, disconnectSocket, getSocket } from '../services/socketClient';
 
 export interface AIMessage {
   id: string;
@@ -172,7 +174,13 @@ interface AppContextType {
   openUserProfile: (user: User) => void;
   closeUserProfile: () => void;
   // Server/Channel operations
-  createServer: (name: string, description: string, iconUrl?: string) => void;
+  createServer: (
+    name: string,
+    description?: string,
+    iconUrl?: string,
+    template?: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro'
+  ) => void;
+  joinServerByInvite: (inviteCodeOrId: string) => boolean;
   createChannel: (name: string, type: ChannelType, categoryId?: string) => void;
   updateChannel: (channelId: string, updates: Partial<Channel>) => void;
   deleteServer: (serverId: string) => void;
@@ -446,10 +454,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newCodes;
   };
 
-  const loginWithGoogle = (googleUser?: Partial<User>) => {
-    const user: User = {
+  const loginWithGoogle = async (googleUser?: Partial<User>) => {
+    let user: User = {
       ...currentUser,
-      id: `google_${Date.now()}`,
+      id: googleUser?.id || `google_${Date.now()}`,
       username: googleUser?.username || 'google_user',
       displayName: googleUser?.displayName || 'Usuario de Google',
       avatar:
@@ -458,8 +466,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'online',
       customStatus: 'Conectado con cuenta de Google',
     };
+
+    try {
+      const res = await api.loginGoogle({
+        googleId: user.id,
+        email: (googleUser as any)?.email || `${user.username}@gmail.com`,
+        displayName: user.displayName,
+        avatarUrl: user.avatar,
+      });
+      if (res?.token && res?.user) {
+        setAuthToken(res.token);
+        user = {
+          ...user,
+          id: res.user.id,
+          tag: res.user.tag || user.tag,
+        };
+      }
+    } catch (err) {
+      console.warn('[Kova Backend Sync] Modo offline / local para Google Auth:', err);
+    }
+
     setCurrentUser(user);
     setIsAuthenticated(true);
+    connectSocket();
+
     setServers((prev) => {
       if (prev.length === 0) return prev;
       return prev.map((s, idx) => {
@@ -481,9 +511,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundFx.playAISparkle();
   };
 
-  const loginWithEmail = (email: string, _pass: string) => {
+  const loginWithEmail = async (email: string, pass: string) => {
     const username = email.split('@')[0] || 'usuario';
-    const user: User = {
+    let user: User = {
       ...currentUser,
       id: `user_${Date.now()}`,
       username,
@@ -491,8 +521,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'online',
       customStatus: 'Disponible en Kova',
     };
+
+    try {
+      const res = await api.login({ email, password: pass });
+      if (res?.token && res?.user) {
+        setAuthToken(res.token);
+        user = {
+          ...user,
+          id: res.user.id,
+          username: res.user.username,
+          displayName: res.user.displayName,
+          tag: res.user.tag || user.tag,
+          avatar: res.user.avatarUrl || user.avatar,
+        };
+        toast.success(`¡Bienvenido de nuevo, ${user.displayName}!`);
+      }
+    } catch (err: any) {
+      console.warn('[Kova Backend Sync] Fallback local para login:', err);
+      toast.info(err.message || 'Iniciando sesión en modo local');
+    }
+
     setCurrentUser(user);
     setIsAuthenticated(true);
+    connectSocket();
+
     setServers((prev) => {
       if (prev.length === 0) return prev;
       return prev.map((s, idx) => {
@@ -514,8 +566,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundFx.playAISparkle();
   };
 
-  const registerUser = (username: string, _email: string, _pass: string, displayName?: string) => {
-    const user: User = {
+  const registerUser = async (username: string, email: string, pass: string, displayName?: string) => {
+    let user: User = {
       ...currentUser,
       id: `user_${Date.now()}`,
       username: username.toLowerCase().replace(/\s+/g, '_'),
@@ -523,8 +575,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'online',
       customStatus: 'Nuevo explorador en Kova',
     };
+
+    try {
+      const res = await api.register({
+        username: user.username,
+        email,
+        password: pass,
+        displayName: user.displayName,
+      });
+      if (res?.token && res?.user) {
+        setAuthToken(res.token);
+        user = {
+          ...user,
+          id: res.user.id,
+          tag: res.user.tag || user.tag,
+          avatar: res.user.avatarUrl || user.avatar,
+        };
+        toast.success('¡Cuenta creada y sincronizada con éxito!');
+      }
+    } catch (err: any) {
+      console.warn('[Kova Backend Sync] Fallback local para registro:', err);
+      toast.info(err.message || 'Registrando usuario en modo local');
+    }
+
     setCurrentUser(user);
     setIsAuthenticated(true);
+    connectSocket();
+
     setServers((prev) => {
       if (prev.length === 0) return prev;
       return prev.map((s, idx) => {
@@ -547,6 +624,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    clearAuthToken();
+    disconnectSocket();
     setIsAuthenticated(false);
     setActiveVoiceChannelId(null);
     try {
@@ -576,6 +655,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || '');
   const [activeChannelId, setActiveChannelId] = useState<string>(() => servers[0]?.channels[0]?.id || '');
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
+
+  // Sincronización en tiempo real vía Socket.IO
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = connectSocket();
+
+    const handleMessageCreated = (msg: any) => {
+      if (!msg || !msg.channelId) return;
+      setAllMessages((prev) => {
+        const channelMsgs = prev[msg.channelId] || [];
+        if (channelMsgs.some((m) => m.id === msg.id)) return prev;
+
+        const newMsg: Message = {
+          id: msg.id,
+          channelId: msg.channelId,
+          author: {
+            id: msg.author?.id || 'unknown',
+            username: msg.author?.username || 'usuario',
+            displayName: msg.author?.displayName || 'Usuario',
+            tag: msg.author?.tag || '0001',
+            avatar: msg.author?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+            status: 'online',
+          },
+          content: msg.content,
+          timestamp: 'Hoy a las ' + new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          reactions: msg.reactions || [],
+          replyTo: msg.replyTo
+            ? {
+                id: msg.replyTo.id,
+                authorName: msg.replyTo.author?.displayName || 'Usuario',
+                content: msg.replyTo.content?.slice(0, 80) || '',
+              }
+            : undefined,
+        };
+
+        return {
+          ...prev,
+          [msg.channelId]: [...channelMsgs, newMsg],
+        };
+      });
+    };
+
+    socket.on('message:created', handleMessageCreated);
+
+    return () => {
+      socket.off('message:created', handleMessageCreated);
+    };
+  }, [isAuthenticated]);
+
+  // Cambiar de sala en Socket.IO cuando cambia el canal activo
+  useEffect(() => {
+    if (!activeChannelId) return;
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      socket.emit('channel:join', { channelId: activeChannelId });
+    }
+  }, [activeChannelId]);
 
   // Themes & Sound
   const [theme, setThemeState] = useState<BackgroundTheme>(() => {
@@ -1075,6 +1211,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       [activeChannel.id]: [...(prev[activeChannel.id] || []), newMsg],
     }));
+
+    try {
+      const socket = getSocket();
+      if (socket && socket.connected) {
+        socket.emit('message:send', {
+          channelId: activeChannel.id,
+          content,
+          replyToId: replyId,
+        });
+      }
+    } catch (err) {
+      console.warn('[Socket Emit Error]', err);
+    }
   };
 
   const addReaction = (messageId: string, emoji: string) => {
@@ -1224,11 +1373,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAiHistory((prev) => [...prev, aiMsg]);
       soundFx.playAISparkle();
     } catch (err) {
-      console.error('[Kova AI] Error procesando solicitud:', err);
+      console.error('[Kova IA] Error procesando solicitud:', err);
       const aiMsg: AIMessage = {
         id: `ai_${Date.now()}`,
         sender: 'ai',
-        text: '✦ **Kova AI**: Ocurrió un error al procesar tu solicitud con Gemini. Por favor intenta de nuevo.',
+        text: '✦ **Kova IA**: Ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo en unos momentos.',
         timestamp: 'Ahora',
       };
       setAiHistory((prev) => [...prev, aiMsg]);
@@ -1520,12 +1669,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           try {
             const prompt = bot.systemPrompt
-              ? `[INSTRUCCIÓN DE SISTEMA / PERSONALIDAD: ${bot.systemPrompt}]\n\nEstás en el servidor "${activeServer.name}" de Discord/Kova. Responde al siguiente mensaje del usuario de acuerdo a tu personalidad de manera concisa y formateada con Markdown:\n\nUsuario: ${query}`
-              : `Eres el bot de Discord Gemini Pro en el servidor "${activeServer.name}". Responde de forma concisa y útil al siguiente mensaje:\n\nUsuario: ${query}`;
+              ? `[INSTRUCCIÓN DE SISTEMA / PERSONALIDAD: ${bot.systemPrompt}]\n\nEstás en el servidor "${activeServer.name}" de Kova. Responde al siguiente mensaje del usuario de acuerdo a tu personalidad de manera concisa y formateada con Markdown:\n\nUsuario: ${query}`
+              : `Eres Kova IA, el asistente inteligente oficial en el servidor "${activeServer.name}". Responde de forma clara, concisa y útil al siguiente mensaje:\n\nUsuario: ${query}`;
             const aiResponse = await askGemini(prompt);
             reply = aiResponse;
           } catch {
-            reply = `✨ **${bot.name}**: He recibido tu mensaje: "${query}". Sistemas neuronales activos.`;
+            reply = `✨ **${bot.name}**: He recibido tu mensaje: "${query}". Sistemas activos.`;
           }
         }
       } else {
@@ -1587,7 +1736,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Server, Channel & Category operations
-  const createServer = (name: string, description: string, iconUrl?: string) => {
+  const createServer = (
+    name: string,
+    description?: string,
+    iconUrl?: string,
+    template: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro' = 'amigos'
+  ) => {
     soundFx.playJoinVoice();
     const newServerId = `server_${Date.now()}`;
 
@@ -1598,49 +1752,199 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       roles: [ownerRoleId],
     };
 
-    const catTextId = `cat_text_${newServerId}`;
-    const catVoiceId = `cat_voice_${newServerId}`;
-    const chanGenId = `chan_gen_${newServerId}`;
-    const chanVoiceId = `chan_voice_${newServerId}`;
+    let categories: ChannelCategory[] = [];
+    let channels: Channel[] = [];
+
+    if (template === 'amigos') {
+      const catInfo = `cat_info_${newServerId}`;
+      const catChat = `cat_chat_${newServerId}`;
+      const catVoice = `cat_voice_${newServerId}`;
+      const chReglas = `chan_reg_${newServerId}`;
+      const chAnuncios = `chan_anu_${newServerId}`;
+      const chGen = `chan_gen_${newServerId}`;
+      const chPlanes = `chan_pla_${newServerId}`;
+      const chMemes = `chan_mem_${newServerId}`;
+      const chVoice1 = `chan_v1_${newServerId}`;
+      const chVoice2 = `chan_v2_${newServerId}`;
+
+      categories = [
+        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chAnuncios] },
+        { id: catChat, name: 'CHAT', channelIds: [chGen, chPlanes, chMemes] },
+        { id: catVoice, name: 'VOICE', channelIds: [chVoice1, chVoice2] },
+      ];
+
+      channels = [
+        { id: chReglas, name: 'reglas', type: 'text', topic: 'Reglas y acuerdos del grupo', categoryId: catInfo },
+        { id: chAnuncios, name: 'anuncios', type: 'announcements', topic: 'Novedades y avisos', categoryId: catInfo },
+        { id: chGen, name: 'general', type: 'text', topic: 'Charla general de amigos', categoryId: catChat },
+        { id: chPlanes, name: 'planes', type: 'text', topic: 'Coordinar salidas y eventos', categoryId: catChat },
+        { id: chMemes, name: 'clips-y-memes', type: 'text', topic: 'Comparte risas y clips', categoryId: catChat },
+        { id: chVoice1, name: 'General', type: 'voice', topic: 'Voz libre para hablar', categoryId: catVoice },
+        { id: chVoice2, name: 'Gaming', type: 'voice', topic: 'Canal de voz para partidas', categoryId: catVoice },
+      ];
+    } else if (template === 'gaming') {
+      const catInfo = `cat_info_${newServerId}`;
+      const catChat = `cat_chat_${newServerId}`;
+      const catVoice = `cat_voice_${newServerId}`;
+      const chReglas = `chan_reg_${newServerId}`;
+      const chClips = `chan_cli_${newServerId}`;
+      const chGen = `chan_gen_${newServerId}`;
+      const chLfg = `chan_lfg_${newServerId}`;
+      const chSq1 = `chan_sq1_${newServerId}`;
+      const chSq2 = `chan_sq2_${newServerId}`;
+      const chLounge = `chan_lng_${newServerId}`;
+
+      categories = [
+        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chClips] },
+        { id: catChat, name: 'CHAT GAMING', channelIds: [chGen, chLfg] },
+        { id: catVoice, name: 'CANALES DE VOZ', channelIds: [chSq1, chSq2, chLounge] },
+      ];
+
+      channels = [
+        { id: chReglas, name: 'reglas', type: 'text', topic: 'Reglas de la comunidad gamer', categoryId: catInfo },
+        { id: chClips, name: 'mejores-jugadas', type: 'text', topic: 'Comparte tus clips y victorias', categoryId: catInfo },
+        { id: chGen, name: 'general', type: 'text', topic: 'Charla general de videojuegos', categoryId: catChat },
+        { id: chLfg, name: 'buscar-grupo-lfg', type: 'text', topic: 'Encuentra escuadra para jugar', categoryId: catChat },
+        { id: chSq1, name: 'Squad 1 (Dúo/Trío)', type: 'voice', topic: 'Voz baja latencia', categoryId: catVoice },
+        { id: chSq2, name: 'Squad 2 (Competitivo)', type: 'voice', topic: 'Voz táctica', categoryId: catVoice },
+        { id: chLounge, name: 'Sala de Espera', type: 'voice', topic: 'Chill & AFK', categoryId: catVoice },
+      ];
+    } else if (template === 'comunidad') {
+      const catInfo = `cat_info_${newServerId}`;
+      const catChat = `cat_chat_${newServerId}`;
+      const catVoice = `cat_voice_${newServerId}`;
+      const chReglas = `chan_reg_${newServerId}`;
+      const chAnuncios = `chan_anu_${newServerId}`;
+      const chGen = `chan_gen_${newServerId}`;
+      const chDebate = `chan_deb_${newServerId}`;
+      const chVoiceGen = `chan_vgen_${newServerId}`;
+      const chEventos = `chan_vev_${newServerId}`;
+
+      categories = [
+        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chAnuncios] },
+        { id: catChat, name: 'COMUNIDAD', channelIds: [chGen, chDebate] },
+        { id: catVoice, name: 'VOICE', channelIds: [chVoiceGen, chEventos] },
+      ];
+
+      channels = [
+        { id: chReglas, name: 'reglas', type: 'text', topic: 'Normas del servidor', categoryId: catInfo },
+        { id: chAnuncios, name: 'anuncios', type: 'announcements', topic: 'Anuncios oficiales', categoryId: catInfo },
+        { id: chGen, name: 'general', type: 'text', topic: 'Conversación general', categoryId: catChat },
+        { id: chDebate, name: 'charla-libre', type: 'text', topic: 'Temas varios y off-topic', categoryId: catChat },
+        { id: chVoiceGen, name: 'General', type: 'voice', topic: 'Voz comunitaria', categoryId: catVoice },
+        { id: chEventos, name: 'Eventos & Charlas', type: 'voice', topic: 'Transmisiones y eventos', categoryId: catVoice },
+      ];
+    } else if (template === 'trabajo') {
+      const catInfo = `cat_info_${newServerId}`;
+      const catEquipo = `cat_eq_${newServerId}`;
+      const catVoice = `cat_voice_${newServerId}`;
+      const chObj = `chan_obj_${newServerId}`;
+      const chAnu = `chan_anu_${newServerId}`;
+      const chGen = `chan_gen_${newServerId}`;
+      const chProy = `chan_proy_${newServerId}`;
+      const chRec = `chan_rec_${newServerId}`;
+      const chMeet = `chan_meet_${newServerId}`;
+      const chFocus = `chan_foc_${newServerId}`;
+
+      categories = [
+        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chObj, chAnu] },
+        { id: catEquipo, name: 'EQUIPO & TRABAJO', channelIds: [chGen, chProy, chRec] },
+        { id: catVoice, name: 'SALA DE REUNIONES', channelIds: [chMeet, chFocus] },
+      ];
+
+      channels = [
+        { id: chObj, name: 'objetivos', type: 'text', topic: 'Objetivos y roadmap', categoryId: catInfo },
+        { id: chAnu, name: 'anuncios', type: 'announcements', topic: 'Avisos importantes de equipo', categoryId: catInfo },
+        { id: chGen, name: 'general', type: 'text', topic: 'Comunicación diaria', categoryId: catEquipo },
+        { id: chProy, name: 'proyectos', type: 'text', topic: 'Seguimiento de tareas y entregas', categoryId: catEquipo },
+        { id: chRec, name: 'recursos', type: 'text', topic: 'Documentación y links útiles', categoryId: catEquipo },
+        { id: chMeet, name: 'Sala de Juntas (HD)', type: 'voice', topic: 'Reuniones de equipo', categoryId: catVoice },
+        { id: chFocus, name: 'Trabajo Silencioso', type: 'voice', topic: 'Concentración y estudio', categoryId: catVoice },
+      ];
+    } else {
+      // Default / Otro
+      const catInfo = `cat_info_${newServerId}`;
+      const catChat = `cat_chat_${newServerId}`;
+      const catVoice = `cat_voice_${newServerId}`;
+      const chReglas = `chan_reg_${newServerId}`;
+      const chAnuncios = `chan_anu_${newServerId}`;
+      const chGen = `chan_gen_${newServerId}`;
+      const chVoice = `chan_v_${newServerId}`;
+
+      categories = [
+        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chAnuncios] },
+        { id: catChat, name: 'CHAT', channelIds: [chGen] },
+        { id: catVoice, name: 'VOICE', channelIds: [chVoice] },
+      ];
+
+      channels = [
+        { id: chReglas, name: 'reglas', type: 'text', topic: 'Reglas del servidor', categoryId: catInfo },
+        { id: chAnuncios, name: 'anuncios', type: 'announcements', topic: 'Anuncios y avisos', categoryId: catInfo },
+        { id: chGen, name: 'general', type: 'text', topic: 'Canal general', categoryId: catChat },
+        { id: chVoice, name: 'General', type: 'voice', topic: 'Audio WebRTC 96kHz', categoryId: catVoice },
+      ];
+    }
+
+    const defaultChannelId = channels.find((c) => c.name === 'general')?.id || channels[0]?.id || '';
 
     const newServer: Server = {
       id: newServerId,
       name,
       acronym: name.slice(0, 2).toUpperCase(),
       icon: iconUrl || '',
-      description: description || 'Servidor creado en Kova',
+      description: description || `Servidor de ${template}`,
       ownerId: currentUser.id,
       themeGradient: 'from-purple-600 to-indigo-600',
-      categories: [
-        { id: catTextId, name: 'CANALES DE TEXTO', channelIds: [chanGenId] },
-        { id: catVoiceId, name: 'CANALES DE VOZ (HD)', channelIds: [chanVoiceId] },
-      ],
-      channels: [
-        {
-          id: chanGenId,
-          name: 'general',
-          type: 'text',
-          topic: `Canal general de ${name}`,
-          categoryId: catTextId,
-        },
-        {
-          id: chanVoiceId,
-          name: 'Voz Principal (HD)',
-          type: 'voice',
-          topic: 'Audio de alta fidelidad 96kHz WebRTC',
-          categoryId: catVoiceId,
-        },
-      ],
+      categories,
+      channels,
       roles: defaultRoles,
       members: [ownerMember],
     };
 
     setServers((prev) => [...prev, newServer]);
     setActiveServerId(newServerId);
-    setActiveChannelId(chanGenId);
+    if (defaultChannelId) {
+      setActiveChannelId(defaultChannelId);
+    }
     setIsDMViewActive(false);
     setIsCreateServerOpen(false);
-    toast.success(`¡Servidor "${name}" creado con canales de texto y voz!`);
+
+    // Sync with backend database in background
+    api.createServer({ name, description, iconUrl })
+      .catch((err) => console.warn('[Backend Sync Server Notice]:', err));
+
+    toast.success(`¡Servidor "${name}" creado con éxito!`);
+  };
+
+  const joinServerByInvite = (inviteCodeOrId: string): boolean => {
+    const cleanCode = inviteCodeOrId.replace(/^.*\/invite\//, '').trim();
+    if (!cleanCode) return false;
+
+    // Check if server already in local server list
+    const existing = servers.find(
+      (s) => s.id === cleanCode || s.name.toLowerCase() === cleanCode.toLowerCase()
+    );
+    if (existing) {
+      setActiveServerId(existing.id);
+      setActiveChannelId(existing.channels[0]?.id || '');
+      setIsDMViewActive(false);
+      setIsCreateServerOpen(false);
+      toast.success(`Ya estás en ${existing.name}`);
+      return true;
+    }
+
+    // Try joining via backend API
+    api.joinServer(cleanCode)
+      .then(() => {
+        toast.success('Te has unido al servidor con éxito');
+      })
+      .catch((err) => {
+        console.warn('[Join Server Notice]', err);
+      });
+
+    toast.success(`Unido al servidor con código: ${cleanCode}`);
+    setIsCreateServerOpen(false);
+    return true;
   };
 
   const createChannel = (name: string, type: ChannelType, categoryId?: string) => {
@@ -1681,9 +1985,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    setActiveChannelId(newChanId);
+    // Only set as active text view if not a voice channel, or keep current channel active
+    if (type !== 'voice') {
+      setActiveChannelId(newChanId);
+    }
     setIsCreateChannelOpen(false);
-    toast.success(`Canal #${formattedName} creado`);
+    toast.success(`Canal ${type === 'voice' ? 'de voz 🔊' : '#'}${formattedName} creado`);
   };
 
   const updateChannel = (channelId: string, updates: Partial<Channel>) => {
@@ -2023,6 +2330,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openUserProfile,
         closeUserProfile,
         createServer,
+        joinServerByInvite,
         createChannel,
         deleteServer,
         deleteChannel,

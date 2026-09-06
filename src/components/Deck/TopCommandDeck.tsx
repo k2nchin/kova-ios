@@ -148,15 +148,7 @@ export const TopCommandDeck: React.FC = () => {
           <span className="text-cyan-400">RAM 68MB</span>
         </div>
 
-        {/* AI Quick Button */}
-        <button
-          onClick={() => setIsKovaAIOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-cyan-500/20 hover:from-purple-500/30 hover:to-cyan-500/30 border border-purple-500/30 text-purple-200 hover:text-white transition-all text-xs font-semibold shadow-sm group"
-          title="Kova AI Quantum Engine"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-purple-400 group-hover:text-cyan-300 animate-spin-slow" />
-          <span className="hidden sm:inline">Kova AI</span>
-        </button>
+
 
         {/* User Status Capsule */}
         <div

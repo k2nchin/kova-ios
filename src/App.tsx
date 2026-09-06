@@ -51,18 +51,11 @@ export const MainLayout: React.FC = () => {
 
   const [layoutMode, setLayoutMode] = useState<WorkspaceLayoutMode>('split');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState<'app' | 'landing'>(() => {
-    const isTauri =
-      typeof (window as unknown as { __TAURI__?: unknown }).__TAURI__ !== 'undefined' ||
-      typeof (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== 'undefined';
-    if (isTauri) return 'app';
-    const savedUser = localStorage.getItem('kova.auth.user');
-    return savedUser ? 'app' : 'landing';
-  });
+  const [viewMode, setViewMode] = useState<'app' | 'landing'>('app');
 
   if (viewMode === 'landing') {
     return (
-      <div className="min-h-screen w-screen bg-[#07090e] text-[#dbdee1] relative overflow-y-auto">
+      <div className="w-full min-h-screen bg-[#07090e] text-[#dbdee1] relative">
         <LandingPage onEnterApp={() => setViewMode('app')} />
         <Toaster position="bottom-right" theme="dark" />
       </div>

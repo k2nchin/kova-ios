@@ -61,7 +61,10 @@ export function openRealGoogleSignIn(
     const height = 620;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
-    window.open(authUrl, 'GoogleSignIn', `width=${width},height=${height},left=${left},top=${top}`);
+    const win = window.open(authUrl, 'GoogleSignIn', `width=${width},height=${height},left=${left},top=${top}`);
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      onError('El navegador bloqueó la ventana emergente de Google. Por favor permite las ventanas emergentes (popups).');
+    }
     return;
   }
 

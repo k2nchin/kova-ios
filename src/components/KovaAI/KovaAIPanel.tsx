@@ -42,12 +42,12 @@ export const KovaAIPanel: React.FC = () => {
             </div>
             <div>
               <h2 className="text-sm font-bold text-white font-['Outfit'] flex items-center gap-2">
-                <span>Kova AI Assistant</span>
+                <span>Kova IA</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono">
-                  Gemini & Rust Core
+                  Oficial
                 </span>
               </h2>
-              <p className="text-[11px] text-slate-400">Inteligencia contextual integrada en tiempo real</p>
+              <p className="text-[11px] text-slate-400">Asistente oficial inteligente</p>
             </div>
           </div>
 
