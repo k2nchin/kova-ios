@@ -1,0 +1,11 @@
+{
+  "version": "1.0.10",
+  "notes": "Kova 1.0.10 corrige el acceso online, identidades únicas, solicitudes y la Bandeja de Kova.",
+  "pub_date": "2026-09-11T16:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRN3RiakFwU2VmZTVCM0xWWkdLTVJLeGduTGgyZ3k1MzdpdjZ4VE1nbmZ5YkNvRCtjdUY4eDg3emYxajBJOG5tZlZuOTB6YktHb0FHZ3pudlluV1NRZXVtdVpqeVZvR2dFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MDg4MjMyCWZpbGU6S292YV8xLjAuMTBfeDY0LXNldHVwLmV4ZQpLalVkU1FDSmVSbiszNjlhTXl4d1p5V3V5MjUybWg4RkYzZXRsYnAxdlVSdlRTajlUTlI4MDJ5SThmTjhBVTBqU3pKSktrQ0RzVXZqZnB0dVhNMERBdz09Cg==",
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.10_x64-setup.exe"
+    }
+  }
+}
