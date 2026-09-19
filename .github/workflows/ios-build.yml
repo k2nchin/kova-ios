@@ -1,24 +1,35 @@
-﻿name: Kova iOS Init
+﻿name: Kova iOS Build
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
 
-jobs:
-  ios-init:
-    runs-on: macos-latest
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
+  ios-build:
+    name: Kova for iOS (Simulator + Device)
+    runs-on: macos-latest
+    env:
+      # Presence of the Apple signing secrets enables the real device .ipa;
+      # without them the workflow still delivers the simulator app.
+      HAS_SIGNING: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
-      - name: Checkout Kova
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: 'npm'
 
       - name: Install Node dependencies
         run: npm ci
@@ -26,32 +37,90 @@ jobs:
       - name: Setup Rust for iOS
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
 
-      - name: Check Xcode
+      - name: Show toolchain
         run: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
-
-      - name: Check CocoaPods
-        run: |
           pod --version || brew install cocoapods
 
-      - name: Check Tauri
+      - name: Generate Xcode project (first run)
         run: |
-          npm run tauri -- --version
-          npm run tauri -- info
+          if [ ! -d src-tauri/gen/apple ]; then
+            npx tauri ios init --ci
+          fi
+          find src-tauri/gen/apple -maxdepth 2 -type f | sort | head -40
 
-      - name: Initialize Kova iOS
-        run: npm run tauri -- ios init --ci
+      # ---------------------------------------------------------------------
+      # 1. iOS SIMULATOR build — no Apple Developer account required.
+      #    Anyone on macOS can run it: open the .app with an iPhone simulator.
+      # ---------------------------------------------------------------------
+      - name: Build Kova for iOS Simulator
+        run: npx tauri ios build --target aarch64-apple-ios-sim
 
-      - name: Show Apple project
+      - name: Collect simulator app
         run: |
-          find src-tauri/gen/apple -maxdepth 3 -type f | sort | head -150
+          APP_PATH=$(find src-tauri/gen/apple/build -type d -name 'Kova.app' -path '*iphonesimulator*' | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Simulator .app not found"; exit 1
+          fi
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" Kova-iOS-Simulator.zip
 
-      - name: Upload Kova iOS project
+      - name: Upload simulator build
         uses: actions/upload-artifact@v4
         with:
-          name: kova-ios-project
-          path: src-tauri/gen/apple
+          name: Kova-iOS-Simulator-v${{ github.ref_name || 'dev' }}
+          path: Kova-iOS-Simulator.zip
+          retention-days: 14
           if-no-files-found: error
+
+      # ---------------------------------------------------------------------
+      # 2. iOS DEVICE build — requires the repository secrets below.
+      #    Configure them in Settings > Secrets and variables > Actions:
+      #      APPLE_CERTIFICATE          base64 del .p12 (certificado de desarrollo/distribución)
+      #      APPLE_CERTIFICATE_PASSWORD contraseña del .p12
+      #      APPLE_SIGNING_IDENTITY     p. ej. "Apple Development: ..." o "Apple Distribution: ..."
+      #      APPLE_PROVISIONING_PROFILE base64 del .mobileprovision
+      # ---------------------------------------------------------------------
+      - name: Build signed Kova for iOS device
+        if: env.HAS_SIGNING == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: npx tauri ios build --export-method development
+
+      - name: Collect device .ipa
+        if: env.HAS_SIGNING == 'true'
+        run: |
+          IPA_PATH=$(find src-tauri/gen/apple/build -type f -name 'Kova.ipa' | head -1)
+          if [ -n "$IPA_PATH" ]; then
+            cp "$IPA_PATH" Kova-iOS-Device.ipa
+            echo "Found $IPA_PATH"
+          else
+            echo "No .ipa produced (revisar secrets de firma)"
+            exit 1
+          fi
+
+      - name: Upload device build
+        if: env.HAS_SIGNING == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kova-iOS-Device-v${{ github.ref_name || 'dev' }}
+          path: Kova-iOS-Device.ipa
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Build summary
+        run: |
+          {
+            echo "### Kova iOS"
+            echo "- Simulador: artifact \`Kova-iOS-Simulator-v*\` (arm64, sin firma, requiere macOS con Xcode)"
+            if [ "$HAS_SIGNING" = "true" ]; then
+              echo "- Device: artifact \`Kova-iOS-Device-v*\` (.ipa firmado, instalación vía Xcode/Transporter)"
+            else
+              echo "- Device: omitido — configurar secrets APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY para IPA firmada"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
