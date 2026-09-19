@@ -1,0 +1,60 @@
+﻿name: Kova iOS Init
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-init:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Kova
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Setup Rust for iOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Check Xcode
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install CocoaPods if needed
+        run: |
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+          pod --version
+
+      - name: Check Tauri
+        run: |
+          npm run tauri -- --version
+          npm run tauri -- info
+
+      - name: Initialize Kova iOS
+        run: npm run tauri -- ios init --ci
+
+      - name: Show generated iOS files
+        run: |
+          find src-tauri/gen/apple -maxdepth 3 -type f | sort | head -150
+
+      - name: Upload Kova iOS project
+        uses: actions/upload-artifact@v4
+        with:
+          name: kova-ios-project
+          path: src-tauri/gen/apple
+          if-no-files-found: error
