@@ -33,7 +33,7 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
-      - name: Install CocoaPods if needed
+      - name: Install CocoaPods
         run: |
           if ! command -v pod >/dev/null 2>&1; then
             brew install cocoapods
@@ -48,7 +48,7 @@ jobs:
       - name: Initialize Kova iOS
         run: npm run tauri -- ios init --ci
 
-      - name: Show generated iOS files
+      - name: Show generated Apple files
         run: |
           find src-tauri/gen/apple -maxdepth 3 -type f | sort | head -150
 
