@@ -4,39 +4,46 @@ import {
   Square,
   X,
   Bell,
-  Command,
-  ChevronLeft,
-  ChevronRight,
+  Search,
+  Users,
+  ChevronDown,
   Palette,
   Settings,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { toast } from 'sonner';
 
 const QUICK_THEMES: { id: BackgroundTheme; name: string; dot: string }[] = [
+  { id: 'amethyst', name: 'Violet Neon (Default)', dot: 'bg-purple-500 shadow-sm shadow-purple-500/50' },
   { id: 'oled', name: 'OLED Pure Black', dot: 'bg-black border border-white/20' },
   { id: 'crimson', name: 'Dark Rojo Carmesí', dot: 'bg-rose-500 shadow-sm shadow-rose-500/50' },
   { id: 'abyss', name: 'Abyssal Deep Blue', dot: 'bg-sky-500 shadow-sm shadow-sky-500/50' },
   { id: 'emerald', name: 'Deep Forest Emerald', dot: 'bg-emerald-500 shadow-sm shadow-emerald-500/50' },
-  { id: 'amethyst', name: 'Amethyst Gothic Void', dot: 'bg-purple-500 shadow-sm shadow-purple-500/50' },
-  { id: 'amber', name: 'Cyber Amber Eclipse', dot: 'bg-amber-500 shadow-sm shadow-amber-500/50' },
   { id: 'nebula', name: 'Nebula Cyber-Glow', dot: 'bg-indigo-400' },
-  { id: 'matrix', name: 'Matrix Green Rain', dot: 'bg-emerald-400' },
   { id: 'synthwave', name: 'Synthwave 80s', dot: 'bg-pink-500' },
-  { id: 'discord', name: 'Discord Classic', dot: 'bg-[#5865f2]' },
 ];
 
 interface TitlebarProps {
   sidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  authMode?: boolean;
 }
 
-export const Titlebar: React.FC<TitlebarProps> = ({
-  sidebarCollapsed = false,
-  onToggleSidebar,
-}) => {
-  const { theme, setTheme, setIsCommandPaletteOpen, setIsSettingsOpen } = useApp();
+export const Titlebar: React.FC<TitlebarProps> = ({ sidebarCollapsed = false, onToggleSidebar, authMode = false }) => {
+  const {
+    theme,
+    setTheme,
+    setIsCommandPaletteOpen,
+    setIsSettingsOpen,
+    currentUser,
+    setIsMemberListOpen,
+    isMemberListOpen,
+    setIsNotificationsOpen,
+    unreadNotificationsCount,
+  } = useApp();
   const [isMaximized, setIsMaximized] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
 
@@ -44,7 +51,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   const handleMinimize = async () => {
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      getCurrentWindow().minimize();
+      await getCurrentWindow().minimize();
     } catch {
       // Browser fallback
     }
@@ -56,10 +63,10 @@ export const Titlebar: React.FC<TitlebarProps> = ({
       const win = getCurrentWindow();
       const maximized = await win.isMaximized();
       if (maximized) {
-        win.unmaximize();
+        await win.unmaximize();
         setIsMaximized(false);
       } else {
-        win.maximize();
+        await win.maximize();
         setIsMaximized(true);
       }
     } catch {
@@ -70,142 +77,137 @@ export const Titlebar: React.FC<TitlebarProps> = ({
   const handleClose = async () => {
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      getCurrentWindow().close();
+      await getCurrentWindow().close();
     } catch {
       // Browser fallback
+    }
+  };
+
+  const handleTitlebarMouseDown = async (event: React.MouseEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, a, [role="button"]')) return;
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().startDragging();
+    } catch {
+      // La versión web no controla la ventana del sistema.
     }
   };
 
   return (
     <header
       data-tauri-drag-region
-      className="h-12 w-full bg-[#08090d] flex items-center justify-between px-3 select-none z-50 text-xs text-[#949ba4] font-medium border-b border-white/[0.04]"
+      onMouseDown={handleTitlebarMouseDown}
+      onDoubleClick={handleMaximize}
+      className="kova-titlebar h-[52px] shrink-0 w-full bg-[#05030a] flex items-center justify-between px-4 select-none z-[60] text-xs text-[#949ba4] font-medium border-b border-white/10"
     >
-      {/* Left: KOVA Ribbon Logo + Brand + Sidebar Collapse Toggle */}
+      {/* Left: Star + Wordmark + Tagline + Sidebar Toggle */}
       <div className="flex items-center gap-2.5 no-drag">
-        {/* Official 3D Isometric Logo */}
-        <div className="w-8 h-8 rounded-xl overflow-hidden bg-[#101322] border border-purple-500/30 flex items-center justify-center shadow-lg shadow-purple-950/60 ring-1 ring-purple-400/20">
-          <img src="/kova-logo.png" alt="Kova" className="w-7 h-7 object-contain" />
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-purple-950/40 text-purple-400/70 hover:text-purple-200 border border-transparent hover:border-purple-900/40 transition-colors cursor-pointer mr-1"
+            title={sidebarCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
+        <div className="kova-brand-logo-wrap w-8 h-8 flex items-center justify-center">
+          <img
+            src="/kova-chrome-cube.png"
+            alt="Logo de Kova"
+            className="kova-brand-logo w-8 h-8 object-contain"
+          />
         </div>
-
-        {/* Wordmark */}
-        <span className="font-['Outfit'] font-extrabold text-sm tracking-widest text-white uppercase">
-          KOVA
-        </span>
-
-        {/* Collapse Sidebar Button */}
-        <button
-          onClick={onToggleSidebar}
-          className="w-7 h-7 ml-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/[0.05]"
-          title={sidebarCollapsed ? 'Expandir barra lateral' : 'Ocultar barra lateral'}
-        >
-          {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
+        <div className="flex flex-col leading-none">
+          <span className="font-['Outfit'] font-black text-sm tracking-[0.2em] text-white select-none">
+            KOVA
+          </span>
+          <span className="text-[7.5px] font-bold tracking-[0.18em] text-purple-300/60 uppercase mt-0.5">
+            REAL PEOPLE. GREAT VIBES.
+          </span>
+        </div>
       </div>
 
-      {/* Center & Right: Search Input (⌘ K) + Notification Bell + Palette/Audio + Window Controls */}
-      <div className="flex items-center gap-2.5 no-drag">
-        {/* Search Pill: Buscar en KOVA ⌘ K */}
+      {/* Center: Search Pill "Buscar en KOVA..." with ⌘ K */}
+      {!authMode && <div className="flex-1 max-w-md mx-4 no-drag">
         <button
           onClick={() => setIsCommandPaletteOpen(true)}
-          className="flex items-center justify-between w-48 sm:w-64 px-3.5 py-1.5 rounded-xl bg-[#10121a] hover:bg-[#141722] border border-white/[0.07] text-xs text-slate-400 hover:text-slate-200 transition-all cursor-pointer group shadow-inner"
+          className="flex items-center justify-between w-full max-w-md px-4 py-1.5 rounded-full bg-[#0d071c] hover:bg-[#130b28] border border-purple-900/40 hover:border-purple-500/40 text-xs text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer shadow-inner group"
         >
-          <span className="text-slate-400 group-hover:text-slate-300 font-normal">
-            Buscar en KOVA
-          </span>
-          <kbd className="px-1.5 py-0.5 rounded-md bg-white/[0.06] text-[10px] text-slate-300 font-mono flex items-center gap-1 border border-white/[0.05]">
-            <Command size={10} /> K
+          <div className="flex items-center gap-2">
+            <Search size={13} className="text-zinc-500 group-hover:text-purple-400 transition-colors" />
+            <span className="text-zinc-400 group-hover:text-zinc-300 font-normal">
+              Buscar en KOVA...
+            </span>
+          </div>
+          <kbd className="px-1.5 py-0.2 rounded bg-white/[0.06] text-[10px] text-zinc-400 font-mono flex items-center gap-0.5 border border-white/[0.06]">
+            ⌘ K
           </kbd>
         </button>
+      </div>}
 
-        {/* Notification Bell with Magenta/Purple Unread Dot */}
+      {/* Right: Actions, Avatar, Window Controls */}
+      <div className="flex items-center gap-3 no-drag">
+        {!authMode && <>
+        {/* Notification Bell */}
         <button
-          onClick={() => toast.info('Todas las notificaciones están al día')}
-          className="relative w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
+          onClick={() => setIsNotificationsOpen(true)}
+          className="relative w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
           title="Notificaciones"
         >
           <Bell size={16} />
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-fuchsia-500 ring-2 ring-[#08090d] animate-pulse" />
-        </button>
-
-        {/* Quick Theme Selector Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
-            title="Cambiar paleta y tema de color"
-          >
-            <Palette size={15} className="text-purple-400" />
-          </button>
-
-          {isThemeMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsThemeMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-1.5 z-50 p-2 rounded-2xl bg-[#121520] border border-white/[0.1] shadow-2xl space-y-1 w-56 animate-in fade-in zoom-in-95 duration-100">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
-                  PALETAS & TEMAS
-                </div>
-                {QUICK_THEMES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      setTheme(t.id);
-                      setIsThemeMenuOpen(false);
-                      toast.success(`Tema "${t.name}" activado`);
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors cursor-pointer text-left ${
-                      theme === t.id
-                        ? 'bg-white/[0.12] text-white font-bold'
-                        : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={`w-3 h-3 rounded-full ${t.dot}`} />
-                      <span>{t.name}</span>
-                    </div>
-                    {theme === t.id && (
-                      <span className="text-[10px] text-purple-400 font-mono font-bold">
-                        ✓
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </>
+          {unreadNotificationsCount > 0 && (
+            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-purple-500 shadow-sm shadow-purple-500 ring-2 ring-[#05030a] animate-pulse" />
           )}
-        </div>
-
-        {/* Global App Settings Button */}
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all cursor-pointer hover:rotate-45 duration-200"
-          title="Ajustes de la aplicación (Ctrl+,)"
-        >
-          <Settings size={15} />
         </button>
+
+        {/* Member list toggle */}
+        <button
+          onClick={() => setIsMemberListOpen(!isMemberListOpen)}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+          title="Miembros"
+        >
+          <Users size={16} />
+        </button>
+
+        {/* User Avatar with Dropdown */}
+        <div className="flex items-center gap-1 cursor-pointer pl-1" onClick={() => setIsSettingsOpen(true)}>
+          <div className="relative">
+            <img
+              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
+              alt="Avatar"
+              className="w-7 h-7 rounded-full object-cover border border-purple-500/30"
+            />
+            <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#05030a]" />
+          </div>
+          <ChevronDown size={12} className="text-zinc-500" />
+        </div>
+        </>}
 
         {/* Window Controls: Minimize, Maximize, Close */}
-        <div className="flex items-center ml-1 border-l border-white/[0.06] pl-1">
+        <div className="mobile-window-controls flex items-center ml-2 border-l border-white/[0.06] pl-2 gap-1">
           <button
             onClick={handleMinimize}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors cursor-pointer"
             title="Minimizar"
           >
-            <Minus size={14} />
+            <Minus size={13} />
           </button>
           <button
             onClick={handleMaximize}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.08] text-zinc-400 hover:text-white transition-colors cursor-pointer"
             title="Maximizar"
           >
-            <Square size={12} />
+            <Square size={11} />
           </button>
           <button
             onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-500 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-rose-500 text-zinc-400 hover:text-white transition-colors cursor-pointer"
             title="Cerrar"
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         </div>
       </div>

@@ -1,6 +1,5 @@
-// API Client Service for Kova Backend
-
-const API_BASE_URL = import.meta.env.VITE_KOVA_API_URL || 'http://localhost:4000/api';
+const isTauri = typeof window !== 'undefined' && ('__TAURI__' in window || '__TAURI_INTERNALS__' in window);
+const API_BASE_URL = import.meta.env.VITE_KOVA_API_URL || (isTauri ? 'https://kova-k2nchin.vercel.app/api' : '/api');
 
 export function getAuthToken(): string | null {
   try {
@@ -50,7 +49,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     throw new Error(errorBody.message || `Request failed with status ${res.status}`);
   }
 
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {
@@ -61,27 +61,55 @@ export const api = {
   login: (data: { email: string; password: string }) =>
     request<{ user: any; token: string }>('/auth/login', { method: 'POST', data }),
 
-  loginGoogle: (data: { googleId: string; email: string; displayName: string; avatarUrl?: string }) =>
+  loginGoogle: (data: { accessToken: string; googleId: string; email: string; displayName: string; avatarUrl?: string }) =>
     request<{ user: any; token: string }>('/auth/google', { method: 'POST', data }),
 
   getMe: () => request<any>('/auth/me', { method: 'GET' }),
+  logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
 
   // Servers
   getServers: () => request<any[]>('/servers', { method: 'GET' }),
-  createServer: (data: { name: string; description?: string; iconUrl?: string }) =>
+  discoverServers: (query = '') => request<any[]>(`/servers/discover${query ? `?q=${encodeURIComponent(query)}` : ''}`, { method: 'GET' }),
+  createServer: (data: { id?: string; name: string; description?: string; iconUrl?: string; visibility?: 'public' | 'private'; categories?: Array<{ id: string; name: string }>; channels?: Array<{ id: string; name: string; type: string; topic?: string; categoryId?: string }> }) =>
     request<any>('/servers', { method: 'POST', data }),
-  joinServer: (serverId: string) => request<any>(`/servers/${serverId}/join`, { method: 'POST' }),
+  createInvite: (serverId: string, options: { expiresInMinutes: number; maxUses: number }) =>
+    request<{ code: string; serverId: string; expiresAt: string | null; maxUses: number; url: string }>(`/servers/${encodeURIComponent(serverId)}/invites`, { method: 'POST', data: options }),
+  joinServer: (inviteCode: string) => request<any>('/servers/join', { method: 'POST', data: { inviteCode } }),
+  deleteServer: (serverId: string) => request<{ ok: boolean }>(`/servers/${encodeURIComponent(serverId)}`, { method: 'DELETE' }),
+  updateServer: (serverId: string, data: { name?: string; description?: string; visibility?: 'public' | 'private'; icon?: string; banner?: string }) =>
+    request<any>(`/servers/${encodeURIComponent(serverId)}`, { method: 'PATCH', data }),
+  getFriends: () => request<any>('/friends', { method: 'GET' }),
+  sendFriendRequest: (userId: string) => request<any>('/friends/requests', { method: 'POST', data: { userId } }),
+  acceptFriendRequest: (requestId: string) => request<any>(`/friends/requests/${requestId}/accept`, { method: 'POST' }),
+  deleteFriendRequest: (requestId: string) => request<any>(`/friends/requests/${requestId}`, { method: 'DELETE' }),
+  removeFriend: (userId: string) => request<{ ok: boolean }>(`/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
+  getDMConversations: () => request<Array<{ user: any; lastMessage: string; lastMessageTime: string }>>('/dms', { method: 'GET' }),
+  getDirectMessages: (userId: string, limit = 50) => request<any[]>(`/dms/${encodeURIComponent(userId)}/messages?limit=${limit}`, { method: 'GET' }),
+  sendDirectMessage: (userId: string, content: string) => request<any>(`/dms/${encodeURIComponent(userId)}/messages`, { method: 'POST', data: { content } }),
+
+  // Safety
+  getBlockedUsers: () => request<{ blockedUserIds: string[] }>('/safety/blocks', { method: 'GET' }),
+  blockUser: (userId: string) => request<{ ok: true; userId: string }>('/safety/blocks', { method: 'POST', data: { userId } }),
+  unblockUser: (userId: string) => request<{ ok: true }>(`/safety/blocks/${userId}`, { method: 'DELETE' }),
+  reportUser: (userId: string, reason: string, details = '') => request<{ id: string; ok: true }>('/safety/reports', { method: 'POST', data: { userId, reason, details } }),
 
   // Channels
-  createChannel: (data: { serverId: string; categoryId?: string; name: string; type: string; topic?: string }) =>
+  createChannel: (data: { id?: string; serverId: string; categoryId?: string; name: string; type: string; topic?: string }) =>
     request<any>('/channels', { method: 'POST', data }),
+  updateChannel: (channelId: string, data: { name?: string; topic?: string; categoryId?: string | null }) =>
+    request<any>(`/channels/${encodeURIComponent(channelId)}`, { method: 'PATCH', data }),
   deleteChannel: (channelId: string) => request<any>(`/channels/${channelId}`, { method: 'DELETE' }),
+  createCategory: (data: { id?: string; serverId: string; name: string }) =>
+    request<{ id: string; name: string; channelIds: string[] }>('/categories', { method: 'POST', data }),
+  deleteCategory: (categoryId: string) => request<{ ok: boolean }>(`/categories/${encodeURIComponent(categoryId)}`, { method: 'DELETE' }),
 
   // Messages
   getMessages: (channelId: string, limit = 50) =>
     request<any[]>(`/channels/${channelId}/messages?limit=${limit}`, { method: 'GET' }),
-  sendMessage: (channelId: string, data: { content: string; replyToId?: string }) =>
+  sendMessage: (channelId: string, data: { content: string; replyToId?: string; attachments?: Array<{ id: string; url: string; name: string; type: string; size: string }> }) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', data }),
+  updateMessage: (messageId: string, content: string) =>
+    request<any>(`/messages/${messageId}`, { method: 'PUT', data: { content } }),
   toggleReaction: (messageId: string, emoji: string) =>
     request<any>(`/messages/${messageId}/reactions`, { method: 'POST', data: { emoji } }),
   deleteMessage: (messageId: string) => request<any>(`/messages/${messageId}`, { method: 'DELETE' }),

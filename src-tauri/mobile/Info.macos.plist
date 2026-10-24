@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Kova usa la cámara cuando decides participar con video.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Kova usa el micrófono para las salas de voz y llamadas.</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>Kova captura la pantalla solamente cuando decides compartirla.</string>
+</dict>
+</plist>

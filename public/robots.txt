@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Disallow: /api/
+Disallow: /updates/
+
+Sitemap: https://kova-k2nchin.vercel.app/sitemap.xml

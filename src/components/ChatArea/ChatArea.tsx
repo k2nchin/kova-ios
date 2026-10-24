@@ -33,9 +33,43 @@ import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { MessageItem } from './MessageItem';
 import { EmojiGifPicker } from './EmojiGifPicker';
-import { WelcomeHeroCard } from './WelcomeHeroCard';
+import { CommunityHeroBanner } from './CommunityHeroBanner';
+import { Attachment } from '../../types';
 
-const DISCORD_SLASH_COMMANDS = [
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_ATTACHMENT_COUNT = 5;
+
+const formatAttachmentSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
+
+const fileToAttachment = (file: File, index: number): Promise<Attachment> =>
+  new Promise((resolve, reject) => {
+    const base = {
+      id: `att_${Date.now()}_${index}`,
+      name: file.name,
+      size: formatAttachmentSize(file.size),
+    };
+    const mediaMatch = /^(image|video|audio)\//.exec(file.type);
+    if (!mediaMatch) {
+      resolve({ ...base, url: '', type: 'file' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      resolve({ ...base, url: reader.result as string, type: mediaMatch[1] as Attachment['type'] });
+    reader.onerror = () => reject(new Error(`No se pudo leer ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+
+const KOVA_QUICK_ACTIONS = [
+  { command: '/stream', desc: 'Muestra el estado en vivo del directo de JuanPi1x', example: '/stream' },
+  { command: '/redes', desc: 'Enlaces oficiales de redes sociales de JuanPi1x', example: '/redes' },
+  { command: '/roles', desc: 'Menú interactivo de selección de auto-roles', example: '/roles' },
+  { command: '/bot', desc: 'Diagnóstico de latencia y estado de JuanPi IA & Discord MCP', example: '/bot' },
+  { command: '/discord-sync', desc: 'Abre el Centro de Control Discord MCP & Bot Hub', example: '/discord-sync' },
+  { command: '/partida', desc: 'Convoca una escuadra para jugar (Apex, Overwatch, etc.)', example: '/partida apex' },
+  { command: '/vip', desc: 'Ventajas del rango VIP Pass en la comunidad', example: '/vip' },
+  { command: '/ticket', desc: 'Abre un ticket de soporte privado con administración', example: '/ticket' },
   { command: '/ai', desc: 'Asistente de consulta Kova', example: '/ai resumen del canal' },
   { command: '/shrug', desc: 'Agrega ¯\\_(ツ)_/¯ al final de tu mensaje', example: '/shrug qué se le va a hacer' },
   { command: '/tableflip', desc: 'Expresa frustración volteando una mesa (╯°□°)╯︵ ┻━┻', example: '/tableflip' },
@@ -211,6 +245,9 @@ export const ChatArea: React.FC = () => {
     generateMinutesToNotes,
     askKovaAI,
     processBotTriggers,
+    setIsDiscordHubOpen,
+    typingUsers,
+    setTyping,
   } = useApp();
 
   const [draft, setDraft] = useState('');
@@ -222,7 +259,9 @@ export const ChatArea: React.FC = () => {
   const [isChannelInfoOpen, setIsChannelInfoOpen] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [slowmodeCooldown, setSlowmodeCooldown] = useState(0);
-  const [attachedFile, setAttachedFile] = useState<{ name: string; size: number; url?: string } | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
 
   // Real voice note recording state
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -232,6 +271,16 @@ export const ChatArea: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const channelLabel = activeChannel.name;
+  // Bot social-feed responses belong only in the dedicated social channel.
+  // Older local sessions may have them persisted under a renamed test channel;
+  // keep those messages out of the regular conversation view.
+  const visibleMessages = /redes|social/i.test(activeChannel.name)
+    ? messages
+    : messages.filter((message) => {
+        const content = String(message.content || '').toLowerCase();
+        const isBotAuthor = message.aiGenerated || /bot|ia/i.test(`${message.author?.username || ''} ${message.author?.displayName || ''}`) || /^🤖\s*\*\*kova bot/i.test(content);
+        return !(isBotAuthor && (content.includes('redes sociales oficiales') || content.includes('redes oficiales de juanpi1x')));
+      });
 
   // Discord slowmode countdown timer
   useEffect(() => {
@@ -243,10 +292,63 @@ export const ChatArea: React.FC = () => {
   }, [slowmodeCooldown]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (nearBottom) {
+      el.scrollTop = el.scrollHeight;
     }
   }, [messages.length]);
+
+  // Auto-welcome bot for roles/reglas/soporte/redes channels
+  useEffect(() => {
+    if (!activeChannel) return;
+    const name = activeChannel.name.toLowerCase();
+    if (name.includes('rol')) {
+      const timer = setTimeout(() => {
+        if (messages.length === 0) {
+          sendMessage('🤖 **Kova Bot**: ¡Hola! Aquí puedes seleccionar tus roles. Usa /roles para ver la lista completa.');
+          const rolesList = (activeServer?.roles || []).map(r => `• ${r.name}`).join('\n');
+          if (rolesList) {
+            setTimeout(() => {
+              sendMessage(`🎭 **Roles disponibles en ${activeServer?.name || 'el servidor'}**:\n${rolesList}`);
+            }, 600);
+          }
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    if (name.includes('regla')) {
+      const timer = setTimeout(() => {
+        if (messages.length === 0) {
+          sendMessage('🤖 **Kova Bot**: Bienvenido/a a las reglas. Lee atentamente las normas para mantener la comunidad segura.');
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    if (name.includes('soporte') || name.includes('ticket')) {
+      const timer = setTimeout(() => {
+        if (messages.length === 0) {
+          sendMessage('🤖 **Kova Bot**: ¡Hola! Soporte técnico y tickets. Crea tu ticket con /ticket o describe tu problema aquí.');
+          setTimeout(() => {
+            sendMessage('🎫 **Cómo abrir un ticket**:\n1. Escribe `/ticket` o haz clic en el botón de soporte.\n2. Elige la categoría: Técnico, Cuenta, Moderación.\n3. Espera respuesta del equipo de JuanPi1x.');
+          }, 600);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    if (name.includes('redes') || name.includes('social')) {
+      const timer = setTimeout(() => {
+        if (messages.length === 0) {
+          sendMessage('🤖 **Kova Bot**: ¡Hola! Aquí están las redes oficiales de JuanPi1x.');
+          setTimeout(() => {
+            sendMessage('🌐 **Redes Oficiales**:\n• 🟣 Twitch: https://twitch.tv/juanpi1x\n• 🔴 YouTube: https://youtube.com/@juanpi1x\n• 🐦 X: https://x.com/juanpi1x\n• 📸 Instagram: https://instagram.com/juanpi1x\n• 🎵 TikTok: https://tiktok.com/@juanpi1x');
+          }, 600);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [activeChannel?.id, activeServer?.roles]);
 
   // Recording Timer
   useEffect(() => {
@@ -293,24 +395,53 @@ export const ChatArea: React.FC = () => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setAttachedFile({ name: file.name, size: file.size, url: reader.result as string });
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setAttachedFile({ name: file.name, size: file.size });
+  const addFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (!files.length) return;
+    const room = MAX_ATTACHMENT_COUNT - pendingAttachments.length;
+    if (room <= 0) {
+      toast.error(`Máximo ${MAX_ATTACHMENT_COUNT} archivos por mensaje.`);
+      return;
     }
-    toast.success(`Archivo adjuntado: ${file.name}`);
+    const accepted = files.slice(0, room);
+    const rejectedSize = accepted.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
+    const valid = accepted.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
+    if (rejectedSize.length) toast.error(`${rejectedSize.map((f) => f.name).join(', ')} supera los 8 MB.`);
+    if (files.length > room) toast.error(`Solo se agregaron ${room} — máximo ${MAX_ATTACHMENT_COUNT} por mensaje.`);
+    if (!valid.length) return;
+    try {
+      const attachments = await Promise.all(valid.map((file, i) => fileToAttachment(file, i)));
+      setPendingAttachments((prev) => [...prev, ...attachments]);
+      toast.success(attachments.length === 1 ? `Adjuntado: ${attachments[0].name}` : `${attachments.length} archivos adjuntados`);
+    } catch (err) {
+      console.warn('[Kova Attachments]', err);
+      toast.error('No se pudo adjuntar el archivo.');
+    }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    void addFiles(e.target.files ?? []);
+  };
+
+  const removePendingAttachment = (id: string) => {
+    setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const handleComposerDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragOver(false);
+    void addFiles(e.dataTransfer.files);
+  };
+
+  const lastTypingEmitRef = useRef(0);
+
   const handleSendMessage = () => {
+    lastTypingEmitRef.current = 0;
+    setTyping(false);
     const text = draft.trim();
-    if (!text && !attachedFile) return;
+    if (!text && pendingAttachments.length === 0) return;
 
     if (slowmodeCooldown > 0) {
       toast.error(`Modo pausado activado. Espera ${slowmodeCooldown}s antes de enviar otro mensaje.`);
@@ -320,7 +451,26 @@ export const ChatArea: React.FC = () => {
     let fullText = text;
 
     // Discord Slash Commands parsing
-    if (text.startsWith('/shrug')) {
+    if (text.startsWith('/discord-sync') || text.startsWith('/discord')) {
+      setIsDiscordHubOpen(true);
+      setDraft('');
+      return;
+    } else if (text.startsWith('/stream')) {
+      fullText = '!stream';
+    } else if (text.startsWith('/redes')) {
+      fullText = '!redes';
+    } else if (text.startsWith('/roles')) {
+      fullText = '!roles';
+    } else if (text.startsWith('/bot')) {
+      fullText = '!bot';
+    } else if (text.startsWith('/ticket')) {
+      fullText = '!tickets';
+    } else if (text.startsWith('/partida')) {
+      const rest = text.replace(/^\/partida\s*/, '').trim();
+      fullText = rest ? `!partida ${rest}` : '!partida';
+    } else if (text.startsWith('/vip')) {
+      fullText = '!vip';
+    } else if (text.startsWith('/shrug')) {
       const rest = text.replace(/^\/shrug\s*/, '').trim();
       fullText = rest ? `${rest} ¯\\_(ツ)_/¯` : '¯\\_(ツ)_/¯';
     } else if (text.startsWith('/tableflip')) {
@@ -349,17 +499,17 @@ export const ChatArea: React.FC = () => {
       }
     }
 
-    if (attachedFile) {
-      const sizeKb = (attachedFile.size / 1024).toFixed(1);
-      fullText = fullText
-        ? `${fullText}\n\n📎 Archivo adjunto: **${attachedFile.name}** (${sizeKb} KB)`
-        : `📎 Archivo adjunto: **${attachedFile.name}** (${sizeKb} KB)`;
-    }
-
-    sendMessage(fullText, undefined, replyingTo?.id);
+    const attachments = pendingAttachments;
+    sendMessage(
+      fullText,
+      undefined,
+      replyingTo?.id,
+      undefined,
+      attachments.length ? attachments : undefined
+    );
     setDraft('');
     setReplyingTo(null);
-    setAttachedFile(null);
+    setPendingAttachments([]);
     setIsEmojiPickerOpen(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -413,43 +563,75 @@ export const ChatArea: React.FC = () => {
   };
 
   return (
-    <main className="channel-main flex-1 h-full w-full bg-[#0b0d13] flex flex-col justify-between overflow-hidden relative font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* 1. Clean Modern Channel Header matching reference screenshot */}
-      <header className="h-13 px-5 flex items-center justify-between border-b border-white/[0.04] bg-[#0c0e14]/80 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-white font-bold text-sm">
-            <Hash size={18} className="text-slate-400" />
-            <span>{channelLabel}</span>
+    <main
+      className="kova-channel-main channel-main flex-1 h-full w-full bg-[#06020e] flex flex-col justify-between overflow-hidden relative font-['Plus_Jakarta_Sans',sans-serif]"
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        dragCounterRef.current += 1;
+        if (dragCounterRef.current === 1) setIsDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+        if (dragCounterRef.current === 0) setIsDragOver(false);
+      }}
+      onDrop={handleComposerDrop}
+    >
+      {isDragOver && (
+        <div className="absolute inset-0 z-40 m-4 rounded-3xl border-2 border-dashed border-purple-500/60 bg-[#0d071c]/85 backdrop-blur-sm flex flex-col items-center justify-center gap-3 pointer-events-none">
+          <div className="w-14 h-14 rounded-2xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-200">
+            <Paperclip size={24} />
           </div>
-          <span className="text-xs text-slate-400 font-normal">
-            {activeChannel.topic || 'Canal de bienvenida'}
-          </span>
+          <p className="text-sm font-bold text-purple-100">Soltá los archivos para adjuntarlos</p>
+          <p className="text-xs text-purple-300/70">Imágenes, video, audio o documentos · hasta 5 de 8 MB</p>
+        </div>
+      )}
+      {/* 1. Modern Channel Header matching reference screenshot */}
+      <header className="kova-channel-header h-14 px-6 flex items-center justify-between border-b border-purple-950/40 bg-[#080312]/90 backdrop-blur-md shrink-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-purple-950/60 border border-purple-800/40 flex items-center justify-center text-purple-300 shadow-inner">
+            <img src="/kova-chrome-cube.png" alt="" className="w-6 h-6 object-contain rounded-lg" />
+          </div>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="text-white font-bold text-base font-['Outfit']">{channelLabel}</span>
+            </div>
+            <span className="text-xs text-purple-300/60 font-medium">
+              {activeChannel.topic || 'Chatea, comparte, conecta.'}
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 text-slate-400">
+        <div className="flex items-center gap-2 text-purple-300/70">
           <button
             onClick={() => setIsPinnedDrawerOpen(true)}
-            className="p-1.5 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
-            title="Mensajes fijados"
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
+            title="Buscar en canal"
           >
-            <Pin size={17} />
+            <Search size={16} />
           </button>
 
           <button
-            onClick={() => setIsMemberListOpen(!isMemberListOpen)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-colors cursor-pointer ${
-              isMemberListOpen ? 'text-white bg-white/[0.06]' : 'hover:text-white hover:bg-white/[0.04]'
-            }`}
-            title="Miembros del espacio"
+            onClick={() => setIsPinnedDrawerOpen(true)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
+            title="Mensajes fijados"
           >
-            <Users size={16} />
-            <span className="font-semibold">{activeServer.members.length || 12}</span>
+            <Pin size={16} />
+          </button>
+
+          <button
+            onClick={() => toast.info('Notificaciones del canal activadas')}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
+            title="Notificaciones"
+          >
+            <Bell size={16} />
           </button>
 
           <button
             onClick={() => setIsChannelInfoOpen(true)}
-            className="p-1.5 hover:text-white hover:bg-white/[0.06] rounded-lg transition-colors cursor-pointer"
-            title="Más opciones del canal"
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
+            title="Ajustes del canal"
           >
             <MoreHorizontal size={17} />
           </button>
@@ -457,37 +639,109 @@ export const ChatArea: React.FC = () => {
       </header>
 
       {/* 2. Conversation Scroll Area */}
-      <div ref={scrollRef} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
-        {/* Glowing 3D Crystal Welcome Hero Card for general / first channel */}
-        {(channelLabel === 'general' || messages.length <= 4) && (
-          <WelcomeHeroCard channelName={channelLabel} />
+      <div ref={scrollRef} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
+        {/* Top Cosmic Synthwave Community Hero Banner matching screenshot */}
+        <CommunityHeroBanner />
+
+        {/* Reglas destacadas en canal de reglas */}
+        {activeChannel?.name.toLowerCase().includes('regla') && (
+          <div className="mx-auto max-w-4xl rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/20 to-orange-950/20 p-4 shadow-[0_0_30px_rgba(245,158,11,0.15)]">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                <CircleHelp size={18} className="text-amber-300" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-amber-200 font-['Outfit']">Reglas del servidor</h4>
+                <p className="text-xs text-amber-100/80 mt-1">
+                  {activeChannel.topic || 'Lee y respeta las normas de la comunidad para mantener un espacio seguro y divertido para todos.'}
+                </p>
+                <ul className="mt-2 list-disc list-inside text-[11px] text-amber-100/70 space-y-0.5">
+                  <li>No spam ni publicidad no solicitada</li>
+                  <li>Respeto absoluto entre miembros</li>
+                  <li>Sin contenido explícito, hate o acoso</li>
+                  <li>Sigue las indicaciones del staff y moderadores</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Date Divider matching screenshot */}
-        <div className="flex items-center justify-center my-4 relative select-none">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-white/[0.04]" />
+        {/* Roles destacados en canal de roles */}
+        {activeChannel?.name.toLowerCase().includes('rol') && (
+          <div className="mx-auto max-w-4xl rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/20 to-teal-950/20 p-4 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                <Users size={18} className="text-emerald-300" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-emerald-200 font-['Outfit']">Roles de la comunidad</h4>
+                <p className="text-xs text-emerald-100/80 mt-1">
+                  {activeChannel.topic || 'Selecciona roles para personalizar tu experiencia en el servidor.'}
+                </p>
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {(activeServer?.roles || []).slice(0,6).map(r => (
+                    <div key={r.id} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-black/20 border border-emerald-900/40">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: r.color || '#10b981' }} />
+                      <span className="text-[11px] text-emerald-100 truncate">{r.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-          <span className="relative px-3 py-0.5 text-[11px] font-medium text-slate-500 bg-[#0b0d13] rounded-full">
-            9 de mayo de 2025
-          </span>
-        </div>
+        )}
 
-        {/* Dynamic Messages from AppContext */}
-        <div className="space-y-1">
-          {messages.map((message) => (
-            <MessageItem
-              key={message.id}
-              message={message}
-              onReply={(m) => setReplyingTo({ id: m.id, authorName: m.author.displayName })}
-            />
-          ))}
-        </div>
+        {/* Dynamic Messages Feed */}
+        {visibleMessages.length === 0 ? (
+          <div className="py-12 px-4 flex flex-col items-center justify-center text-center space-y-3">
+            <div className="w-16 h-16 rounded-[22px_22px_22px_8px] bg-purple-950/40 border border-purple-800/40 flex items-center justify-center text-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.2)]">
+              <img src="/kova-chrome-cube.png" alt="" className="w-10 h-10 object-contain rounded-xl" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white font-['Outfit']">
+                El flujo {channelLabel} está listo
+              </h2>
+              <p className="text-xs text-purple-300/60 max-w-sm mt-1">
+                Abre la señal con el primer mensaje. Desde aquí pueden nacer conversaciones, ideas y momentos en vivo.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {visibleMessages.map((message) => (
+              <MessageItem
+                key={message.id}
+                message={message}
+                onReply={(m) => setReplyingTo({ id: m.id, authorName: m.author.displayName })}
+              />
+            ))}
+          </div>
+        )}
 
-        {/* Typing indicator */}
+        {/* Typing indicator (other members, via realtime gateway) */}
+        {typingUsers.length > 0 && (
+          <div className="typing-indicator mt-2" aria-live="polite">
+            <div>
+              <strong>
+                {typingUsers.length === 1
+                  ? `${typingUsers[0]} está escribiendo`
+                  : typingUsers.length <= 3
+                    ? `${typingUsers.join(', ')} están escribiendo`
+                    : 'Varias personas están escribiendo'}
+              </strong>
+              <span className="typing-dots">
+                <i />
+                <i />
+                <i />
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Kova AI typing indicator */}
         {isTyping && (
           <div className="typing-indicator mt-2" aria-live="polite">
-            <span className="avatar" style={{ background: '#5865F2' }}>✦</span>
+            <span className="avatar" style={{ background: '#7c3aed' }}>✦</span>
             <div>
               <strong>Kova está escribiendo</strong>
               <span className="typing-dots">
@@ -515,29 +769,35 @@ export const ChatArea: React.FC = () => {
         </div>
       )}
 
-      {/* Attached File Preview Bar */}
-      {attachedFile && (
-        <div className="px-4 py-2 bg-[#141824] border-t border-white/[0.06] flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-cyan-300">
-            {attachedFile.url ? (
-              <img src={attachedFile.url} alt="preview" className="w-8 h-8 rounded-lg object-cover border border-cyan-400/40" />
-            ) : (
-              <div className="p-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/30">
-                <Paperclip size={14} />
+      {/* Pending Attachments Preview Bar */}
+      {pendingAttachments.length > 0 && (
+        <div className="px-4 py-2.5 bg-[#141824] border-t border-white/[0.06] flex flex-wrap gap-2">
+          {pendingAttachments.map((att) => (
+            <div
+              key={att.id}
+              className="group relative flex items-center gap-2.5 rounded-xl border border-cyan-400/25 bg-[#0d1220] pl-1.5 pr-8 py-1.5"
+            >
+              {att.type === 'image' && att.url ? (
+                <img src={att.url} alt={att.name} className="w-10 h-10 rounded-lg object-cover border border-cyan-400/30" />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-cyan-500/15 border border-cyan-400/25 flex items-center justify-center text-cyan-300">
+                  {att.type === 'audio' ? <Mic size={16} /> : att.type === 'video' ? <ImageIcon size={16} /> : <Paperclip size={16} />}
+                </div>
+              )}
+              <div className="min-w-0 max-w-[180px]">
+                <p className="truncate text-xs font-semibold text-cyan-100">{att.name}</p>
+                <p className="text-[10px] text-slate-400">{att.size}</p>
               </div>
-            )}
-            <span className="font-semibold">{attachedFile.name}</span>
-            <span className="text-[10px] text-slate-400">({(attachedFile.size / 1024).toFixed(1)} KB)</span>
-          </div>
-          <button
-            onClick={() => {
-              setAttachedFile(null);
-              if (fileInputRef.current) fileInputRef.current.value = '';
-            }}
-            className="p-1 text-slate-400 hover:text-white rounded cursor-pointer"
-          >
-            <X size={14} />
-          </button>
+              <button
+                type="button"
+                onClick={() => removePendingAttachment(att.id)}
+                className="absolute top-1.5 right-1.5 p-1 text-slate-500 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                aria-label={`Quitar ${att.name}`}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -554,15 +814,15 @@ export const ChatArea: React.FC = () => {
           }}
         />
 
-        {/* Discord Slash Command Autocomplete Popover */}
+        {/* Kova quick-action autocomplete */}
         {draft.startsWith('/') && !draft.includes(' ') && (
           <div className="absolute left-4 bottom-[calc(100%+8px)] z-40 w-96 rounded-2xl bg-[#141824] border border-white/10 shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-100">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 font-mono flex items-center gap-1">
               <Command size={12} className="text-purple-400" />
-              <span>Comandos de Barra (Slash Commands)</span>
+              <span>Acciones rápidas Kova</span>
             </div>
             <div className="space-y-1 mt-1 max-h-48 overflow-y-auto custom-scrollbar">
-              {DISCORD_SLASH_COMMANDS.filter((cmd) => cmd.command.startsWith(draft.toLowerCase())).map(
+              {KOVA_QUICK_ACTIONS.filter((cmd) => cmd.command.startsWith(draft.toLowerCase())).map(
                 (cmd) => (
                   <button
                     key={cmd.command}
@@ -656,7 +916,7 @@ export const ChatArea: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 px-4 py-2 rounded-2xl bg-[#11131c] border border-white/[0.06] shadow-xl focus-within:border-purple-500/40 transition-all w-full">
+            <div className="kova-message-composer flex items-center gap-3 px-3 py-1.5 rounded-full bg-[#111416]/95 border border-white/15 shadow-[0_10px_35px_rgba(0,0,0,0.8)] backdrop-blur-2xl focus-within:border-white/35 transition-all w-full">
               <input
                 type="file"
                 ref={fileInputRef}
@@ -664,22 +924,30 @@ export const ChatArea: React.FC = () => {
                 onChange={handleFileUpload}
               />
 
-              {/* Plus Button in Circle */}
+              {/* Plus Button in Circle on Left */}
               <button
                 type="button"
                 aria-label="Adjuntar archivo o imagen"
                 onClick={() => fileInputRef.current?.click()}
                 title="Adjuntar archivo o medios"
-                className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/65 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0 border border-white/10"
               >
-                <Plus size={15} />
+                <Plus size={16} />
               </button>
 
               {/* Text Input */}
               <input
                 type="text"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  const now = Date.now();
+                  if (e.target.value && now - lastTypingEmitRef.current > 3000) {
+                    lastTypingEmitRef.current = now;
+                    setTyping(true);
+                  }
+                }}
+                onBlur={() => { lastTypingEmitRef.current = 0; setTyping(false); }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -689,51 +957,51 @@ export const ChatArea: React.FC = () => {
                 placeholder={
                   slowmodeCooldown > 0
                     ? `Modo pausado (${slowmodeCooldown}s)...`
-                    : `Escribe en #${channelLabel}...`
+                    : `Escribe un mensaje...`
                 }
                 disabled={slowmodeCooldown > 0}
-                className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 focus:outline-none min-w-0"
+                className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-white/35 focus:outline-none min-w-0 px-2 font-medium"
               />
 
-              {/* Right tools: GIF, Image, Emoji, Purple Send Button */}
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-                  className="px-2 py-0.5 rounded-md border border-white/[0.1] text-[10px] font-bold text-slate-400 hover:text-white hover:border-white/[0.2] transition-all cursor-pointer"
-                  title="GIFs"
-                >
-                  GIF
-                </button>
-
+              {/* Right tools: Paperclip, Emoji, Soundboard/Tools, Circular Purple Send Button */}
+              <div className="flex items-center gap-1.5 shrink-0 pr-1">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Subir imagen"
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer"
+                  title="Adjuntar archivo"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 >
-                  <ImageIcon size={17} />
+                  <Paperclip size={16} />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
                   title="Emojis"
-                  className={`p-1 rounded-lg transition-colors cursor-pointer ${
-                    isEmojiPickerOpen ? 'text-purple-400' : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                    isEmojiPickerOpen ? 'text-white bg-white/15' : 'text-white/45 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  <Smile size={17} />
+                  <Smile size={16} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSoundboardOpen(true)}
+                  title="Efectos de sonido KOVA"
+                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <Sparkles size={16} />
                 </button>
 
                 <button
                   type="button"
                   onClick={handleSendMessage}
-                  disabled={slowmodeCooldown > 0 || (!draft.trim() && !attachedFile)}
+                  disabled={slowmodeCooldown > 0 || (!draft.trim() && pendingAttachments.length === 0)}
                   title="Enviar mensaje"
-                  className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:from-[#7c3aed] hover:to-[#9333ea] text-white flex items-center justify-center shadow-lg shadow-purple-950/60 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-9 h-9 rounded-full bg-white text-black hover:bg-white/80 flex items-center justify-center shadow-lg shadow-black/40 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
                 >
-                  <Send size={14} className="translate-x-0.5" />
+                  <Send size={15} className="translate-x-0.5" />
                 </button>
               </div>
             </div>
@@ -778,13 +1046,13 @@ export const ChatArea: React.FC = () => {
               </div>
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-500 font-mono">Actividad</span>
-                <p className="text-slate-400 mt-0.5">{messages.length} mensajes compartidos</p>
+                <p className="text-slate-400 mt-0.5">{visibleMessages.length} mensajes compartidos</p>
               </div>
 
               <div className="pt-2 border-t border-white/[0.06]">
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`https://kova.gg/invite/${activeServer.id}/${activeChannel.id}`);
+                    navigator.clipboard.writeText(`https://kova-k2nchin.vercel.app/invite/${encodeURIComponent(activeServer.id)}?channel=${encodeURIComponent(activeChannel.id)}`);
                     toast.success('Enlace de invitación copiado al portapapeles');
                   }}
                   className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/30 transition-all font-semibold cursor-pointer"

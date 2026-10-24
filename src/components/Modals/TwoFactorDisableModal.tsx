@@ -27,7 +27,7 @@ export const TwoFactorDisableModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
 
     const valid = verifyTwoFactor(code.trim());
-    if (valid || code === '123456') {
+    if (valid) {
       disableTwoFactor();
       soundFx.playReactionAdded();
       toast.info('Autenticación en dos pasos desactivada');

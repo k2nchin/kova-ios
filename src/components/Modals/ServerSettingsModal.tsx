@@ -13,6 +13,9 @@ import {
   AlertTriangle,
   Lock,
   Crown,
+  Bot,
+  Zap,
+  CheckCircle2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Role, User } from '../../types';
@@ -124,6 +127,7 @@ export const ServerSettingsModal: React.FC = () => {
     setIsServerSettingsOpen,
     serverSettingsTab,
     setServerSettingsTab,
+    setIsDiscordHubOpen,
     activeServer,
     currentUser,
     createRole,
@@ -148,7 +152,8 @@ export const ServerSettingsModal: React.FC = () => {
   const iconInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Sync overview state when activeServer changes
+  // Sync overview state when the active server (id) changes, without wiping
+  // unsaved edits when other server fields update the object identity.
   React.useEffect(() => {
     if (activeServer) {
       setServerName(activeServer.name);
@@ -159,7 +164,8 @@ export const ServerSettingsModal: React.FC = () => {
         setSelectedRoleId(activeServer.roles[0].id);
       }
     }
-  }, [activeServer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeServer?.id]);
 
   if (!isServerSettingsOpen || !activeServer) return null;
 
@@ -265,11 +271,11 @@ export const ServerSettingsModal: React.FC = () => {
       onClick={() => setIsServerSettingsOpen(false)}
     >
       <div
-        className="w-full max-w-5xl h-[88vh] rounded-3xl bg-[#11141d] border border-white/[0.1] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-150 relative"
+        className="kova-server-settings-modal w-full max-w-5xl h-[88vh] rounded-3xl bg-[#0d071c] border border-purple-500/25 shadow-[0_0_40px_rgba(147,51,234,0.2)] overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-150 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left Navigation Sidebar */}
-        <div className="w-full md:w-64 bg-[#0c0e15] border-r border-white/[0.08] p-4 flex flex-col justify-between shrink-0">
+        <div className="w-full md:w-64 bg-[#080312] border-r border-purple-950/40 p-4 flex flex-col justify-between shrink-0">
           <div className="space-y-4">
             {/* Server Identity */}
             <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
@@ -344,6 +350,24 @@ export const ServerSettingsModal: React.FC = () => {
                   {members.length}
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setServerSettingsTab('discord')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                  serverSettingsTab === 'discord'
+                    ? 'bg-[#5865F2] text-white shadow-md'
+                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Bot size={15} className="text-cyan-400" />
+                  <span>Discord & Bot MCP</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-bold">
+                  ACTIVO
+                </span>
+              </button>
             </nav>
           </div>
 
@@ -374,6 +398,7 @@ export const ServerSettingsModal: React.FC = () => {
                 {serverSettingsTab === 'overview' && 'Vista General'}
                 {serverSettingsTab === 'roles' && 'Roles del Servidor'}
                 {serverSettingsTab === 'members' && 'Miembros y Asignación de Roles'}
+                {serverSettingsTab === 'discord' && 'Integración Discord MCP & Bot Oficial'}
               </span>
             </div>
 
@@ -390,7 +415,7 @@ export const ServerSettingsModal: React.FC = () => {
           </div>
 
           {/* Content Views */}
-          <div className="flex-1 overflow-hidden p-6">
+          <div className="flex-1 overflow-hidden p-6 bg-[#0d071c]">
             {/* ======================= TAB: ROLES ======================= */}
             {serverSettingsTab === 'roles' && (
               <div className="h-full flex flex-col gap-4">
@@ -1015,6 +1040,100 @@ export const ServerSettingsModal: React.FC = () => {
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* ======================= TAB: DISCORD MCP & BOT ======================= */}
+            {serverSettingsTab === 'discord' && (
+              <div className="h-full flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-1">
+                {/* Status Hero Card */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-[#5865f2]/20 via-[#100726] to-purple-950/40 border border-[#5865f2]/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-[#5865f2] flex items-center justify-center font-black font-['Outfit'] text-2xl text-white shadow-lg shadow-[#5865f2]/30">
+                      <Bot size={28} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black font-['Outfit'] text-white">
+                          JuanPi1x Community ⚡ Discord MCP
+                        </h3>
+                        <CheckCircle2 size={16} className="text-sky-400" />
+                      </div>
+                      <p className="text-xs text-purple-200/80 mt-0.5">
+                        ⚡ Servidor Oficial de JuanPi1x · Bot Oficial: <strong className="text-cyan-300">JuanPi IA</strong>
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 text-[11px] font-mono text-purple-300/70">
+                        <span>Guild ID: <strong className="text-white">783512978086821928</strong></span>
+                        <span>•</span>
+                        <span className="text-emerald-400 font-bold">● GATEWAY ONLINE</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsServerSettingsOpen(false);
+                      setIsDiscordHubOpen(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#5865f2] to-cyan-500 hover:opacity-90 text-white font-bold text-xs shadow-lg shadow-[#5865f2]/30 transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    <Zap size={14} />
+                    <span>Abrir Centro de Control Discord Hub</span>
+                  </button>
+                </div>
+
+                {/* Sychronization Status Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-purple-300/70 uppercase tracking-wider block">
+                      Canales Sincronizados
+                    </span>
+                    <span className="text-xl font-black font-['Outfit'] text-white mt-1 block">
+                      21 Canales
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      3 Categorías estructuradas
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-cyan-300/70 uppercase tracking-wider block">
+                      Bot JuanPi IA
+                    </span>
+                    <span className="text-xl font-black font-['Outfit'] text-cyan-300 mt-1 block">
+                      Rol #00f5d4
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Permisos de Administrador (8)
+                    </span>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-amber-300/70 uppercase tracking-wider block">
+                      Miembros de Comunidad
+                    </span>
+                    <span className="text-xl font-black font-['Outfit'] text-amber-300 mt-1 block">
+                      59 Miembros
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Owner: JuanPi1x
+                    </span>
+                  </div>
+                </div>
+
+                {/* Feature Description Box */}
+                <div className="p-4 rounded-2xl bg-[#080214] border border-purple-900/40 space-y-3">
+                  <h4 className="text-xs font-bold text-white font-['Outfit'] flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-400" />
+                    <span>Capacidades de Integración de KOVA con el Bot</span>
+                  </h4>
+                  <ul className="text-xs text-purple-300/80 space-y-2 list-disc list-inside leading-relaxed">
+                    <li><strong className="text-white">Comandos Automáticos:</strong> Puedes escribir <code className="text-cyan-300 font-mono">!stream</code>, <code className="text-cyan-300 font-mono">!redes</code>, <code className="text-cyan-300 font-mono">!roles</code>, <code className="text-cyan-300 font-mono">!tickets</code>, o <code className="text-cyan-300 font-mono">!bot</code> en cualquier canal de texto y JuanPi IA responderá en vivo.</li>
+                    <li><strong className="text-white">Asistencia de Inteligencia Artificial:</strong> Menciona <code className="text-cyan-300 font-mono">@JuanPi IA</code> para recibir respuestas contextuales impulsadas por IA en tiempo real.</li>
+                    <li><strong className="text-white">Despachador de Mensajes:</strong> Desde el panel Discord Hub puedes redactar y transmitir anuncios oficiales firmados por el bot directamente a canales de la comunidad.</li>
+                  </ul>
+                </div>
+              </div>
             )}
           </div>
         </div>

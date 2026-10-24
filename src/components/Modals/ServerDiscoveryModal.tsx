@@ -1,22 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Compass,
   Search,
   Users,
   Check,
   X,
-  Sparkles,
-  Code,
-  Gamepad2,
-  Cpu,
-  Music,
   Heart,
   Globe,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Server } from '../../types';
-import { soundFx } from '../../utils/soundEffects';
-import { toast } from 'sonner';
+import { api } from '../../services/apiClient';
 
 interface DiscoverableServer {
   id: string;
@@ -113,25 +106,116 @@ const PUBLIC_SERVERS: DiscoverableServer[] = [
       { id: 'chan_nx_voice2', name: 'Escuadrón Beta', type: 'voice' },
     ],
   },
+  {
+    id: 'pub_creators_latam',
+    name: 'Creadores LATAM',
+    category: 'community',
+    acronym: 'CL',
+    banner: 'https://images.unsplash.com/photo-1492724441997-5dc865305da7?w=800&auto=format&fit=crop&q=80',
+    icon: 'https://images.unsplash.com/photo-1531058020387-3be344556be6?w=200&auto=format&fit=crop&q=80',
+    description: 'Streamers, editores y creadores hispanohablantes colaborando en contenido, eventos y crecimiento.',
+    memberCount: 2780,
+    onlineCount: 760,
+    channels: [
+      { id: 'chan_cl_general', name: 'plaza-creativa', type: 'text' },
+      { id: 'chan_cl_feedback', name: 'feedback-de-contenido', type: 'text' },
+      { id: 'chan_cl_voice', name: 'Sala de Creadores', type: 'voice' },
+    ],
+  },
+  {
+    id: 'pub_design_collective',
+    name: 'Pixel & Product Collective',
+    category: 'community',
+    acronym: 'PP',
+    banner: 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=800&auto=format&fit=crop&q=80',
+    icon: 'https://images.unsplash.com/photo-1559028012-481c04fa702d?w=200&auto=format&fit=crop&q=80',
+    description: 'Diseño UI/UX, motion, branding y crítica constructiva para crear productos digitales memorables.',
+    memberCount: 1930,
+    onlineCount: 610,
+    channels: [
+      { id: 'chan_pp_showcase', name: 'showcase', type: 'text' },
+      { id: 'chan_pp_reviews', name: 'criticas-de-diseno', type: 'text' },
+      { id: 'chan_pp_voice', name: 'Mesa de Diseño', type: 'voice' },
+    ],
+  },
+  {
+    id: 'pub_focus_academy',
+    name: 'Focus Academy',
+    category: 'community',
+    acronym: 'FA',
+    banner: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
+    icon: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=200&auto=format&fit=crop&q=80',
+    description: 'Sesiones de estudio, programación en pareja, intercambio de recursos y salas Pomodoro siempre activas.',
+    memberCount: 3560,
+    onlineCount: 980,
+    channels: [
+      { id: 'chan_fa_goals', name: 'metas-semanales', type: 'text' },
+      { id: 'chan_fa_resources', name: 'recursos', type: 'text' },
+      { id: 'chan_fa_pomodoro', name: 'Pomodoro 50/10', type: 'voice' },
+    ],
+  },
 ];
+
+// El catálogo se activará cuando las primeras comunidades públicas estén listas.
+const COMMUNITY_CATALOG_ENABLED = false;
 
 export const ServerDiscoveryModal: React.FC = () => {
   const {
     isDiscoveryOpen,
     setIsDiscoveryOpen,
     servers,
-    currentUser,
     joinPublicServer,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [communityServers, setCommunityServers] = useState<DiscoverableServer[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [joiningServerId, setJoiningServerId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    if (isDiscoveryOpen) {
+      setSearchQuery('');
+      setActiveCategory('all');
+    }
+  }, [isDiscoveryOpen]);
+
+  useEffect(() => {
+    if (!isDiscoveryOpen) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setIsLoading(true);
+      setLoadError('');
+      void api.discoverServers(searchQuery.trim()).then((items) => {
+        if (cancelled) return;
+        setCommunityServers(items.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          category: 'community' as const,
+          acronym: String(item.name || 'K').split(/\s+/).slice(0, 2).map((part: string) => part[0] || '').join('').toUpperCase(),
+          icon: item.icon || undefined,
+          banner: item.banner || '',
+          description: item.description || '',
+          memberCount: Number(item.memberCount) || 1,
+          onlineCount: Number(item.onlineCount) || 0,
+          channels: Array.isArray(item.channels) ? item.channels : [],
+        })));
+      }).catch((error) => {
+        if (!cancelled) {
+          setCommunityServers([]);
+          setLoadError(error instanceof Error ? error.message : 'No se pudieron cargar las comunidades.');
+        }
+      }).finally(() => { if (!cancelled) setIsLoading(false); });
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [isDiscoveryOpen, searchQuery]);
 
   if (!isDiscoveryOpen) return null;
 
   const joinedServerIds = new Set(servers.map((s) => s.id));
 
-  const filtered = PUBLIC_SERVERS.filter((s) => {
+  const filtered = [...(COMMUNITY_CATALOG_ENABLED ? PUBLIC_SERVERS : []), ...communityServers].filter((s) => {
     const matchesCat = activeCategory === 'all' || s.category === activeCategory;
     const matchesQuery =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -139,51 +223,11 @@ export const ServerDiscoveryModal: React.FC = () => {
     return matchesCat && matchesQuery;
   });
 
-  const handleJoin = (pubServer: DiscoverableServer) => {
-    soundFx.playJoinVoice();
-    const newServer: Server = {
-      id: pubServer.id,
-      name: pubServer.name,
-      acronym: pubServer.acronym,
-      icon: pubServer.icon,
-      banner: pubServer.banner,
-      description: pubServer.description,
-      ownerId: 'kova_official',
-      themeGradient: 'from-purple-600 to-indigo-600',
-      categories: [
-        {
-          id: `cat_${pubServer.id}`,
-          name: 'CANALES DE LA COMUNIDAD',
-          channelIds: pubServer.channels.map((c) => c.id),
-        },
-      ],
-      channels: pubServer.channels.map((c) => ({
-        id: c.id,
-        name: c.name,
-        type: c.type,
-        topic: `Canal oficial de ${pubServer.name}`,
-        categoryId: `cat_${pubServer.id}`,
-      })),
-      roles: [
-        {
-          id: `role_member_${pubServer.id}`,
-          name: 'Miembro',
-          color: '#5865F2',
-          hoist: false,
-          permissions: ['SEND_MESSAGES', 'CONNECT_VOICE', 'SPEAK_VOICE'],
-        },
-      ],
-      members: [
-        {
-          ...currentUser,
-          roles: [`role_member_${pubServer.id}`],
-        },
-      ],
-    };
-
-    joinPublicServer(newServer);
-    setIsDiscoveryOpen(false);
-    toast.success(`¡Te has unido a "${pubServer.name}"!`);
+  const handleJoin = async (pubServer: DiscoverableServer) => {
+    setJoiningServerId(pubServer.id);
+    const joined = await joinPublicServer(pubServer.id);
+    setJoiningServerId(null);
+    if (joined) setIsDiscoveryOpen(false);
   };
 
   return (
@@ -192,7 +236,7 @@ export const ServerDiscoveryModal: React.FC = () => {
       onClick={() => setIsDiscoveryOpen(false)}
     >
       <div
-        className="w-full max-w-4xl h-[85vh] rounded-3xl bg-[#11141d] border border-white/[0.1] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 relative"
+        className="kova-discovery-modal w-full max-w-5xl h-[88vh] rounded-3xl bg-[#11141d] border border-white/[0.1] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Hero Banner */}
@@ -215,8 +259,11 @@ export const ServerDiscoveryModal: React.FC = () => {
               Encuentra tu próximo espacio de colaboración
             </h2>
             <p className="text-xs text-slate-300">
-              Únete a comunidades verificadas de desarrollo, gaming, inteligencia artificial y música.
+              Explora espacios públicos creados por la comunidad y únete al instante.
             </p>
+            <span className="inline-flex w-fit items-center rounded-full border border-purple-300/20 bg-purple-500/15 px-2.5 py-1 text-[10px] font-bold text-purple-200">
+              {isLoading ? 'Buscando comunidades…' : `${filtered.length} comunidades disponibles`}
+            </span>
           </div>
         </div>
 
@@ -226,10 +273,7 @@ export const ServerDiscoveryModal: React.FC = () => {
           <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
             {[
               { id: 'all', label: 'Todos', icon: Globe },
-              { id: 'dev', label: 'Desarrollo', icon: Code },
-              { id: 'ai', label: 'IA & Bots', icon: Cpu },
-              { id: 'gaming', label: 'Gaming', icon: Gamepad2 },
-              { id: 'music', label: 'Música', icon: Music },
+              { id: 'community', label: 'Comunidad', icon: Heart },
             ].map((tab) => {
               const Icon = tab.icon;
               return (
@@ -264,14 +308,14 @@ export const ServerDiscoveryModal: React.FC = () => {
         </div>
 
         {/* Server Cards Grid */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="kova-discovery-grid flex-1 overflow-y-auto custom-scrollbar p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((pubServer) => {
             const isAlreadyJoined = joinedServerIds.has(pubServer.id);
 
             return (
               <div
                 key={pubServer.id}
-                className="rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.08] hover:border-purple-500/40 overflow-hidden flex flex-col transition-all shadow-md group"
+                className="kova-server-card rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.08] hover:border-purple-500/40 overflow-hidden flex flex-col transition-all shadow-md group"
               >
                 {/* Banner */}
                 <div className="h-28 relative overflow-hidden bg-slate-900">
@@ -330,10 +374,11 @@ export const ServerDiscoveryModal: React.FC = () => {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleJoin(pubServer)}
+                        disabled={joiningServerId === pubServer.id}
+                        onClick={() => void handleJoin(pubServer)}
                         className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
                       >
-                        Unirse al servidor
+                        {joiningServerId === pubServer.id ? 'Uniéndote…' : 'Unirse al servidor'}
                       </button>
                     )}
                   </div>
@@ -341,6 +386,33 @@ export const ServerDiscoveryModal: React.FC = () => {
               </div>
             );
           })}
+          {filtered.length === 0 && (
+            <div className="col-span-full min-h-64 rounded-3xl border border-dashed border-purple-500/25 bg-purple-950/10 flex flex-col items-center justify-center gap-3 p-8 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/15 text-purple-300 flex items-center justify-center">
+                <Compass size={24} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white">
+                  {isLoading ? 'Buscando comunidades públicas…' : loadError ? 'No se pudieron cargar las comunidades' : searchQuery ? 'No encontramos comunidades con esa búsqueda' : 'Todavía no hay comunidades públicas'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                  {isLoading ? 'Esto puede tardar unos segundos.' : loadError || (searchQuery ? 'Prueba con otro nombre o descripción.' : 'Cuando alguien publique un espacio, aparecerá aquí automáticamente.')}
+                </p>
+              </div>
+              {COMMUNITY_CATALOG_ENABLED && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setActiveCategory('all');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors"
+                >
+                  Mostrar todos los servidores
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

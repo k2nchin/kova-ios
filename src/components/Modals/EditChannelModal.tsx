@@ -85,14 +85,14 @@ export const EditChannelModal: React.FC = () => {
       onClick={() => setIsEditChannelOpen(false)}
     >
       <div
-        className="w-full max-w-3xl h-[75vh] rounded-3xl bg-[#11141d] border border-white/[0.1] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-150"
+        className="w-full max-w-3xl h-[75vh] rounded-3xl bg-[#0d071c] border border-purple-500/30 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_25px_rgba(147,51,234,0.15)] overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-150 backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left Sidebar */}
-        <div className="w-full md:w-56 bg-[#0c0e15] border-r border-white/[0.08] p-4 flex flex-col justify-between shrink-0">
+        <div className="w-full md:w-56 bg-[#080312] border-r border-purple-950/40 p-4 flex flex-col justify-between shrink-0">
           <div className="space-y-4">
-            <div className="p-2 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0">
+            <div className="p-2 rounded-2xl bg-purple-950/30 border border-purple-900/30 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/25">
                 {channel.type === 'voice' ? (
                   <Headphones size={15} />
                 ) : channel.type === 'notes' ? (
@@ -104,7 +104,7 @@ export const EditChannelModal: React.FC = () => {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">
+                <span className="text-[10px] text-purple-400/70 uppercase font-mono tracking-wider block">
                   Ajustes
                 </span>
                 <span className="text-xs font-bold text-white truncate block font-['Outfit']">
@@ -119,8 +119,8 @@ export const EditChannelModal: React.FC = () => {
                 onClick={() => setActiveTab('overview')}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
                   activeTab === 'overview'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                    : 'text-purple-200/80 hover:bg-purple-900/20 hover:text-white'
                 }`}
               >
                 <Settings size={14} />
@@ -132,8 +132,8 @@ export const EditChannelModal: React.FC = () => {
                 onClick={() => setActiveTab('permissions')}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
                   activeTab === 'permissions'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                    : 'text-purple-200/80 hover:bg-purple-900/20 hover:text-white'
                 }`}
               >
                 <Shield size={14} />
@@ -142,7 +142,7 @@ export const EditChannelModal: React.FC = () => {
             </nav>
           </div>
 
-          <div className="pt-4 border-t border-white/[0.08]">
+          <div className="pt-4 border-t border-purple-950/40">
             <button
               type="button"
               onClick={handleDelete}
@@ -155,19 +155,19 @@ export const EditChannelModal: React.FC = () => {
         </div>
 
         {/* Right Content */}
-        <div className="flex-1 flex flex-col bg-[#121520] overflow-hidden">
+        <div className="flex-1 flex flex-col bg-[#0a0416] overflow-hidden">
           {/* Header Bar */}
-          <div className="h-14 border-b border-white/[0.08] px-6 flex items-center justify-between shrink-0">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+          <div className="h-14 border-b border-purple-950/40 px-6 flex items-center justify-between shrink-0">
+            <span className="text-xs font-bold text-purple-400/80 uppercase tracking-wider font-mono">
               {activeTab === 'overview' ? 'Vista General del Canal' : 'Permisos del Canal'}
             </span>
             <button
               type="button"
               onClick={() => setIsEditChannelOpen(false)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-all cursor-pointer text-xs"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-950/40 hover:bg-purple-900/40 text-purple-300/70 hover:text-white transition-all cursor-pointer text-xs border border-purple-900/30"
             >
               <X size={14} />
-              <span className="text-[10px] font-mono border border-white/20 rounded px-1">ESC</span>
+              <span className="text-[10px] font-mono border border-purple-500/25 rounded px-1">ESC</span>
             </button>
           </div>
 
@@ -177,14 +177,14 @@ export const EditChannelModal: React.FC = () => {
               <>
                 {/* Channel Name */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">NOMBRE DEL CANAL</label>
+                  <label className="text-xs font-semibold text-purple-300">NOMBRE DEL CANAL</label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">#</span>
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-400 font-bold">#</span>
                     <input
                       type="text"
                       value={channelName}
                       onChange={(e) => setChannelName(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-purple-500 font-['Outfit'] font-bold"
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl bg-[#06020e] border border-purple-950/50 text-white text-xs placeholder:text-purple-400/40 focus:outline-none focus:border-purple-500 font-['Outfit'] font-bold"
                       maxLength={40}
                       required
                     />
@@ -193,16 +193,16 @@ export const EditChannelModal: React.FC = () => {
 
                 {/* Channel Topic */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-300">TEMA DEL CANAL (TOPIC)</label>
+                  <label className="text-xs font-semibold text-purple-300">TEMA DEL CANAL (TOPIC)</label>
                   <textarea
                     value={channelTopic}
                     onChange={(e) => setChannelTopic(e.target.value)}
                     placeholder="Establece el tema, enlaces de referencia o reglas del canal..."
                     rows={3}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-purple-500 custom-scrollbar resize-none font-sans"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#06020e] border border-purple-950/50 text-white text-xs placeholder:text-purple-400/40 focus:outline-none focus:border-purple-500 custom-scrollbar resize-none font-sans"
                     maxLength={250}
                   />
-                  <div className="text-right text-[10px] text-slate-500 font-mono">
+                  <div className="text-right text-[10px] text-purple-400/60 font-mono">
                     {channelTopic.length}/250
                   </div>
                 </div>
@@ -211,9 +211,9 @@ export const EditChannelModal: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-1.5">
                     <Clock size={14} className="text-purple-400" />
-                    <label className="text-xs font-semibold text-slate-300">MODO PAUSADO (SLOWMODE)</label>
+                    <label className="text-xs font-semibold text-purple-300">MODO PAUSADO (SLOWMODE)</label>
                   </div>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-purple-300/60">
                     Los miembros solo podrán enviar un mensaje en el intervalo seleccionado.
                   </p>
 
@@ -225,8 +225,8 @@ export const EditChannelModal: React.FC = () => {
                         onClick={() => setSlowmode(opt.value)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all cursor-pointer ${
                           slowmode === opt.value
-                            ? 'bg-purple-600 text-white shadow-md'
-                            : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+                            ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                            : 'bg-purple-950/30 text-purple-300 hover:bg-purple-900/40 border border-purple-900/30'
                         }`}
                       >
                         {opt.label}
@@ -239,14 +239,14 @@ export const EditChannelModal: React.FC = () => {
 
             {activeTab === 'permissions' && (
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between gap-4">
+                <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-900/30 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-purple-600/20 text-purple-400">
+                    <div className="p-2.5 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/25">
                       <Lock size={18} />
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-white">Canal Privado</h4>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-purple-300/60">
                         Solo los miembros y roles seleccionados podrán ver y acceder a este canal.
                       </p>
                     </div>
@@ -256,7 +256,7 @@ export const EditChannelModal: React.FC = () => {
                     type="button"
                     onClick={() => setIsPrivate((prev) => !prev)}
                     className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                      isPrivate ? 'bg-purple-600' : 'bg-slate-700'
+                      isPrivate ? 'bg-purple-600' : 'bg-purple-950/80 border border-purple-900/40'
                     }`}
                   >
                     <div
@@ -269,17 +269,17 @@ export const EditChannelModal: React.FC = () => {
               </div>
             )}
 
-            <div className="pt-4 border-t border-white/[0.08] flex justify-end gap-2">
+            <div className="pt-4 border-t border-purple-950/40 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setIsEditChannelOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-medium text-purple-300/70 hover:text-white hover:bg-purple-900/20 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-[0_0_15px_rgba(147,51,234,0.3)] transition-all cursor-pointer"
               >
                 Guardar Cambios
               </button>

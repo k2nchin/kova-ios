@@ -15,15 +15,17 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { GoogleRealAuthModal } from './GoogleRealAuthModal';
+import { NavigationTabs } from '../Common/NavigationTabs';
 import {
   getStoredGoogleClientId,
+  openExternalUrl,
   openRealGoogleSignIn,
   RealGoogleUser,
 } from '../../utils/googleRealAuth';
 import {
-  getTwoFactorCurrentCode,
   getTwoFactorSecondsRemaining,
 } from '../../utils/twoFactorUtils';
+import { isDesktopApp, isTauriApp } from '../../utils/platform';
 
 interface AuthScreenProps {
   onShowLanding?: () => void;
@@ -32,31 +34,127 @@ interface AuthScreenProps {
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   const {
     loginWithGoogle,
+    loginAsGuest,
     loginWithEmail,
     registerUser,
     isTwoFactorEnabled,
     twoFactorSecret,
     verifyTwoFactor,
   } = useApp();
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') === 'register'
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [isRealGoogleModalOpen, setIsRealGoogleModalOpen] = useState(false);
 
   // 2FA Challenge state
   const [authStage, setAuthStage] = useState<'credentials' | '2fa'>('credentials');
-  const [pendingLoginAction, setPendingLoginAction] = useState<(() => void) | null>(null);
+  const [pendingLoginAction, setPendingLoginAction] = useState<(() => Promise<void>) | null>(null);
   const [isBackupMode, setIsBackupMode] = useState(false);
   const [backupCodeInput, setBackupCodeInput] = useState('');
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [secondsRemaining, setSecondsRemaining] = useState(30);
-  const [demoCode, setDemoCode] = useState('');
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const isDesktop = isDesktopApp();
+  const isNativeApp = isTauriApp();
+  const isDesktopGoogleBridge = !isNativeApp && new URLSearchParams(window.location.search).get('desktopGoogle') === '1';
+
+  // Keep the latest login handler and 2FA flag in refs so the deep-link effect
+  // doesn't re-register on every render (identity changes each render).
+  const loginWithGoogleRef = useRef(loginWithGoogle);
+  loginWithGoogleRef.current = loginWithGoogle;
+  const isTwoFactorEnabledRef = useRef(isTwoFactorEnabled);
+  isTwoFactorEnabledRef.current = isTwoFactorEnabled;
+
+  const runLoginAction = async (loginCallback: () => Promise<void>) => {
+    try {
+      setIsLoading(true);
+      await loginCallback();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo completar la autenticación');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const executeOrChallenge2FA = (loginCallback: () => Promise<void>) => {
+    if (isTwoFactorEnabledRef.current) {
+      setPendingLoginAction(() => loginCallback);
+      setAuthStage('2fa');
+      setDigits(['', '', '', '', '', '']);
+      setBackupCodeInput('');
+      setIsBackupMode(false);
+      setTimeout(() => inputRefs.current[0]?.focus(), 150);
+      toast.info('Se requiere código de autenticación en dos pasos');
+    } else {
+      void runLoginAction(loginCallback);
+    }
+  };
+
+  useEffect(() => {
+    if (!isNativeApp) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    const completeDesktopGoogle = async (rawUrl: string) => {
+      try {
+        const callbackUrl = new URL(rawUrl);
+        if (callbackUrl.protocol !== 'kova:' || callbackUrl.hostname !== 'auth') return;
+        const accessToken = callbackUrl.searchParams.get('access_token');
+        if (!accessToken) throw new Error('Google no devolvió una credencial válida.');
+
+        setIsLoading(true);
+        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) throw new Error('No se pudo verificar la cuenta de Google.');
+        const info = await response.json();
+        setIsLoading(false);
+        executeOrChallenge2FA(async () => {
+          await loginWithGoogleRef.current({
+            id: info.sub,
+            username: info.email ? info.email.split('@')[0] : 'google_user',
+            email: info.email,
+            googleAccessToken: accessToken,
+            displayName: info.name || 'Usuario de Google',
+            avatar: info.picture,
+            customStatus: 'Conectado con Google OAuth',
+          });
+          toast.dismiss();
+          toast.success(`¡Bienvenido, ${info.name || 'usuario de Kova'}!`);
+        });
+      } catch (error) {
+        toast.dismiss();
+        toast.error(error instanceof Error ? error.message : 'No se pudo completar el acceso con Google.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void import('@tauri-apps/plugin-deep-link').then(async ({ getCurrent, onOpenUrl }) => {
+      if (disposed) return;
+      const initialUrls = await getCurrent();
+      if (initialUrls?.[0]) await completeDesktopGoogle(initialUrls[0]);
+      unlisten = await onOpenUrl((urls) => {
+        if (urls[0]) void completeDesktopGoogle(urls[0]);
+      });
+    }).catch(() => {
+      toast.error('Kova no pudo activar el retorno desde el navegador.');
+      setIsLoading(false);
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNativeApp]);
 
   useEffect(() => {
     if (authStage === '2fa' && twoFactorSecret) {
       const update = () => {
         setSecondsRemaining(getTwoFactorSecondsRemaining());
-        setDemoCode(getTwoFactorCurrentCode(twoFactorSecret, 0));
       };
       update();
       const interval = setInterval(update, 1000);
@@ -81,19 +179,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
         fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
           headers: { Authorization: `Bearer ${accessToken}` },
         })
-          .then((r) => r.json())
-          .then((info) => {
+          .then((r) => {
+            if (!r.ok) throw new Error(`Google API error (${r.status})`);
+            return r.json();
+          })
+          .then(async (info) => {
             window.history.replaceState(null, '', window.location.pathname);
-            loginWithGoogle({
-              username: info.email ? info.email.split('@')[0] : 'google_user',
-              displayName: info.name || 'Usuario de Google',
-              avatar:
-                info.picture ||
-                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-              customStatus: 'Verificado con Google OAuth',
+            setIsLoading(false);
+            executeOrChallenge2FA(async () => {
+              await loginWithGoogleRef.current({
+                id: info.sub,
+                username: info.email ? info.email.split('@')[0] : 'google_user',
+                email: info.email,
+                googleAccessToken: accessToken,
+                displayName: info.name || 'Usuario de Google',
+                avatar:
+                  info.picture ||
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+                customStatus: 'Verificado con Google OAuth',
+              });
+              toast.dismiss();
+              toast.success(`¡Bienvenido, ${info.name}!`);
             });
-            toast.dismiss();
-            toast.success(`¡Bienvenido, ${info.name}!`);
           })
           .catch(() => {
             toast.dismiss();
@@ -108,6 +215,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
     const clientId = getStoredGoogleClientId();
     setIsLoading(true);
     const toastId = toast.loading('Abriendo ventana de Google...');
+
+    if (isNativeApp) {
+      void openExternalUrl('https://kova-k2nchin.vercel.app/app?mode=login&desktopGoogle=1')
+        .then(() => {
+          setIsLoading(false);
+          toast.dismiss(toastId);
+          toast.info('Completa el acceso con Google en tu navegador. Kova se abrirá automáticamente al terminar.');
+        })
+        .catch(() => {
+          setIsLoading(false);
+          toast.dismiss(toastId);
+          toast.error('No se pudo abrir el navegador para iniciar sesión.');
+        });
+      return;
+    }
 
     // Safety timeout: if Google popup is closed or blocked, reset loading after 8s
     const timeout = setTimeout(() => {
@@ -140,24 +262,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
     }
   };
 
-  const executeOrChallenge2FA = (loginCallback: () => void) => {
-    if (isTwoFactorEnabled) {
-      setPendingLoginAction(() => loginCallback);
-      setAuthStage('2fa');
-      setDigits(['', '', '', '', '', '']);
-      setBackupCodeInput('');
-      setIsBackupMode(false);
-      setTimeout(() => inputRefs.current[0]?.focus(), 150);
-      toast.info('Se requiere código de autenticación en dos pasos');
-    } else {
-      loginCallback();
-    }
-  };
-
   const handleRealGoogleSuccess = (user: RealGoogleUser) => {
-    executeOrChallenge2FA(() => {
-      loginWithGoogle({
-        username: user.email.split('@')[0],
+    if (isDesktopGoogleBridge) {
+      window.location.assign(`kova://auth?access_token=${encodeURIComponent(user.accessToken)}`);
+      toast.success('Cuenta confirmada. Regresando a Kova...');
+      return;
+    }
+    executeOrChallenge2FA(async () => {
+      await loginWithGoogle({
+        id: user.id,
+        username: user.email ? user.email.split('@')[0] : 'google_user',
+        email: user.email,
+        googleAccessToken: user.accessToken,
         displayName: user.name,
         avatar: user.picture,
         customStatus: 'Conectado con Google OAuth',
@@ -204,55 +320,53 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
     }
 
     const isValid = verifyTwoFactor(code);
-    if (isValid || code === '123456') {
+    if (isValid) {
       toast.success('¡Identidad verificada con éxito!');
       if (pendingLoginAction) {
-        pendingLoginAction();
+        void runLoginAction(pendingLoginAction);
       } else {
-        loginWithEmail(email || 'usuario@kova.app', password || 'password');
-        toast.success('¡Bienvenido de vuelta a Kova!');
+        toast.error('La sesión pendiente expiró. Ingresa tus credenciales nuevamente.');
+        setAuthStage('credentials');
       }
     } else {
       toast.error('Código incorrecto o expirado. Revisa tu aplicación o código de respaldo.');
     }
   };
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error('Por favor completa todos los campos requeridos');
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      if (isRegister) {
-        if (!username) {
-          toast.error('Ingresa un nombre de usuario');
-          return;
-        }
-        registerUser(username, email, password, displayName || username);
-        toast.success(`¡Cuenta creada con éxito! Bienvenido, ${displayName || username}`);
-      } else {
-        executeOrChallenge2FA(() => {
-          loginWithEmail(email, password);
-          toast.success('¡Bienvenido de vuelta a Kova!');
-        });
+    if (isRegister) {
+      if (!username) {
+        toast.error('Ingresa un nombre de usuario');
+        return;
       }
-    }, 700);
+      await runLoginAction(async () => {
+        await registerUser(username, email, password, displayName || username);
+        toast.success(`¡Cuenta creada con éxito! Bienvenido, ${displayName || username}`);
+      });
+    } else {
+      executeOrChallenge2FA(async () => {
+        await loginWithEmail(email, password);
+        toast.success('¡Bienvenido de vuelta a Kova!');
+      });
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#07090e] overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className={`kova-auth-screen absolute inset-x-0 bottom-0 ${isDesktop ? 'top-[52px]' : 'top-0'} z-10 flex items-center justify-center bg-[#050607] overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* Background Animated Gradient Aura */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none animate-pulse" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none animate-pulse" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="kova-auth-orb-a absolute -top-40 -left-40 w-96 h-96 bg-white/[0.06] rounded-full blur-3xl pointer-events-none" />
+      <div className="kova-auth-orb-b absolute -bottom-40 -right-40 w-96 h-96 bg-slate-400/[0.08] rounded-full blur-3xl pointer-events-none" />
+      <div className="kova-auth-orb-c absolute top-1/2 left-1/2 w-[600px] h-[600px] bg-white/[0.025] rounded-full blur-3xl pointer-events-none" />
 
-      {/* Cyber Grid Lines Effect */}
+      {/* Cyber Grid Lines Effect (drifting) */}
       <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        className="kova-auth-grid absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{
           backgroundImage:
             'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
@@ -261,19 +375,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
       />
 
       {/* Auth Card Container */}
-      <div className="relative w-full max-w-md mx-4 p-8 rounded-3xl bg-[#0e111a]/85 border border-white/[0.1] shadow-2xl backdrop-blur-2xl glow-purple animate-in zoom-in-95 duration-200">
+      <div className="kova-auth-card relative w-full max-w-md mx-4 p-8 rounded-[30px] bg-white/[0.07] border border-white/20 shadow-2xl backdrop-blur-2xl">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
-          <div className="relative w-14 h-14 flex items-center justify-center">
+          <div className="kova-auth-logo-wrap relative w-14 h-14 flex items-center justify-center">
+            <div className="kova-auth-logo-ring" />
+            <div className="kova-auth-logo-ring r2" />
             <img
-              src="/kova-logo.png"
+              src="/kova-chrome-cube.png"
               alt="Kova Logo"
-              className="w-14 h-14 object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.6)]"
+              className="kova-auth-logo w-14 h-14 object-contain"
             />
           </div>
-          <div>
+          <div className="kova-auth-rise d-1">
             <h1 className="text-2xl font-black text-white font-['Outfit'] tracking-wider">
-              KOVA <span className="text-cyan-400">OS</span>
+              KOVA <span className="text-[#c9d1da]">OS</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1">
               {isRegister
@@ -287,9 +403,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
           <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="flex flex-col items-center text-center space-y-2">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-cyan-400 p-0.5 shadow-lg shadow-purple-500/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#858b93] to-[#edf1f5] p-0.5 shadow-lg shadow-black/30 flex items-center justify-center">
                 <div className="w-full h-full bg-[#0b0d14] rounded-2xl flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6 text-cyan-400" />
+                  <ShieldCheck className="w-6 h-6 text-[#c9d1da]" />
                 </div>
               </div>
               <h2 className="text-xl font-black text-white font-['Outfit']">
@@ -318,42 +434,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                         value={val}
                         onChange={(e) => handleDigitChange(idx, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(idx, e)}
-                        className="w-11 h-13 rounded-2xl bg-[#141824] border border-white/[0.12] focus:border-purple-500 focus:bg-[#1a2030] text-center text-xl font-bold font-mono text-white outline-none transition-all shadow-md focus:scale-105"
+                        style={{ animationDelay: `${idx * 0.05}s` }}
+                        className="kova-auth-2fa-input w-11 h-13 rounded-2xl bg-[#141824] border border-white/[0.12] focus:border-[#c9d1da] focus:bg-[#1a2030] text-center text-xl font-bold font-mono text-white outline-none transition-all shadow-md focus:scale-105"
                       />
                     ))}
                   </div>
 
-                  {/* Live helper code for effortless demo testing */}
-                  {demoCode && (
-                    <div className="p-3 rounded-2xl bg-purple-950/20 border border-purple-500/20 flex items-center justify-between text-left">
-                      <div>
-                        <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block">
-                          CÓDIGO DE PRUEBA EN VIVO
-                        </span>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-sm font-mono font-black text-cyan-300 tracking-widest">
-                            {demoCode}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const splitted = demoCode.split('');
-                              setDigits(splitted);
-                            }}
-                            className="text-[10px] px-2 py-0.5 rounded-md bg-purple-600/30 hover:bg-purple-600/60 text-purple-200 transition-colors cursor-pointer"
-                          >
-                            Autocompletar
-                          </button>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-400 block">Expira en</span>
-                        <span className="text-xs font-mono font-bold text-emerald-400">
-                          {secondsRemaining}s
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-[11px] text-slate-500">
+                    El código cambia en aproximadamente {secondsRemaining} segundos.
+                  </p>
                 </>
               ) : (
                 <div>
@@ -369,7 +458,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                       value={backupCodeInput}
                       onChange={(e) => setBackupCodeInput(e.target.value.toUpperCase())}
                       placeholder="XXXX-XXXX"
-                      className="w-full bg-[#141824] border border-white/[0.08] focus:border-purple-500 rounded-xl py-2.5 pl-9 pr-3 text-xs font-mono font-bold text-white placeholder-slate-500 outline-none transition-all tracking-wider"
+                      className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2.5 pl-9 pr-3 text-xs font-mono font-bold text-white placeholder-slate-500 outline-none transition-all tracking-wider"
                     />
                   </div>
                 </div>
@@ -377,7 +466,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-purple-500/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                className="kova-auth-cta w-full py-2.5 rounded-2xl bg-gradient-to-r from-[#858b93] via-[#c9d1da] to-[#edf1f5] hover:from-[#aeb5bd] hover:to-white text-[#111214] font-bold text-xs shadow-lg shadow-black/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 <span>Verificar e Iniciar Sesión</span>
                 <ArrowRight className="w-4 h-4" />
@@ -388,7 +477,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
               <button
                 type="button"
                 onClick={() => setIsBackupMode(!isBackupMode)}
-                className="text-xs text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                className="text-xs text-[#c9d1da] hover:text-white transition-colors cursor-pointer"
               >
                 {isBackupMode
                   ? '¿Tienes acceso a tu app? Usar código de 6 dígitos'
@@ -409,30 +498,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
           </div>
         ) : (
           <>
-            {/* Tab Selector */}
-            <div className="flex p-1 mb-6 rounded-2xl bg-[#141824] border border-white/[0.06]">
-              <button
-                type="button"
-                onClick={() => setIsRegister(false)}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                  !isRegister
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Iniciar Sesión
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsRegister(true)}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                  isRegister
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Crear Cuenta
-              </button>
+            {/* Tab Selector — NavigationTabs v4 */}
+            <div className="kova-auth-rise d-2 mb-6">
+              <NavigationTabs
+                size="md"
+                activeKey={isRegister ? 'register' : 'login'}
+                onChange={(key) => setIsRegister(key === 'register')}
+                items={[
+                  { key: 'login', label: 'Iniciar Sesión' },
+                  { key: 'register', label: 'Crear Cuenta' },
+                ]}
+              />
             </div>
 
             {/* Google OAuth Button */}
@@ -440,7 +516,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
               type="button"
               onClick={handleOpenGoogleConfirm}
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-xs transition-all shadow-md hover:scale-[1.01] active:scale-[0.99] mb-5 cursor-pointer"
+              className="kova-auth-rise d-3 w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-xs transition-all shadow-md hover:scale-[1.01] active:scale-[0.99] mb-5 cursor-pointer"
             >
               {/* Google SVG Icon */}
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -470,7 +546,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
               </span>
             </button>
 
-            <div className="relative flex items-center justify-center my-4">
+            {isNativeApp && !isDesktop && !isRegister && (
+              <button
+                type="button"
+                onClick={() => void runLoginAction(loginAsGuest)}
+                disabled={isLoading}
+                className="kova-auth-rise d-3 w-full py-2.5 rounded-2xl border border-white/[0.14] bg-white/[0.04] hover:bg-white/[0.09] text-slate-200 font-semibold text-xs transition-all flex items-center justify-center gap-2 mb-5"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>Entrar como invitado de prueba</span>
+              </button>
+            )}
+
+            <div className="kova-auth-rise d-3 relative flex items-center justify-center my-4">
               <div className="border-t border-white/[0.08] w-full" />
               <span className="bg-[#0e111a] px-3 text-[10px] text-slate-500 uppercase tracking-widest font-mono">
                 o con correo
@@ -482,7 +570,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
             <form onSubmit={handleEmailSubmit} className="space-y-3">
               {isRegister && (
                 <>
-                  <div>
+                  <div className="kova-auth-rise d-3">
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">
                       Nombre de Usuario (@tag)
                     </label>
@@ -494,12 +582,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="juanpi1x"
-                        className="w-full bg-[#141824] border border-white/[0.08] focus:border-purple-500 rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                        className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                       />
                     </div>
                   </div>
 
-                  <div>
+                  <div className="kova-auth-rise d-3">
                     <label className="block text-[11px] font-bold text-slate-300 mb-1">
                       Nombre para mostrar
                     </label>
@@ -510,14 +598,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
                         placeholder="Juan Jesús Enrique"
-                        className="w-full bg-[#141824] border border-white/[0.08] focus:border-purple-500 rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                        className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                       />
                     </div>
                   </div>
                 </>
               )}
 
-              <div>
+              <div className="kova-auth-rise d-4">
                 <label className="block text-[11px] font-bold text-slate-300 mb-1">
                   Correo Electrónico
                 </label>
@@ -529,12 +617,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="tu@correo.com"
-                    className="w-full bg-[#141824] border border-white/[0.08] focus:border-purple-500 rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                    className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                   />
                 </div>
               </div>
 
-              <div>
+              <div className="kova-auth-rise d-5">
                 <label className="block text-[11px] font-bold text-slate-300 mb-1">Contraseña</label>
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 absolute left-3 text-slate-500" />
@@ -544,7 +632,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full bg-[#141824] border border-white/[0.08] focus:border-purple-500 rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                    className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -552,7 +640,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-purple-500/20 transition-all flex items-center justify-center gap-2 mt-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                className="kova-auth-cta kova-auth-rise d-6 w-full py-2.5 rounded-2xl bg-gradient-to-r from-[#858b93] via-[#c9d1da] to-[#edf1f5] hover:from-[#aeb5bd] hover:to-white text-[#111214] font-bold text-xs shadow-lg shadow-black/20 transition-all flex items-center justify-center gap-2 mt-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 <span>{isRegister ? 'Crear Cuenta Kova' : 'Entrar a Kova'}</span>
                 <ArrowRight className="w-4 h-4" />

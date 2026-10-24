@@ -11,6 +11,8 @@ import {
   Link,
   Check,
   Upload,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { toast } from 'sonner';
@@ -30,6 +32,7 @@ export const CreateServerModal: React.FC = () => {
   const [name, setName] = useState(`Servidor de ${currentUser.displayName}`);
   const [description, setDescription] = useState('');
   const [template, setTemplate] = useState<ServerTemplate>('amigos');
+  const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [iconUrl, setIconUrl] = useState(
     'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80'
   );
@@ -87,7 +90,7 @@ export const CreateServerModal: React.FC = () => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    createServer(name.trim(), description.trim(), iconUrl.trim() || undefined, template);
+    createServer(name.trim(), description.trim(), iconUrl.trim() || undefined, template, visibility);
   };
 
   const handleJoinSubmit = (e: React.FormEvent) => {
@@ -108,11 +111,11 @@ export const CreateServerModal: React.FC = () => {
       onClick={() => setIsCreateServerOpen(false)}
     >
       <div
-        className="w-full max-w-lg rounded-3xl bg-[#111420] border border-white/[0.1] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+        className="kova-create-space w-full max-w-lg rounded-[28px] bg-[#0d0e11] border border-white/15 shadow-[0_28px_90px_rgba(0,0,0,.7)] overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-white/[0.08] flex items-center justify-between bg-[#0e1019]">
+        <div className="px-6 pt-5 pb-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-[#111216] to-[#090a0d]">
           <div className="flex items-center gap-2.5">
             {mode === 'join' && (
               <button
@@ -190,7 +193,7 @@ export const CreateServerModal: React.FC = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej. Cyberpunk Developers HQ"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#090b12] border border-white/[0.1] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium"
               />
             </div>
 
@@ -210,7 +213,7 @@ export const CreateServerModal: React.FC = () => {
                       className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer text-left ${
                         isSelected
                           ? 'bg-purple-600/15 border-purple-500 shadow-md glow-purple'
-                          : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.05]'
+                          : 'bg-purple-950/20 border-purple-900/20 hover:bg-purple-900/30'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -249,12 +252,29 @@ export const CreateServerModal: React.FC = () => {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">Visibilidad del espacio</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setVisibility('private')} className={`p-3 rounded-2xl border text-left transition-all ${visibility === 'private' ? 'bg-white/10 border-white/35' : 'bg-black/30 border-white/10'}`}>
+                  <Lock size={17} className="mb-2 text-zinc-200" />
+                  <strong className="block text-xs text-white">Privado</strong>
+                  <span className="block mt-1 text-[10px] leading-4 text-zinc-400">Solo entra quien tenga invitación.</span>
+                </button>
+                <button type="button" onClick={() => setVisibility('public')} className={`p-3 rounded-2xl border text-left transition-all ${visibility === 'public' ? 'bg-cyan-400/10 border-cyan-300/45' : 'bg-black/30 border-white/10'}`}>
+                  <Globe size={17} className="mb-2 text-cyan-300" />
+                  <strong className="block text-xs text-white">Público</strong>
+                  <span className="block mt-1 text-[10px] leading-4 text-zinc-400">Visible para descubrir y unirse.</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-zinc-400"><ShieldCheck size={13} className="text-emerald-400" /> Puedes cambiarlo después en Ajustes.</div>
+            </div>
+
             {/* Actions & Footer */}
-            <div className="pt-3 border-t border-white/[0.08] flex items-center justify-between">
+            <div className="pt-3 border-t border-white/10 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setMode('join')}
-                className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 hover:underline cursor-pointer flex items-center gap-1.5"
+                className="text-[11px] font-semibold text-zinc-300 hover:text-white hover:underline cursor-pointer flex items-center gap-1.5"
               >
                 <Link size={13} />
                 <span>¿Ya tienes una invitación?</span>
@@ -271,7 +291,7 @@ export const CreateServerModal: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!name.trim()}
-                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-lg glow-purple disabled:opacity-40 cursor-pointer"
+                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-zinc-100 to-zinc-400 hover:from-white hover:to-zinc-300 text-black text-xs font-extrabold transition-all shadow-lg disabled:opacity-40 cursor-pointer"
                 >
                   Crear Servidor
                 </button>
@@ -292,17 +312,17 @@ export const CreateServerModal: React.FC = () => {
                 required
                 value={inviteInput}
                 onChange={(e) => setInviteInput(e.target.value)}
-                placeholder="https://kova.gg/invite/abc1234 o código"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#090b12] border border-white/[0.1] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all font-mono"
+                placeholder="https://kova-k2nchin.vercel.app/invite/espacio o código"
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
               />
               <p className="text-[11px] text-slate-400">
                 Las invitaciones tienen un formato como{' '}
-                <span className="font-mono text-cyan-300">https://kova.gg/invite/xyz</span> o{' '}
-                <span className="font-mono text-cyan-300">xyz</span>.
+                <span className="font-mono text-slate-200">https://kova-k2nchin.vercel.app/invite/espacio</span> o{' '}
+                <span className="font-mono text-purple-300">xyz</span>.
               </p>
             </div>
 
-            <div className="pt-4 border-t border-white/[0.08] flex items-center justify-between">
+            <div className="pt-4 border-t border-purple-950/40 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setMode('create')}
@@ -313,7 +333,7 @@ export const CreateServerModal: React.FC = () => {
               <button
                 type="submit"
                 disabled={!inviteInput.trim()}
-                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-bold transition-all shadow-lg glow-cyan disabled:opacity-40 cursor-pointer"
+                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-lg glow-purple disabled:opacity-40 cursor-pointer"
               >
                 Unirse al Servidor
               </button>

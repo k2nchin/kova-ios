@@ -22,30 +22,30 @@ export const CreateCategoryModal: React.FC = () => {
       onClick={() => setIsCreateCategoryOpen(false)}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-[#13151f] border border-white/[0.1] shadow-2xl p-4.5 space-y-4 animate-in zoom-in-95 duration-150"
+        className="w-full max-w-sm rounded-2xl bg-[#0d071c] border border-purple-500/25 shadow-[0_0_30px_rgba(147,51,234,0.2)] p-5 space-y-4 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
+        <div className="flex items-center justify-between border-b border-purple-950/40 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
               <FolderPlus className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-100 font-['Outfit']">Crear Categoría</h2>
-              <p className="text-[11px] text-slate-400">En {activeServer.name}</p>
+              <h2 className="text-sm font-bold text-white font-['Outfit']">Crear Categoría</h2>
+              <p className="text-[11px] text-purple-300/70">En {activeServer.name}</p>
             </div>
           </div>
           <button
             onClick={() => setIsCreateCategoryOpen(false)}
-            className="p-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label className="block text-[10px] font-bold tracking-wider text-slate-400 uppercase font-mono mb-1.5">
+            <label className="block text-[10px] font-bold tracking-wider text-slate-300 uppercase font-mono mb-1.5">
               Nombre de la Categoría
             </label>
             <input
@@ -54,25 +54,25 @@ export const CreateCategoryModal: React.FC = () => {
               onChange={(e) => setName(e.target.value)}
               placeholder="EJ. CANALES DE TEXTO, VOZ"
               autoFocus
-              className="w-full px-3 py-2 rounded-xl bg-[#090b10] border border-white/[0.08] focus:border-purple-500/60 focus:outline-none text-slate-100 text-xs placeholder-slate-600 transition-colors uppercase"
+              className="w-full px-3.5 py-2 rounded-xl bg-[#07020e] border border-purple-900/30 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none text-slate-100 text-xs placeholder-slate-500 transition-colors uppercase"
             />
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[10px] text-slate-400 mt-1.5">
               Agrupa tus canales organizadamente al estilo Discord.
             </p>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-1">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-purple-950/40">
             <button
               type="button"
               onClick={() => setIsCreateCategoryOpen(false)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] transition-colors"
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
-              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md shadow-purple-500/20"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md glow-purple cursor-pointer"
             >
               Crear Categoría
             </button>

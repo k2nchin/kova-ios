@@ -1,22 +1,6 @@
-// Google Gemini API Client Service for Kova AI
-// Connects Kova AI Assistant directly to Google's official Gemini models
-
-const DEFAULT_GEMINI_KEY = '';
-const MODELS_TO_TRY = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-2.5-pro'];
-
-export function getGeminiApiKey(): string {
-  try {
-    const fromStorage = localStorage.getItem('kova.gemini_api_key');
-    if (fromStorage && fromStorage.trim()) return fromStorage.trim();
-  } catch {}
-  return import.meta.env.VITE_GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
-}
-
-export function setGeminiApiKey(key: string): void {
-  try {
-    localStorage.setItem('kova.gemini_api_key', key.trim());
-  } catch {}
-}
+// Kova AI client. Provider credentials remain on the backend and are never
+// shipped in the browser or stored in localStorage.
+import { api } from './apiClient';
 
 const KOVA_SYSTEM_INSTRUCTION = `Eres Kova IA, el asistente inteligente oficial de Kova (plataforma de comunicación, chat y voz online al estilo Discord).
 
@@ -27,89 +11,20 @@ Instrucciones de comportamiento:
 4. Conoce las características de Kova: canales de texto, salas de voz HD de baja latencia con WebRTC, Soundboard para reproducir y subir sonidos en vivo, notas colaborativas Markdown, historias de 24h, roles de servidor personalizables y temas oscuros.
 5. Sé directo, evita introducciones largas innecesarias y usa formato Markdown claro con viñetas y negritas cuando aporte claridad.`;
 
-interface GeminiGenerateResponse {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-      }>;
-    };
-    finishReason?: string;
-  }>;
-  error?: {
-    code?: number;
-    message?: string;
-    status?: string;
-  };
-}
-
 /**
- * Ask Kova IA using live Google Gemini API
+ * Ask Kova IA through the authenticated backend proxy.
  */
 export async function askGemini(
   prompt: string,
   context?: { channelName?: string; serverName?: string; recentMessages?: string[] }
 ): Promise<string> {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    return '⚠️ No se encontró una clave de API configurada.';
-  }
-
-  let enrichedPrompt = prompt;
-  if (context?.channelName || context?.serverName || context?.recentMessages?.length) {
-    const meta: string[] = [];
-    if (context.serverName) meta.push(`Espacio/Servidor: ${context.serverName}`);
-    if (context.channelName) meta.push(`Canal actual: #${context.channelName}`);
-    if (context.recentMessages?.length) {
-      meta.push(`Mensajes recientes del canal:\n${context.recentMessages.slice(-6).join('\n')}`);
-    }
-    enrichedPrompt = `[Contexto del canal]:\n${meta.join('\n')}\n\n[Pregunta o petición del usuario]:\n${prompt}`;
-  }
-
-  const payload = {
-    systemInstruction: {
-      parts: [{ text: KOVA_SYSTEM_INSTRUCTION }],
-    },
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: enrichedPrompt }],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 1024,
-    },
-  };
-
-  for (const model of MODELS_TO_TRY) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errJson: GeminiGenerateResponse = await res.json().catch(() => ({}));
-        console.warn(`[Kova IA] Falló ${model}:`, errJson.error?.message || res.statusText);
-        continue;
-      }
-
-      const data: GeminiGenerateResponse = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text && text.trim()) {
-        return text.trim();
-      }
-    } catch (err) {
-      console.warn(`[Kova IA] Excepción consultando ${model}:`, err);
-    }
-  }
-
-  return '✦ **Kova IA**: No pude responder en este momento. Por favor verifica tu conexión a internet.';
+  const response = await api.askAI(prompt, {
+    ...context,
+    recentMessages: context?.recentMessages?.slice(-6),
+    assistantInstruction: KOVA_SYSTEM_INSTRUCTION,
+  });
+  if (!response.text?.trim()) throw new Error('El servidor de IA devolvió una respuesta vacía.');
+  return response.text.trim();
 }
 
 /**

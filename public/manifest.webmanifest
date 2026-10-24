@@ -1,0 +1,19 @@
+﻿{
+  "name": "Kova — Signal & Structure",
+  "short_name": "Kova",
+  "description": "Comunidades, chat y salas de voz con asistencia de IA. Tu gente, tu universo, tu Kova.",
+  "id": "/app",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070809",
+  "theme_color": "#0b0d12",
+  "lang": "es",
+  "categories": ["social", "communication", "productivity"],
+  "icons": [
+    { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

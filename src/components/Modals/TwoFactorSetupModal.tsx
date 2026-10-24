@@ -16,13 +16,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
+import QRCode from 'qrcode';
 import { useApp } from '../../context/AppContext';
 import {
   generateTwoFactorSecret,
   generateBackupCodes,
-  generateQrSvg,
-  getTwoFactorCurrentCode,
-  getTwoFactorSecondsRemaining,
+  getTwoFactorOtpAuthUri,
   verifyTwoFactorCode,
 } from '../../utils/twoFactorUtils';
 import { soundFx } from '../../utils/soundEffects';
@@ -41,8 +40,7 @@ export const TwoFactorSetupModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [copiedCodes, setCopiedCodes] = useState(false);
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
-  const [secondsRemaining, setSecondsRemaining] = useState(30);
-  const [demoCode, setDemoCode] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
   const [hasConfirmedSaved, setHasConfirmedSaved] = useState(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -62,19 +60,26 @@ export const TwoFactorSetupModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  // Keep live TOTP demo code and countdown updated
   useEffect(() => {
     if (!secret || !isOpen) return;
-
-    const update = () => {
-      setSecondsRemaining(getTwoFactorSecondsRemaining());
-      setDemoCode(getTwoFactorCurrentCode(secret, 0));
+    let cancelled = false;
+    const accountName = currentUser.username || currentUser.displayName;
+    QRCode.toDataURL(getTwoFactorOtpAuthUri(secret, accountName), {
+      width: 384,
+      margin: 2,
+      color: { dark: '#111827', light: '#ffffff' },
+      errorCorrectionLevel: 'M',
+    })
+      .then((url) => {
+        if (!cancelled) setQrDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl('');
+      });
+    return () => {
+      cancelled = true;
     };
-
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [secret, isOpen]);
+  }, [secret, isOpen, currentUser.username, currentUser.displayName]);
 
   if (!isOpen) return null;
 
@@ -230,12 +235,13 @@ ${backupCodes.map((c, i) => `[${i + 1}]  ${c}`).join('\n')}
 
               {/* QR Code Container */}
               <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-[#131622] border border-white/[0.08] shadow-inner">
-                <div
-                  className="w-48 h-48 rounded-2xl p-2 bg-[#0a0c13] border border-white/[0.1] shadow-2xl flex items-center justify-center"
-                  dangerouslySetInnerHTML={{
-                    __html: generateQrSvg(secret, currentUser.displayName),
-                  }}
-                />
+                <div className="w-48 h-48 rounded-2xl p-2 bg-white border border-white/[0.1] shadow-2xl flex items-center justify-center">
+                  {qrDataUrl ? (
+                    <img src={qrDataUrl} alt="Código QR para configurar Kova 2FA" className="w-full h-full rounded-lg" />
+                  ) : (
+                    <QrCode className="w-12 h-12 text-slate-500 animate-pulse" />
+                  )}
+                </div>
                 <span className="text-[10px] font-mono text-slate-400 mt-2 flex items-center gap-1.5">
                   <QrCode size={12} className="text-cyan-400" /> kova:auth:{currentUser.username}
                 </span>
@@ -295,35 +301,6 @@ ${backupCodes.map((c, i) => `[${i + 1}]  ${c}`).join('\n')}
                 ))}
               </div>
 
-              {/* Helper Demo Card for Quick Testing */}
-              <div className="p-3 rounded-2xl bg-purple-950/20 border border-purple-500/20 flex items-center justify-between text-left">
-                <div>
-                  <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest block">
-                    CÓDIGO DE PRUEBA EN VIVO
-                  </span>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-sm font-mono font-black text-cyan-300 tracking-widest">
-                      {demoCode}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const splitted = demoCode.split('');
-                        setDigits(splitted);
-                      }}
-                      className="text-[10px] px-2 py-0.5 rounded-md bg-purple-600/30 hover:bg-purple-600/60 text-purple-200 transition-colors cursor-pointer"
-                    >
-                      Autocompletar
-                    </button>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block">Expira en</span>
-                  <span className="text-xs font-mono font-bold text-emerald-400">
-                    {secondsRemaining}s
-                  </span>
-                </div>
-              </div>
             </div>
           )}
 

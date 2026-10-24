@@ -65,37 +65,37 @@ export const CreateChannelModal: React.FC = () => {
       onClick={() => setIsCreateChannelOpen(false)}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-[#13151f] border border-white/[0.1] shadow-2xl p-4.5 space-y-3.5 animate-in zoom-in-95 duration-150"
+        className="w-full max-w-md rounded-2xl bg-[#0d071c] border border-purple-500/25 shadow-[0_0_30px_rgba(147,51,234,0.2)] p-5 space-y-4 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-purple-950/40 pb-3">
           <div>
-            <h2 className="text-sm font-bold text-slate-100 font-['Outfit']">Crear un Canal</h2>
-            <p className="text-[11px] text-slate-400">En {activeServer.name}</p>
+            <h2 className="text-sm font-bold text-white font-['Outfit']">Crear un Canal</h2>
+            <p className="text-[11px] text-purple-300/70">En {activeServer.name}</p>
           </div>
           <button
             onClick={() => setIsCreateChannelOpen(false)}
-            className="p-1 rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white"
+            className="p-1 rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {/* Type Selector */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider font-mono">
               Tipo de Canal
             </label>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {channelTypes.map((item) => (
                 <div
                   key={item.type}
                   onClick={() => setType(item.type)}
-                  className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                  className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
                     type === item.type
-                      ? 'bg-purple-600/15 border-purple-500/60 shadow-sm'
-                      : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.05]'
+                      ? 'bg-purple-600/20 border-purple-500 shadow-md shadow-purple-500/10'
+                      : 'bg-purple-950/20 border-purple-900/20 hover:bg-purple-900/30'
                   }`}
                 >
                   <div className="p-1.5 rounded-lg bg-black/40 shrink-0">{item.icon}</div>
@@ -121,7 +121,7 @@ export const CreateChannelModal: React.FC = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="nuevas-ideas"
-                className="w-full pl-7 pr-3 py-1.5 rounded-xl bg-[#0b0c10] border border-white/[0.1] text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                className="w-full pl-7 pr-3 py-2 rounded-xl bg-[#07020e] border border-purple-900/30 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
               />
             </div>
           </div>
@@ -134,7 +134,7 @@ export const CreateChannelModal: React.FC = () => {
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-xl bg-[#0b0c10] border border-white/[0.1] text-xs text-slate-100 focus:outline-none focus:border-purple-500"
+              className="w-full px-3 py-2 rounded-xl bg-[#07020e] border border-purple-900/30 text-xs text-slate-100 focus:outline-none focus:border-purple-500 transition-all"
             >
               <option value="">(Sin categoría - Canal principal)</option>
               {activeServer.categories.map((cat) => (
@@ -146,18 +146,18 @@ export const CreateChannelModal: React.FC = () => {
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-1 border-t border-white/[0.06]">
+          <div className="flex justify-end gap-2 pt-2 border-t border-purple-950/40">
             <button
               type="button"
               onClick={() => setIsCreateChannelOpen(false)}
-              className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"
+              className="px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!name.trim()}
-              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-40 shadow-md glow-purple"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-40 shadow-md glow-purple cursor-pointer"
             >
               Crear Canal
             </button>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Sparkles,
   Smile,
@@ -38,6 +38,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
     togglePinMessage,
     editMessage,
     openUserProfile,
+    sendMessage,
   } = useApp();
   const [copiedCode, setCopiedCode] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -46,6 +47,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
   const [executionOutput, setExecutionOutput] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.content);
+
+  useEffect(() => {
+    setEditText(message.content);
+  }, [message.content]);
 
   const quickEmojis = ['🔥', '❤️', '⚡', '🧠', '🚀', '👍', '🦀', '✨'];
 
@@ -59,34 +64,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
     if (!message.codeBlock) return;
     setIsExecuting(true);
     setExecutionOutput(null);
-
     setTimeout(() => {
-      try {
-        const lang = message.codeBlock?.language.toLowerCase() || '';
-        if (lang === 'javascript' || lang === 'js' || lang === 'typescript' || lang === 'ts') {
-          const logs: string[] = [];
-          const customConsole = {
-            log: (...args: unknown[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')),
-            warn: (...args: unknown[]) => logs.push('[WARN] ' + args.join(' ')),
-            error: (...args: unknown[]) => logs.push('[ERR] ' + args.join(' ')),
-          };
-          // Safe execution wrapper
-          const fn = new Function('console', message.codeBlock?.code || '');
-          fn(customConsole);
-          setExecutionOutput(logs.length > 0 ? logs.join('\n') : '✓ Ejecución completada sin salida en consola.');
-        } else {
-          // Simulation for Rust / Python / C++
-          setExecutionOutput(`[KOVA RUST/WASM ENGINE] Compilando ${lang.toUpperCase()}...\n✓ Compilación exitosa en 4.2ms\nOutput: Hash digest: 0x9f83a00e\n[Process exited with status 0]`);
-        }
-      } catch (err: unknown) {
-        setExecutionOutput(`[ERROR DE EJECUCIÓN]: ${(err as Error).message}`);
-      } finally {
-        setIsExecuting(false);
-      }
-    }, 400);
+      setExecutionOutput(
+        'Ejecución local desactivada por seguridad. Configura un runner aislado en el backend para ejecutar código.'
+      );
+      setIsExecuting(false);
+    }, 150);
   };
 
-  const isAuthorMe = message.author.id === currentUser.id;
+  const isBotMessage = message.author.tag === 'BOT' || message.aiGenerated || /kova\s*bot|kova\s*ia|juanpi\s*ia/i.test(message.author.displayName || '');
+  // Automated replies always stay on the incoming side, even if a legacy
+  // local message was persisted with the current user's id.
+  const isAuthorMe = message.author.id === currentUser.id && !isBotMessage;
 
   // Derive author's server role color (Discord style)
   const authorInServer = activeServer?.members?.find((m) => m.id === message.author.id);
@@ -98,8 +87,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
 
   return (
     <div
-      className={`group relative flex gap-4 px-4 py-1.5 hover:bg-[#2e3035]/60 transition-colors ${
-        message.pinned ? 'bg-[#5865f2]/10 border-l-2 border-[#5865f2]' : ''
+      className={`kova-message-item ${isAuthorMe ? 'kova-message-mine' : ''} ${isBotMessage ? 'kova-message-bot' : ''} group relative flex gap-4 px-4 py-2 hover:bg-purple-950/20 transition-colors ${
+        message.pinned ? 'bg-purple-950/30 border-l-2 border-purple-500' : ''
       }`}
     >
       {/* 1. Author Avatar */}
@@ -108,7 +97,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
           src={message.author.avatar}
           alt={message.author.displayName}
           onClick={() => openUserProfile(message.author)}
-          className="w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-90 transition-opacity hover:scale-105"
+          className="kova-message-avatar w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-90 transition-opacity hover:scale-105"
         />
       </div>
 
@@ -180,7 +169,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
             </div>
           </div>
         ) : (
-          message.content && (
+          message.content && !message.botCard && (
             <div className="text-[#dbdee1] text-[14px] leading-relaxed whitespace-pre-wrap select-text">
               {message.content}
               {message.edited && (
@@ -190,6 +179,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
               )}
             </div>
           )
+        )}
+
+        {message.botCard && (
+          <section className={`kova-bot-card kova-bot-card-${message.botCard.tone || 'neutral'}`}>
+            <div className="kova-bot-card-glow" />
+            <div className="relative">
+              <div className="kova-bot-eyebrow"><Sparkles size={12} /> {message.botCard.eyebrow}</div>
+              <h4>{message.botCard.title}</h4>
+              {message.botCard.description && <div className="kova-bot-description whitespace-pre-wrap">{message.botCard.description}</div>}
+              {!!message.botCard.facts?.length && <div className="kova-bot-facts">{message.botCard.facts.map((fact) => <div key={fact.label}><span>{fact.label}</span><strong>{fact.value}</strong></div>)}</div>}
+              {!!message.botCard.suggestions?.length && <div className="kova-bot-suggestions">{message.botCard.suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => sendMessage(suggestion)}>{suggestion}</button>)}</div>}
+              {message.botCard.footer && <p className="kova-bot-footer">{message.botCard.footer}</p>}
+            </div>
+          </section>
         )}
 
         {/* Interactive Action Card if present (e.g. Ver reglas) */}
@@ -223,6 +226,47 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
             durationSeconds={message.voiceNote.duration}
             authorName={message.author.displayName}
           />
+        )}
+
+        {/* File attachments */}
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {message.attachments.map((att) => {
+              if (att.type === 'image' && att.url) {
+                return (
+                  <a key={att.id} href={att.url} target="_blank" rel="noreferrer" title={att.name} className="block rounded-xl overflow-hidden border border-white/10 hover:border-white/25 transition-colors">
+                    <img src={att.url} alt={att.name} loading="lazy" className="max-w-[280px] max-h-[200px] object-cover" />
+                  </a>
+                );
+              }
+              if (att.type === 'video' && att.url) {
+                return (
+                  <video key={att.id} src={att.url} controls preload="metadata" className="max-w-[280px] rounded-xl border border-white/10" />
+                );
+              }
+              if (att.type === 'audio' && att.url) {
+                return (
+                  <audio key={att.id} src={att.url} controls preload="metadata" className="w-[260px] h-10 rounded-lg" />
+                );
+              }
+              return (
+                <div key={att.id} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#0d1016] px-3.5 py-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-purple-500/15 border border-purple-400/25 flex items-center justify-center text-purple-300">
+                    <FileText size={16} />
+                  </div>
+                  <div className="min-w-0 max-w-[200px]">
+                    <p className="truncate text-xs font-semibold text-[#f2f3f5]">{att.name}</p>
+                    <p className="text-[10px] text-slate-400">{att.size}</p>
+                  </div>
+                  {att.url && (
+                    <a href={att.url} download={att.name} className="ml-1 p-1.5 rounded-lg hover:bg-white/10 text-slate-300 transition-colors" title="Descargar">
+                      <Copy size={13} />
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {/* Code Snippet Block with Direct In-Chat Runner */}
@@ -297,28 +341,36 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
           </div>
         )}
 
-        {/* Reactions List */}
-        {message.reactions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1 mt-1.5">
-            {message.reactions.map((rx) => {
-              const hasReacted = rx.users.includes(currentUser.id);
-              return (
-                <button
-                  key={rx.emoji}
-                  onClick={() => addReaction(message.id, rx.emoji)}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs transition-all border ${
-                    hasReacted
-                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm'
-                      : 'bg-white/[0.03] text-slate-300 border-white/[0.05] hover:bg-white/[0.08]'
-                  }`}
-                >
-                  <span>{rx.emoji}</span>
-                  <span className="font-mono text-[10px] font-semibold">{rx.count}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* Reactions List + Responder Button */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+          {message.reactions.map((rx) => {
+            const hasReacted = rx.users.includes(currentUser.id);
+            return (
+              <button
+                key={rx.emoji}
+                onClick={() => addReaction(message.id, rx.emoji)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all border cursor-pointer ${
+                  hasReacted
+                    ? 'bg-purple-900/40 text-purple-200 border-purple-500/50 shadow-sm shadow-purple-900/30'
+                    : 'bg-purple-950/20 text-purple-300/80 border-purple-900/30 hover:bg-purple-900/30'
+                }`}
+              >
+                <span>{rx.emoji}</span>
+                <span className="font-mono text-[10px] font-bold">{rx.count}</span>
+              </button>
+            );
+          })}
+
+          {/* Quick Reply Button matching screenshot */}
+          <button
+            onClick={() => onReply(message)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-purple-400/70 hover:text-purple-200 hover:bg-purple-900/30 border border-purple-900/20 hover:border-purple-800/40 transition-all cursor-pointer"
+            title="Responder mensaje"
+          >
+            <Reply size={12} />
+            <span className="text-[11px]">Responder</span>
+          </button>
+        </div>
 
         {/* Thread indicator */}
         {message.threadCount && (

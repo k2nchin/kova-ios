@@ -122,7 +122,7 @@ export const ArcadeGameModal: React.FC<ArcadeGameModalProps> = ({ isOpen, onClos
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-3xl bg-[#11131c] border border-purple-500/30 shadow-2xl p-6 flex flex-col items-center space-y-4 glow-purple animate-in zoom-in-95 duration-150"
+        className="w-full max-w-lg rounded-3xl bg-[#0d071c] border border-purple-500/30 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_25px_rgba(147,51,234,0.2)] p-6 flex flex-col items-center space-y-4 glow-purple animate-in zoom-in-95 duration-150 backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-full flex items-center justify-between">
@@ -164,7 +164,7 @@ export const ArcadeGameModal: React.FC<ArcadeGameModalProps> = ({ isOpen, onClos
                   setScore(0);
                   setGameSession((s) => s + 1);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-500 text-white font-bold text-xs rounded-xl shadow-lg hover:scale-105 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 hover:scale-105 transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Volver a Jugar</span>

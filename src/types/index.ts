@@ -2,7 +2,10 @@ export type UserStatus = 'online' | 'idle' | 'dnd' | 'offline';
 
 export interface User {
   id: string;
+  /** Internal immutable identity. `username` is public and may change. */
+  userId?: string;
   username: string;
+  email?: string;
   displayName: string;
   tag: string;
   avatar: string;
@@ -10,6 +13,7 @@ export interface User {
   bio?: string;
   thoughtBubble?: string;
   badges?: string[];
+  verified?: boolean;
   status: UserStatus;
   customStatus?: string;
   activity?: {
@@ -68,6 +72,7 @@ export interface Server {
   banner?: string;
   description: string;
   ownerId: string;
+  visibility?: 'public' | 'private';
   themeGradient?: string;
   categories: ChannelCategory[];
   channels: Channel[];
@@ -119,6 +124,15 @@ export interface Message {
   actionCard?: {
     title: string;
     action: string;
+  };
+  botCard?: {
+    eyebrow?: string;
+    title: string;
+    description?: string;
+    tone?: 'neutral' | 'success' | 'warning' | 'ai';
+    facts?: Array<{ label: string; value: string }>;
+    suggestions?: string[];
+    footer?: string;
   };
 }
 

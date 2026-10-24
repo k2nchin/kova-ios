@@ -12,10 +12,13 @@ import {
   Sparkles,
   PhoneOff,
   X,
+  Check,
+  ArrowLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { User, DMConversation } from '../../types';
+import { StoriesBar } from '../Stories/StoriesBar';
 
 export const DirectMessagesView: React.FC = () => {
   const {
@@ -23,6 +26,7 @@ export const DirectMessagesView: React.FC = () => {
     dmConversations,
     activeDMUserId,
     setActiveDMUserId,
+    setIsDMViewActive,
     sendDirectMessage,
     joinVoiceChannel,
     leaveVoiceChannel,
@@ -33,6 +37,7 @@ export const DirectMessagesView: React.FC = () => {
     pendingFriendRequests,
     sendFriendRequest,
     cancelFriendRequest,
+    acceptFriendRequest,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'online' | 'all' | 'pending' | 'add'>('all');
@@ -67,10 +72,13 @@ export const DirectMessagesView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 h-full flex overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif] bg-[#0f1219]">
+    <div className="kova-direct-view flex-1 h-full flex overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif] bg-[#07020f]">
       {/* 1. Left DMs / Friends Navigation Column */}
-      <div className="w-64 border-r border-white/[0.06] bg-[#11151c] flex flex-col justify-between shrink-0">
+      <div className="w-64 border-r border-purple-950/40 bg-[#090414] flex flex-col justify-between shrink-0">
         <div className="p-3 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
+          <button type="button" onClick={() => { setActiveDMUserId(null); setIsDMViewActive(true); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold text-zinc-300 border border-white/10 bg-white/[0.04] hover:bg-white/[0.1] hover:text-white transition-colors">
+            <ArrowLeft size={14} /> Volver a Bandeja de Kova
+          </button>
           {/* Top 'Amigos' button */}
           <button
             onClick={() => setActiveDMUserId(null)}
@@ -84,7 +92,7 @@ export const DirectMessagesView: React.FC = () => {
             <span>Amigos</span>
           </button>
 
-          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1 pt-2">
+          <div className="flex items-center justify-between text-[11px] font-bold text-purple-400 uppercase tracking-wider px-1 pt-2">
             <span>MENSAJES DIRECTOS</span>
           </div>
 
@@ -103,8 +111,8 @@ export const DirectMessagesView: React.FC = () => {
                     onClick={() => setActiveDMUserId(dm.user.id)}
                     className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs transition-all cursor-pointer text-left ${
                       isSelected
-                        ? 'bg-white/[0.08] text-white shadow-sm'
-                        : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                        ? 'bg-purple-600/25 border border-purple-500/40 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-purple-950/20'
                     }`}
                   >
                     <div className="relative shrink-0">
@@ -114,7 +122,7 @@ export const DirectMessagesView: React.FC = () => {
                         className="w-8 h-8 rounded-xl object-cover"
                       />
                       <div
-                        className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#11151c] ${
+                        className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#090414] ${
                           dm.user.status === 'online'
                             ? 'bg-emerald-400'
                             : dm.user.status === 'idle'
@@ -158,9 +166,9 @@ export const DirectMessagesView: React.FC = () => {
       {/* 2. Main Center Content: Either Friends Tab OR 1-on-1 Private Chat */}
       {activeUser ? (
         /* Private DM Chat Area */
-        <div className="flex-1 flex flex-col justify-between overflow-hidden bg-[#0c0e16]">
+        <div className="flex-1 flex flex-col justify-between overflow-hidden bg-[#07020f]">
           {/* Header */}
-          <div className="h-14 px-5 border-b border-white/[0.06] bg-[#111420] flex items-center justify-between shrink-0">
+          <div className="h-14 px-5 border-b border-purple-950/40 bg-[#090414] flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <img
@@ -169,7 +177,7 @@ export const DirectMessagesView: React.FC = () => {
                   className="w-9 h-9 rounded-xl object-cover ring-1 ring-white/10"
                 />
                 <div
-                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#111420] ${
+                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-[#090414] ${
                     activeUser.status === 'online'
                       ? 'bg-emerald-400'
                       : activeUser.status === 'idle'
@@ -185,7 +193,7 @@ export const DirectMessagesView: React.FC = () => {
                 <h3 className="text-sm font-bold text-white font-['Outfit']">
                   {activeUser.displayName}
                 </h3>
-                <p className="text-[11px] text-[#72e4d0]">
+                <p className="text-[11px] text-purple-400">
                   {activeUser.customStatus || 'En línea'}
                 </p>
               </div>
@@ -283,8 +291,8 @@ export const DirectMessagesView: React.FC = () => {
           </div>
 
           {/* DM Composer */}
-          <form onSubmit={handleSendMessage} className="p-4 bg-[#111420] border-t border-white/[0.06]">
-            <div className="flex items-center gap-2 bg-[#171b26] border border-white/[0.08] focus-within:border-purple-500 rounded-2xl px-4 py-2.5 shadow-lg">
+          <form onSubmit={handleSendMessage} className="p-4 bg-[#090414] border-t border-purple-950/40">
+            <div className="flex items-center gap-2 bg-[#07020e] border border-purple-900/30 focus-within:border-purple-500 rounded-2xl px-4 py-2.5 shadow-lg">
               <input
                 type="text"
                 value={messageDraft}
@@ -295,7 +303,7 @@ export const DirectMessagesView: React.FC = () => {
               <button
                 type="submit"
                 disabled={!messageDraft.trim()}
-                className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-40 transition-all cursor-pointer shadow-md"
+                className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white disabled:opacity-40 transition-all cursor-pointer shadow-md glow-purple"
               >
                 <Send size={13} />
               </button>
@@ -304,12 +312,12 @@ export const DirectMessagesView: React.FC = () => {
         </div>
       ) : (
         /* Friends Dashboard View */
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#0c0e16]">
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#07020f]">
           {/* Header Tabs */}
-          <div className="h-14 px-6 border-b border-white/[0.06] bg-[#111420] flex items-center justify-between shrink-0">
+          <div className="h-14 px-6 border-b border-purple-950/40 bg-[#090414] flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
               <Users size={18} className="text-purple-400" />
-              <span className="font-bold text-sm text-white font-['Outfit'] pr-3 border-r border-white/[0.1]">
+              <span className="font-bold text-sm text-white font-['Outfit'] pr-3 border-r border-purple-900/40">
                 Amigos
               </span>
 
@@ -368,6 +376,9 @@ export const DirectMessagesView: React.FC = () => {
             </div>
           </div>
 
+          {/* Stories Bar — historias de tu gente (Kova, no existe en Discord) */}
+          {(activeTab === 'all' || activeTab === 'online') && <StoriesBar />}
+
           {/* Tab Content */}
           {activeTab === 'pending' ? (
             /* Pending friend requests screen */
@@ -384,7 +395,7 @@ export const DirectMessagesView: React.FC = () => {
                   {pendingFriendRequests.map((req) => (
                     <div
                       key={req.id}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-[#111420] border border-white/[0.06] hover:bg-white/[0.04] transition-colors"
+                      className="flex items-center justify-between p-3 rounded-2xl bg-[#090414] border border-purple-900/30 hover:border-purple-500/40 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center font-bold text-xs text-purple-300">
@@ -394,9 +405,11 @@ export const DirectMessagesView: React.FC = () => {
                           <div className="text-xs font-bold text-white font-['Outfit']">
                             {req.username} <span className="text-slate-500 font-mono text-[10px]">#{req.tag}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400">Solicitud de amistad enviada (saliente)</div>
+                          <div className="text-[10px] text-slate-400">{req.direction === 'incoming' ? 'Quiere añadirte a sus contactos' : 'Solicitud enviada'}</div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                      {req.direction === 'incoming' && <button type="button" onClick={() => acceptFriendRequest(req.id)} className="p-2 rounded-xl bg-emerald-400/15 hover:bg-emerald-400/25 text-emerald-300 border border-emerald-300/20" title="Aceptar"><Check size={15} /></button>}
                       <button
                         type="button"
                         onClick={() => cancelFriendRequest(req.id)}
@@ -405,6 +418,7 @@ export const DirectMessagesView: React.FC = () => {
                       >
                         <X size={15} />
                       </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -426,12 +440,12 @@ export const DirectMessagesView: React.FC = () => {
                   value={addFriendInput}
                   onChange={(e) => setAddFriendInput(e.target.value)}
                   placeholder="Introduce un nombre de usuario#0000"
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#141824] border border-white/[0.1] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                 />
                 <button
                   type="submit"
                   disabled={!addFriendInput.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-md"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-40 cursor-pointer shadow-md glow-purple"
                 >
                   Enviar solicitud
                 </button>
@@ -441,7 +455,7 @@ export const DirectMessagesView: React.FC = () => {
             /* Friends List Screen */
             <div className="flex-1 p-6 overflow-y-auto custom-scrollbar space-y-4">
               {/* Search Friends Input */}
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#141824] border border-white/[0.08] text-xs text-slate-400 focus-within:border-purple-500">
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#07020e] border border-purple-900/30 text-xs text-slate-400 focus-within:border-purple-500">
                 <Search size={14} />
                 <input
                   type="text"
@@ -455,7 +469,7 @@ export const DirectMessagesView: React.FC = () => {
               {/* Friends items */}
               {filteredFriends.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-16 h-16 rounded-3xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center text-slate-500 mb-4 shadow-inner">
+                  <div className="w-16 h-16 rounded-3xl bg-purple-950/20 border border-purple-900/30 flex items-center justify-center text-slate-500 mb-4 shadow-inner">
                     <Users size={28} className="text-purple-400/60" />
                   </div>
                   <h3 className="text-sm font-bold text-white font-['Outfit'] mb-1">
@@ -475,14 +489,14 @@ export const DirectMessagesView: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <div className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">
                     TODOS LOS AMIGOS — {filteredFriends.length}
                   </div>
 
                   {filteredFriends.map((f) => (
                     <div
                       key={f.id}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-[#111420] border border-white/[0.06] hover:bg-white/[0.04] transition-colors"
+                      className="flex items-center justify-between p-3 rounded-2xl bg-[#090414] border border-purple-900/30 hover:border-purple-500/40 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative">
@@ -492,7 +506,7 @@ export const DirectMessagesView: React.FC = () => {
                             className="w-10 h-10 rounded-xl object-cover"
                           />
                           <div
-                            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-[#111420] ${
+                            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-[#090414] ${
                               f.status === 'online'
                                 ? 'bg-emerald-400'
                                 : f.status === 'idle'

@@ -16,6 +16,8 @@ export const MemberList: React.FC = () => {
     friends,
     openUserProfile,
     openInviteModal,
+    realtimeConnected,
+    presenceByUser,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,10 +32,12 @@ export const MemberList: React.FC = () => {
 
   // Add active server members
   (activeServer?.members || []).forEach((m) => {
-    serverMembersMap.set(m.id, m);
+    // Live presence from the realtime gateway overrides the stored status.
+    const live = realtimeConnected ? presenceByUser[m.id] : undefined;
+    serverMembersMap.set(m.id, live && m.id !== currentUser.id ? { ...m, status: live === 'offline' ? 'offline' : (m.status === 'offline' ? 'online' : m.status) } : m);
   });
 
-  const allMembers = Array.from(serverMembersMap.values());
+  const allMembers = Array.from(serverMembersMap.values()).filter(m => m.displayName !== 'JuanPi1x');
 
   const filtered = searchQuery
     ? allMembers.filter((m) =>
@@ -118,15 +122,15 @@ export const MemberList: React.FC = () => {
         </div>
 
         {/* Search Bar with Filter Slider */}
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#11131c] border border-white/[0.06] text-xs focus-within:border-purple-500/30 transition-all">
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#06020e] border border-purple-950/50 text-xs focus-within:border-purple-500/40 transition-all">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar miembros"
-            className="bg-transparent border-none outline-none text-xs text-slate-200 placeholder-slate-500 w-full"
+            className="bg-transparent border-none outline-none text-xs text-purple-100 placeholder-purple-400/40 w-full"
           />
-          <SlidersHorizontal size={14} className="text-slate-500 shrink-0 ml-2" />
+          <SlidersHorizontal size={14} className="text-purple-400/60 shrink-0 ml-2" />
         </div>
 
         {/* Group 1: EN LÍNEA — N */}

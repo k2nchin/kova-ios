@@ -21,9 +21,7 @@ export const VoiceConnectedBar: React.FC = () => {
 
   const handleDisconnect = (e: React.MouseEvent) => {
     e.stopPropagation();
-    soundFx.playLeaveVoice();
     leaveVoiceChannel();
-    toast.info('Desconectado del canal de voz');
   };
 
   const handleOpenVoiceView = () => {

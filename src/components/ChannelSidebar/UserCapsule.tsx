@@ -16,10 +16,10 @@ export const UserCapsule: React.FC = () => {
   ];
 
   return (
-    <div className="h-[52px] rounded-2xl bg-[#11151c] border border-white/[0.06] px-2 flex items-center justify-between shadow-xl shrink-0 select-none font-['Plus_Jakarta_Sans',sans-serif] relative">
+    <div className="h-[52px] rounded-2xl bg-[#090414] border border-purple-950/40 px-2 flex items-center justify-between shadow-xl shrink-0 select-none font-['Plus_Jakarta_Sans',sans-serif] relative">
       {/* 1. User Info (Left - Discord layout) */}
       <div
-        className="flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] p-1 rounded-xl transition-all flex-1 min-w-0 mr-1"
+        className="flex items-center gap-2 cursor-pointer hover:bg-purple-950/30 p-1 rounded-xl transition-all flex-1 min-w-0 mr-1"
         onClick={() => openUserProfile(currentUser)}
         title="Ver y editar tu perfil"
       >
@@ -28,7 +28,7 @@ export const UserCapsule: React.FC = () => {
             <img
               src={currentUser.avatar}
               alt={currentUser.displayName}
-              className="w-8 h-8 rounded-full object-cover shadow-sm ring-1 ring-white/10"
+              className="w-8 h-8 rounded-full object-cover shadow-sm ring-1 ring-purple-500/20"
             />
           ) : (
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-xs font-bold font-['Outfit'] shadow-sm">
@@ -40,7 +40,7 @@ export const UserCapsule: React.FC = () => {
               e.stopPropagation();
               setIsPresenceMenuOpen(!isPresenceMenuOpen);
             }}
-            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-[#11151c] cursor-pointer hover:scale-110 transition-transform ${
+            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ring-2 ring-[#090414] cursor-pointer hover:scale-110 transition-transform ${
               currentUser.status === 'online'
                 ? 'bg-emerald-400'
                 : currentUser.status === 'idle'
@@ -55,9 +55,9 @@ export const UserCapsule: React.FC = () => {
 
         <div className="truncate text-left min-w-0">
           <div className="text-xs font-bold text-[#f4f7fb] truncate leading-tight font-['Outfit']">
-            {currentUser.displayName || 'Juanpi'}
+            {currentUser.displayName || 'Usuario'}
           </div>
-          <div className="text-[10px] text-[#72e4d0] truncate font-medium">
+          <div className="text-[10px] text-purple-400 truncate font-medium">
             {currentUser.customStatus ||
               (currentUser.status === 'online'
                 ? 'En línea'
@@ -117,8 +117,8 @@ export const UserCapsule: React.FC = () => {
       {isPresenceMenuOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsPresenceMenuOpen(false)} />
-          <div className="absolute bottom-16 left-0 w-64 p-2 rounded-2xl bg-[#141824] border border-white/[0.1] shadow-2xl z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-3 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">
+          <div className="absolute bottom-16 left-0 w-64 p-2 rounded-2xl bg-[#0d071c] border border-purple-500/30 shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_20px_rgba(147,51,234,0.15)] z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-xl">
+            <div className="px-3 py-1.5 text-[10px] font-bold text-purple-400/80 uppercase tracking-wider font-mono">
               ESTADO DE PRESENCIA
             </div>
 
@@ -132,18 +132,18 @@ export const UserCapsule: React.FC = () => {
                 }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all cursor-pointer ${
                   currentUser.status === st.id
-                    ? 'bg-white/[0.08] text-white'
-                    : 'text-slate-300 hover:bg-white/[0.04] hover:text-white'
+                    ? 'bg-purple-600/20 text-white border border-purple-500/30'
+                    : 'text-purple-200/80 hover:bg-purple-900/20 hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <div className={`w-2.5 h-2.5 rounded-full ${st.dot} shrink-0`} />
                   <div>
                     <div className="text-xs font-bold font-['Outfit'] leading-tight">{st.label}</div>
-                    <div className="text-[10px] text-slate-400 leading-tight">{st.desc}</div>
+                    <div className="text-[10px] text-purple-300/50 leading-tight">{st.desc}</div>
                   </div>
                 </div>
-                {currentUser.status === st.id && <Check size={14} className="text-[#72e4d0] shrink-0" />}
+                {currentUser.status === st.id && <Check size={14} className="text-purple-400 shrink-0" />}
               </button>
             ))}
           </div>

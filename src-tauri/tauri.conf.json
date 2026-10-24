@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Kova",
-  "version": "1.0.0",
+  "version": "1.0.13",
   "identifier": "com.kova.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -24,12 +24,37 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' customprotocol: asset:; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 http://localhost:4000 ws://localhost:4000 https: wss:; img-src 'self' asset: http://asset.localhost data: blob: https:; media-src 'self' asset: http://asset.localhost data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQxREYxRDYyNkJDRUNBQzgKUldUSXlzNXJZaDNmMFVkU3A0VGhHVGtkMElCZ0JwME9yVnhFT1poYjJ2T0haeTJuVXZrUjMybEUK",
+      "endpoints": ["https://kova-k2nchin.vercel.app/updates/latest.json"]
+    },
+    "deep-link": {
+      "mobile": [
+        {
+          "host": "auth",
+          "pathPrefix": ["/"]
+        }
+      ],
+      "desktop": {
+        "schemes": ["kova"]
+      }
     }
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
+    "publisher": "Kova",
+    "homepage": "https://kova-k2nchin.vercel.app",
+    "copyright": "© 2026 Kova",
+    "license": "LicenseRef-Proprietary",
+    "category": "SocialNetworking",
+    "shortDescription": "Espacios de voz, mensajes y señales para tu comunidad.",
+    "longDescription": "Kova reúne tus comunidades en espacios de voz, mensajes y señales con una experiencia de escritorio rápida y privada.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -39,7 +64,13 @@
     ],
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "startMenuFolder": "Kova",
+        "languages": ["Spanish"],
+        "headerImage": "installer-assets/header.bmp",
+        "sidebarImage": "installer-assets/sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
       }
     }
   }

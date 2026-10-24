@@ -15,6 +15,9 @@ dist-ssr/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/.keys/*.jks
+src-tauri/.keys/*.key
+src-tauri/.keys/*.password
+src-tauri/.keys/
 src-tauri/gen/android/keystore.properties
 
 # Environment and sensitive keys
@@ -35,16 +38,22 @@ src-tauri/gen/android/keystore.properties
 .DS_Store
 Thumbs.db
 
-# Releases / Binaries export staging (ignored from git tracking except public downloads)
+# Releases / Binaries export staging (ignored from git tracking except updater assets)
 release/
 release-binaries/
 *.msi
 *.exe
 *.zip
-!public/downloads/*.exe
-!public/downloads/*.zip
-!public/updates/*.exe
-!public/updates/*.sig
+!updater-static/**
 
 .vercel
 .env*
+
+# Local caches and databases
+.npm-cache/
+server/data/
+server/server/data/
+*.sqlite
+*.sqlite-*
+.vs/
+.vercel-deploy/

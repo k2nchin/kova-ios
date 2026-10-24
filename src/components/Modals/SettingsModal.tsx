@@ -21,10 +21,14 @@ import {
   Smartphone,
   KeyRound,
   ShieldAlert,
+  RefreshCw,
+  Mic,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
+import { isDesktopApp } from '../../utils/platform';
+import { checkForKovaUpdate } from '../../services/updateService';
 
 function PreferenceToggle({
   label,
@@ -38,7 +42,7 @@ function PreferenceToggle({
   onChange: () => void;
 }) {
   return (
-    <div className="preference-row flex items-center justify-between p-3.5 rounded-2xl bg-[#141824] border border-white/[0.06] hover:border-white/[0.1] transition-all">
+    <div className="preference-row flex items-center justify-between p-3.5 rounded-2xl bg-[#090414] border border-purple-900/30 hover:border-purple-500/40 transition-all">
       <div className="pr-4">
         <strong className="text-xs font-bold text-slate-200 block">{label}</strong>
         <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{description}</p>
@@ -46,7 +50,7 @@ function PreferenceToggle({
       <button
         type="button"
         className={`w-11 h-6 rounded-full transition-colors cursor-pointer relative shrink-0 ${
-          checked ? 'bg-emerald-500' : 'bg-slate-700'
+          checked ? 'bg-gradient-to-r from-purple-600 to-indigo-600 shadow-[0_0_10px_rgba(147,51,234,0.5)]' : 'bg-slate-800 border border-white/10'
         }`}
         aria-pressed={checked}
         onClick={onChange}
@@ -99,9 +103,14 @@ export const SettingsModal: React.FC = () => {
     setIsTwoFactorSetupOpen,
     setIsTwoFactorBackupOpen,
     setIsTwoFactorDisableOpen,
+    pushToTalkEnabled,
+    pushToTalkKey,
+    isPushToTalkHeld,
+    setPushToTalkEnabled,
+    setPushToTalkKey,
   } = useApp();
 
-  const [name, setName] = useState(currentUser.displayName || 'Juanpi');
+  const [name, setName] = useState(currentUser.displayName || currentUser.username || 'Usuario');
   const [status, setStatus] = useState(currentUser.customStatus || 'Disponible');
   const [bio, setBio] = useState(currentUser.bio || '');
   const [avatar, setAvatar] = useState(currentUser.avatar || '');
@@ -110,6 +119,91 @@ export const SettingsModal: React.FC = () => {
   const [customAvatarInput, setCustomAvatarInput] = useState('');
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'perfil' | 'apariencia' | 'voz' | 'notificaciones' | 'privacidad' | 'atajos' | 'espacios'>('perfil');
+  const isDesktop = isDesktopApp();
+  const [desktopVersion, setDesktopVersion] = useState('');
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isCapturingPttKey, setIsCapturingPttKey] = useState(false);
+  const [captureHint, setCaptureHint] = useState('');
+  const [closeToTray, setCloseToTray] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('kova.closeToTray') !== '0';
+  });
+
+  React.useEffect(() => {
+    if (!isCapturingPttKey) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        setIsCapturingPttKey(false);
+        setCaptureHint('');
+        return;
+      }
+      const mods: string[] = [];
+      if (e.ctrlKey) mods.push('Control');
+      if (e.shiftKey) mods.push('Shift');
+      if (e.altKey) mods.push('Alt');
+      const keyName = /^Key([A-Z])$/.exec(e.code)?.[1]
+        ?? (/^Digit([0-9])$/.exec(e.code)?.[1] ?? null)
+        ?? (e.code.startsWith('F') && /^F([1-9]|1[0-2])$/.test(e.code) ? e.code : null)
+        ?? (e.code === 'Space' ? 'Space' : null);
+      if (!keyName) {
+        setCaptureHint('Ese atajo no está disponible. Probá con letras, números, F1-F12 o Espacio.');
+        return;
+      }
+      if (!mods.length) {
+        setCaptureHint('Agregá al menos un modificador (Ctrl, Shift o Alt) para no interferir con otras apps.');
+        return;
+      }
+      setPushToTalkKey(`${mods.join('+')}+${keyName}`);
+      setIsCapturingPttKey(false);
+      setCaptureHint('');
+      toast.success(`Push-to-talk configurado: ${mods.join('+')}+${keyName}`);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [isCapturingPttKey, setPushToTalkKey]);
+
+  const handleCloseToTrayChange = (enabled: boolean) => {
+    setCloseToTray(enabled);
+    try {
+      localStorage.setItem('kova.closeToTray', enabled ? '1' : '0');
+    } catch {}
+    if (!isDesktop) return;
+    import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke('set_close_to_tray', { enabled }))
+      .catch((err) => console.warn('[Kova] set_close_to_tray', err));
+  };
+
+  React.useEffect(() => {
+    if (!isDesktop || desktopVersion) return;
+    import('@tauri-apps/api/app')
+      .then(({ getVersion }) => getVersion())
+      .then(setDesktopVersion)
+      .catch(() => setDesktopVersion(''));
+  }, [isDesktop, desktopVersion]);
+
+  const handleManualUpdateCheck = async () => {
+    if (isCheckingUpdate) return;
+    setIsCheckingUpdate(true);
+    const toastId = 'kova-manual-update';
+    toast.loading('Buscando actualizaciones de Kova…', { id: toastId, duration: Infinity });
+    try {
+      await checkForKovaUpdate(
+        (message) => {
+          if (!message) return;
+          if (message.includes('última versión')) toast.success(message, { id: toastId, duration: 5000 });
+          else if (message.includes('No se pudo')) toast.error(message, { id: toastId, duration: 6000 });
+          else toast.loading(message, { id: toastId, duration: Infinity });
+        },
+        { manual: true }
+      );
+    } catch {
+      toast.error('No se pudo buscar actualizaciones. Intenta más tarde.', { id: toastId, duration: 6000 });
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
 
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
@@ -163,7 +257,7 @@ export const SettingsModal: React.FC = () => {
 
   const saveSettings = () => {
     updateUserProfile({
-      displayName: name.trim() || 'Juanpi',
+      displayName: name.trim() || currentUser.username || 'Usuario',
       customStatus: status.trim(),
       bio: bio.trim(),
       avatar: avatar || currentUser.avatar,
@@ -182,15 +276,15 @@ export const SettingsModal: React.FC = () => {
       }}
     >
       <section
-        className="w-full max-w-4xl h-[88vh] rounded-3xl bg-[#111420] border border-white/[0.1] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+        className="kova-settings-modal w-full max-w-4xl h-[88vh] rounded-3xl bg-[#0d071c] border border-purple-500/25 shadow-[0_0_40px_rgba(147,51,234,0.2)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
       >
         {/* Modal Header */}
-        <header className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between shrink-0 bg-[#0d0f18]">
+        <header className="px-6 py-4 border-b border-purple-950/40 flex items-center justify-between shrink-0 bg-[#090414]">
           <div>
-            <span className="text-[10px] font-mono tracking-widest text-[#72e4d0] uppercase font-bold">
+            <span className="text-[10px] font-mono tracking-widest text-purple-400 uppercase font-bold">
               AJUSTES DE USUARIO & CONFIGURACIÓN
             </span>
             <h2 id="settings-title" className="text-base font-bold text-white font-['Outfit']">
@@ -210,7 +304,7 @@ export const SettingsModal: React.FC = () => {
         <div className="flex-1 flex overflow-hidden">
           {/* Left Navigation Sidebar */}
           <nav
-            className="w-56 border-r border-white/[0.06] bg-[#0c0e17] p-3 space-y-1 overflow-y-auto custom-scrollbar shrink-0"
+            className="w-56 border-r border-purple-950/40 bg-[#080312] p-3 space-y-1 overflow-y-auto custom-scrollbar shrink-0"
             aria-label="Secciones de configuración"
           >
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 py-1.5">
@@ -297,23 +391,23 @@ export const SettingsModal: React.FC = () => {
           </nav>
 
           {/* Right Content Area */}
-          <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-[#111420]">
+          <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-[#0d071c]">
             {/* TAB: PERFIL */}
             {activeTab === 'perfil' && (
               <div className="space-y-6 max-w-2xl">
-                {/* 1. Discord Profile Card Preview */}
-                <div className="rounded-3xl bg-[#141826] border border-white/[0.08] overflow-hidden shadow-2xl">
+                {/* 1. Profile Card Preview */}
+                <div className="rounded-3xl bg-[#090414] border border-purple-900/30 overflow-hidden shadow-2xl">
                   {/* Banner Image */}
-                  <div className="h-28 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-950 relative overflow-hidden group">
+                  <div className="h-28 bg-gradient-to-r from-purple-900 via-indigo-900 to-[#090414] relative overflow-hidden group">
                     {banner ? (
                       <img src={banner} alt="Banner" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-700 via-indigo-950 to-[#0d0f18]" />
+                      <div className="w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-700 via-indigo-950 to-[#090414]" />
                     )}
                     <button
                       type="button"
                       onClick={() => bannerFileInputRef.current?.click()}
-                      className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white text-[11px] font-semibold border border-white/20 backdrop-blur-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-lg"
+                      className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white text-[11px] font-semibold border border-purple-500/30 backdrop-blur-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-lg"
                       title="Subir imagen de banner"
                     >
                       <ImageIcon size={13} />
@@ -325,11 +419,11 @@ export const SettingsModal: React.FC = () => {
                   <div className="px-6 pb-6 pt-0 relative">
                     <div className="flex items-end justify-between -mt-12 mb-3">
                       <div className="relative group">
-                        <div className="w-24 h-24 rounded-3xl p-1 bg-[#141826] ring-4 ring-[#141826] shadow-2xl overflow-hidden">
+                        <div className="w-24 h-24 rounded-3xl p-1 bg-[#090414] ring-4 ring-[#090414] shadow-2xl overflow-hidden">
                           {avatar ? (
                             <img src={avatar} alt={name} className="w-full h-full rounded-2xl object-cover" />
                           ) : (
-                            <div className="w-full h-full rounded-2xl bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center font-bold text-white text-2xl">
+                            <div className="w-full h-full rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-white text-2xl">
                               {(name || 'U').charAt(0).toUpperCase()}
                             </div>
                           )}
@@ -338,7 +432,7 @@ export const SettingsModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => avatarFileInputRef.current?.click()}
-                          className="absolute bottom-0 right-0 p-2 rounded-xl bg-[#72e4d0] text-black shadow-lg hover:scale-110 transition-transform cursor-pointer ring-2 ring-[#141826]"
+                          className="absolute bottom-0 right-0 p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg hover:scale-110 transition-transform cursor-pointer ring-2 ring-[#090414]"
                           title="Cargar foto desde tu ordenador"
                         >
                           <Camera size={14} />
@@ -366,7 +460,7 @@ export const SettingsModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => avatarFileInputRef.current?.click()}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
                         >
                           <Upload size={14} />
                           <span>Subir foto</span>
@@ -375,9 +469,9 @@ export const SettingsModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setIsAvatarPickerOpen(!isAvatarPickerOpen)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-slate-300 hover:text-white text-xs font-semibold border border-white/[0.08] transition-all cursor-pointer"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-950/30 hover:bg-purple-900/40 text-purple-300 hover:text-white text-xs font-semibold border border-purple-500/20 transition-all cursor-pointer"
                         >
-                          <Sparkles size={14} className="text-cyan-400" />
+                          <Sparkles size={14} className="text-purple-400" />
                           <span>Presets</span>
                         </button>
                       </div>
@@ -385,22 +479,22 @@ export const SettingsModal: React.FC = () => {
 
                     <div>
                       <h3 className="text-lg font-bold text-white font-['Outfit'] flex items-center gap-2">
-                        <span>{name || 'Juanpi'}</span>
+                        <span>{name || currentUser.username || 'Usuario'}</span>
                         <span className="text-xs text-slate-500 font-mono font-normal">
                           #{currentUser.tag || '0001'}
                         </span>
                       </h3>
-                      <p className="text-xs text-[#72e4d0] mt-0.5">{status || 'En línea'}</p>
+                      <p className="text-xs text-purple-400 mt-0.5">{status || 'En línea'}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Avatar Gallery Drawer */}
                 {isAvatarPickerOpen && (
-                  <div className="p-4 rounded-2xl bg-[#141824] border border-white/[0.08] space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="p-4 rounded-2xl bg-[#090414] border border-purple-900/30 space-y-3 animate-in fade-in zoom-in-95 duration-150">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <Sparkles size={14} className="text-cyan-400" />
+                        <Sparkles size={14} className="text-purple-400" />
                         <span>Elige un avatar prediseñado o genera uno al azar</span>
                       </span>
                       <button
@@ -411,7 +505,7 @@ export const SettingsModal: React.FC = () => {
                           setAvatar(generated);
                           updateUserProfile({ avatar: generated });
                         }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 text-[11px] font-semibold border border-cyan-500/30 transition-all cursor-pointer"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-[11px] font-semibold border border-purple-500/30 transition-all cursor-pointer"
                       >
                         <Shuffle size={12} />
                         <span>Generar aleatorio</span>
@@ -429,7 +523,7 @@ export const SettingsModal: React.FC = () => {
                         'https://api.dicebear.com/7.x/bottts/svg?seed=CyberKova1',
                         'https://api.dicebear.com/7.x/bottts/svg?seed=NeonRunner',
                         'https://api.dicebear.com/7.x/bottts/svg?seed=AuraMaster',
-                        'https://api.dicebear.com/7.x/bottts/svg?seed=JuanpiFounder',
+                        'https://api.dicebear.com/7.x/bottts/svg?seed=KovaFounder',
                       ].map((imgUrl, idx) => (
                         <button
                           key={idx}
@@ -440,7 +534,7 @@ export const SettingsModal: React.FC = () => {
                           }}
                           className={`w-12 h-12 rounded-xl overflow-hidden border-2 transition-all cursor-pointer hover:scale-105 ${
                             avatar === imgUrl
-                              ? 'border-cyan-400 ring-2 ring-cyan-400/30 scale-105'
+                              ? 'border-purple-400 ring-2 ring-purple-400/40 scale-105'
                               : 'border-white/10 opacity-70 hover:opacity-100'
                           }`}
                         >
@@ -449,13 +543,13 @@ export const SettingsModal: React.FC = () => {
                       ))}
                     </div>
 
-                    <div className="pt-2 border-t border-white/[0.06] flex items-center gap-2">
+                    <div className="pt-2 border-t border-purple-900/30 flex items-center gap-2">
                       <input
                         type="url"
                         value={customAvatarInput}
                         onChange={(e) => setCustomAvatarInput(e.target.value)}
                         placeholder="O pega aquí la URL web de una imagen..."
-                        className="flex-1 px-3 py-1.5 rounded-xl bg-[#0e111a] border border-white/[0.08] text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-[#06020e] border border-purple-900/30 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500"
                       />
                       <button
                         type="button"
@@ -465,7 +559,7 @@ export const SettingsModal: React.FC = () => {
                           updateUserProfile({ avatar: customAvatarInput.trim() });
                           setCustomAvatarInput('');
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer"
                       >
                         Aplicar
                       </button>
@@ -484,7 +578,7 @@ export const SettingsModal: React.FC = () => {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Tu nombre en Kova..."
-                      className="w-full px-4 py-2.5 rounded-xl bg-[#141824] border border-white/[0.08] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-all"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/40 transition-all"
                     />
                   </div>
 
@@ -497,7 +591,7 @@ export const SettingsModal: React.FC = () => {
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
                       placeholder="¿Qué estás construyendo hoy? Ej. Desarrollando nueva app..."
-                      className="w-full px-4 py-2.5 rounded-xl bg-[#141824] border border-white/[0.08] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-all"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/40 transition-all"
                     />
                   </div>
 
@@ -510,10 +604,59 @@ export const SettingsModal: React.FC = () => {
                       onChange={(e) => setBio(e.target.value)}
                       placeholder="Cuéntale a tu comunidad sobre tus proyectos, intereses y roles..."
                       rows={3}
-                      className="w-full px-4 py-2.5 rounded-xl bg-[#141824] border border-white/[0.08] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 resize-none transition-all"
+                      className="w-full px-4 py-2.5 rounded-xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/40 resize-none transition-all"
                     />
                   </div>
                 </div>
+
+                {isDesktop && (
+                <div className="p-5 rounded-3xl border border-purple-900/30 bg-gradient-to-br from-[#090414] to-[#0d071c]">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0 shadow-md">
+                        <Monitor size={22} />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-white font-['Outfit']">Kova para escritorio</h4>
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          {desktopVersion ? `Versión ${desktopVersion} · Windows x64` : 'Aplicación de escritorio instalada'}
+                          <br />
+                          Kova se actualiza sola en segundo plano; también podés buscar mejoras manualmente.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleManualUpdateCheck}
+                      disabled={isCheckingUpdate}
+                      className="shrink-0 px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isCheckingUpdate ? 'Buscando…' : (
+                        <>
+                          <RefreshCw size={14} />
+                          Buscar actualizaciones
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-purple-900/30 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-white font-['Outfit']">Cerrar minimiza a la bandeja</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
+                        Si lo desactivás, cerrar la ventana cierra Kova por completo.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCloseToTrayChange(!closeToTray)}
+                      className={`shrink-0 relative w-12 h-6 rounded-full transition-colors cursor-pointer ${closeToTray ? 'bg-purple-500' : 'bg-slate-700'}`}
+                      aria-label="Cerrar minimiza a la bandeja"
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${closeToTray ? 'left-[26px]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                </div>
+              )}
               </div>
             )}
 
@@ -596,14 +739,6 @@ export const SettingsModal: React.FC = () => {
                       badge: 'Retro-Wave',
                       previewBg: 'bg-gradient-to-b from-[#180528] to-[#040409] border-pink-500/40',
                       dotColor: 'bg-pink-400',
-                    },
-                    {
-                      id: 'discord' as BackgroundTheme,
-                      name: 'Discord Classic Dark',
-                      desc: 'El clásico tema oscuro Blurple de Discord con tonos grafito.',
-                      badge: 'Discord UI',
-                      previewBg: 'bg-[#313338] border-indigo-500/40',
-                      dotColor: 'bg-[#5865f2]',
                     },
                   ].map((thm) => {
                     const isSelected = theme === thm.id;
@@ -688,6 +823,53 @@ export const SettingsModal: React.FC = () => {
                   checked={preferences.videoPreview}
                   onChange={() => updatePreference('videoPreview', !preferences.videoPreview)}
                 />
+                {isDesktop && (
+                  <div className="p-5 rounded-3xl border border-purple-900/30 bg-gradient-to-br from-[#090414] to-[#0d071c]">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3.5">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-md transition-all ${pushToTalkEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'}`}>
+                          <Mic size={22} />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-sm font-bold text-white font-['Outfit']">Push-to-talk global</h4>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Mantené presionada la tecla para hablar desde cualquier aplicación, sin enfocar la ventana de Kova.
+                            {pushToTalkEnabled && isPushToTalkHeld && (
+                              <span className="ml-1 font-bold text-emerald-400">· Transmitiendo</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPushToTalkEnabled(!pushToTalkEnabled)}
+                        className={`shrink-0 relative w-12 h-6 rounded-full transition-colors cursor-pointer ${pushToTalkEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        aria-label="Activar push-to-talk"
+                      >
+                        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${pushToTalkEnabled ? 'left-6.5 left-[26px]' : 'left-0.5'}`} />
+                      </button>
+                    </div>
+                    {pushToTalkEnabled && (
+                      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-black/40 border border-purple-900/30 px-4 py-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tecla de hablar</p>
+                          <p className="text-xs font-semibold text-white font-mono">{pushToTalkKey}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCapturingPttKey(true);
+                            setCaptureHint('Presioná la combinación que quieras usar…');
+                          }}
+                          className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          {isCapturingPttKey ? 'Escuchando…' : 'Cambiar tecla'}
+                        </button>
+                      </div>
+                    )}
+                    {isCapturingPttKey && <p className="mt-2 text-[11px] text-amber-400">{captureHint}</p>}
+                  </div>
+                )}
               </SettingsSection>
             )}
 
@@ -718,12 +900,12 @@ export const SettingsModal: React.FC = () => {
                 title="Privacidad & Seguridad"
                 description="Controla la visibilidad de tu cuenta y la seguridad de inicio de sesión."
               >
-                {/* Two-Factor Authentication (2FA) Official Discord Card */}
+                {/* Two-Factor Authentication */}
                 <div
                   className={`p-5 rounded-3xl border transition-all ${
                     isTwoFactorEnabled
                       ? 'bg-emerald-950/20 border-emerald-500/30 shadow-lg shadow-emerald-500/5'
-                      : 'bg-gradient-to-br from-[#141824] to-[#121422] border-white/[0.08]'
+                      : 'bg-gradient-to-br from-[#090414] to-[#0d071c] border-purple-900/30'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -746,7 +928,7 @@ export const SettingsModal: React.FC = () => {
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                               isTwoFactorEnabled
                                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-slate-700/50 text-slate-400 border border-white/[0.06]'
+                                : 'bg-purple-950/40 text-purple-400 border border-purple-500/20'
                             }`}
                           >
                             {isTwoFactorEnabled ? 'Activado' : 'Desactivado'}
@@ -761,53 +943,36 @@ export const SettingsModal: React.FC = () => {
                     </div>
                   </div>
 
-                  {isTwoFactorEnabled ? (
-                    <div className="mt-4 pt-4 border-t border-emerald-500/20 flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
-                        <Smartphone size={14} />
-                        <span>Google Authenticator / Authy conectado</span>
-                      </div>
+                  {/* 2FA Actions */}
+                  <div className="mt-4 pt-4 border-t border-purple-900/30 flex items-center justify-between">
+                    {isTwoFactorEnabled ? (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setIsTwoFactorBackupOpen(true)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-xs font-semibold text-white transition-colors cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-xl bg-purple-950/30 hover:bg-purple-900/40 text-purple-300 hover:text-white text-xs font-semibold border border-purple-500/20 transition-all cursor-pointer"
                         >
-                          <KeyRound size={14} />
-                          <span>Ver códigos de respaldo</span>
+                          Ver códigos de respaldo
                         </button>
                         <button
                           type="button"
                           onClick={() => setIsTwoFactorDisableOpen(true)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-semibold transition-colors cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-semibold border border-rose-500/25 transition-all cursor-pointer"
                         >
-                          <ShieldAlert size={14} />
-                          <span>Desactivar 2FA</span>
+                          Desactivar 2FA
                         </button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="mt-4 pt-4 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
-                      <ul className="text-[11px] text-slate-400 space-y-1">
-                        <li className="flex items-center gap-1.5">
-                          <Check size={12} className="text-purple-400" />
-                          <span>Compatible con Google Authenticator, Authy y 1Password</span>
-                        </li>
-                        <li className="flex items-center gap-1.5">
-                          <Check size={12} className="text-purple-400" />
-                          <span>Incluye 8 códigos de respaldo descargables</span>
-                        </li>
-                      </ul>
+                    ) : (
                       <button
                         type="button"
                         onClick={() => setIsTwoFactorSetupOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-purple-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
                       >
-                        <ShieldCheck size={15} />
-                        <span>Activar autenticación en dos pasos</span>
+                        <ShieldCheck size={14} />
+                        <span>Habilitar autenticación en dos pasos</span>
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 <PreferenceToggle
@@ -843,10 +1008,10 @@ export const SettingsModal: React.FC = () => {
                   ].map((s, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between p-3 rounded-xl bg-[#141824] border border-white/[0.06]"
+                      className="flex items-center justify-between p-3 rounded-xl bg-[#090414] border border-purple-900/30"
                     >
                       <span className="text-xs text-slate-300">{s.label}</span>
-                      <kbd className="px-2.5 py-1 rounded-lg bg-[#0e111a] border border-white/[0.1] text-xs font-mono font-bold text-purple-300">
+                      <kbd className="px-2.5 py-1 rounded-lg bg-[#06020e] border border-purple-900/30 text-xs font-mono font-bold text-purple-300">
                         {s.key}
                       </kbd>
                     </div>
@@ -861,7 +1026,7 @@ export const SettingsModal: React.FC = () => {
                 title="Gestión de Servidores y Espacios"
                 description="Administra los servidores que has creado en tu cuenta."
               >
-                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#141824] border border-white/[0.08] mb-4">
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#090414] border border-purple-900/30 mb-4">
                   <div>
                     <h4 className="text-xs font-bold text-white font-['Outfit']">Crear un nuevo servidor</h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
@@ -874,7 +1039,7 @@ export const SettingsModal: React.FC = () => {
                       setIsSettingsOpen(false);
                       setIsCreateServerOpen(true);
                     }}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
                   >
                     <Plus size={14} />
                     <span>Nuevo Servidor</span>
@@ -890,10 +1055,10 @@ export const SettingsModal: React.FC = () => {
                     servers.map((s) => (
                       <div
                         key={s.id}
-                        className="flex items-center justify-between p-3 rounded-2xl bg-[#141824] border border-white/[0.06] hover:border-white/[0.12] transition-all"
+                        className="flex items-center justify-between p-3 rounded-2xl bg-[#090414] border border-purple-900/30 hover:border-purple-500/40 transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-white/10 flex items-center justify-center text-xs font-bold text-cyan-300">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-300">
                             {s.acronym || s.name.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
@@ -928,7 +1093,7 @@ export const SettingsModal: React.FC = () => {
         </div>
 
         {/* Modal Footer */}
-        <footer className="px-6 py-4 border-t border-white/[0.08] flex items-center justify-between shrink-0 bg-[#0d0f18]">
+        <footer className="px-6 py-4 border-t border-purple-950/40 flex items-center justify-between shrink-0 bg-[#090414]">
           <button
             type="button"
             onClick={() => {

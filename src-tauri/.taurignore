@@ -1,0 +1,4 @@
+# Excluir binarios de actualización/descarga del bundle de la app de escritorio.
+# Estos se sirven desde Vercel (dist) pero no deben empaquetarse dentro del .exe.
+updates
+downloads

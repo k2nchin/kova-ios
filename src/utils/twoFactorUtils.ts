@@ -1,61 +1,170 @@
-/**
- * Utilities for Two-Factor Authentication (2FA / TOTP) in Kova
- */
+/** RFC 6238 compatible TOTP utilities for authenticator applications. */
 
-// Generate a readable Base32 / alphanumeric secret key
-export function generateTwoFactorSecret(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const parts: string[] = [];
-  for (let p = 0; p < 4; p++) {
-    let segment = '';
-    for (let i = 0; i < 4; i++) {
-      segment += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    parts.push(segment);
-  }
-  return parts.join('-');
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function secureRandomBytes(length: number): Uint8Array {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return bytes;
 }
 
-// Generate 8 unique 8-character backup recovery codes
+function encodeBase32(bytes: Uint8Array): string {
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) output += BASE32_ALPHABET[(value << (5 - bits)) & 31];
+  return output;
+}
+
+function decodeBase32(secret: string): Uint8Array {
+  const clean = secret.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  let bits = 0;
+  let value = 0;
+  const output: number[] = [];
+  for (const character of clean) {
+    const index = BASE32_ALPHABET.indexOf(character);
+    value = (value << 5) | index;
+    bits += 5;
+    if (bits >= 8) {
+      output.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return Uint8Array.from(output);
+}
+
+// Synchronous SHA-1 is used here only because TOTP verification is synchronous.
+function sha1(input: Uint8Array): Uint8Array {
+  const bitLength = input.length * 8;
+  const paddedLength = Math.ceil((input.length + 9) / 64) * 64;
+  const data = new Uint8Array(paddedLength);
+  data.set(input);
+  data[input.length] = 0x80;
+  const view = new DataView(data.buffer);
+  view.setUint32(paddedLength - 8, Math.floor(bitLength / 0x100000000), false);
+  view.setUint32(paddedLength - 4, bitLength >>> 0, false);
+
+  let h0 = 0x67452301;
+  let h1 = 0xefcdab89;
+  let h2 = 0x98badcfe;
+  let h3 = 0x10325476;
+  let h4 = 0xc3d2e1f0;
+  const words = new Uint32Array(80);
+
+  for (let offset = 0; offset < data.length; offset += 64) {
+    for (let i = 0; i < 16; i++) words[i] = view.getUint32(offset + i * 4, false);
+    for (let i = 16; i < 80; i++) {
+      const word = words[i - 3] ^ words[i - 8] ^ words[i - 14] ^ words[i - 16];
+      words[i] = ((word << 1) | (word >>> 31)) >>> 0;
+    }
+
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+    for (let i = 0; i < 80; i++) {
+      let f: number;
+      let k: number;
+      if (i < 20) {
+        f = (b & c) | (~b & d);
+        k = 0x5a827999;
+      } else if (i < 40) {
+        f = b ^ c ^ d;
+        k = 0x6ed9eba1;
+      } else if (i < 60) {
+        f = (b & c) | (b & d) | (c & d);
+        k = 0x8f1bbcdc;
+      } else {
+        f = b ^ c ^ d;
+        k = 0xca62c1d6;
+      }
+      const temp = ((((a << 5) | (a >>> 27)) >>> 0) + f + e + k + words[i]) >>> 0;
+      e = d;
+      d = c;
+      c = ((b << 30) | (b >>> 2)) >>> 0;
+      b = a;
+      a = temp;
+    }
+    h0 = (h0 + a) >>> 0;
+    h1 = (h1 + b) >>> 0;
+    h2 = (h2 + c) >>> 0;
+    h3 = (h3 + d) >>> 0;
+    h4 = (h4 + e) >>> 0;
+  }
+
+  const digest = new Uint8Array(20);
+  const digestView = new DataView(digest.buffer);
+  [h0, h1, h2, h3, h4].forEach((word, index) => digestView.setUint32(index * 4, word, false));
+  return digest;
+}
+
+function hmacSha1(key: Uint8Array, message: Uint8Array): Uint8Array {
+  const blockSize = 64;
+  const normalizedKey = key.length > blockSize ? sha1(key) : key;
+  const keyBlock = new Uint8Array(blockSize);
+  keyBlock.set(normalizedKey);
+  const innerPad = new Uint8Array(blockSize);
+  const outerPad = new Uint8Array(blockSize);
+  for (let i = 0; i < blockSize; i++) {
+    innerPad[i] = keyBlock[i] ^ 0x36;
+    outerPad[i] = keyBlock[i] ^ 0x5c;
+  }
+  const inner = new Uint8Array(blockSize + message.length);
+  inner.set(innerPad);
+  inner.set(message, blockSize);
+  const innerHash = sha1(inner);
+  const outer = new Uint8Array(blockSize + innerHash.length);
+  outer.set(outerPad);
+  outer.set(innerHash, blockSize);
+  return sha1(outer);
+}
+
+export function generateTwoFactorSecret(): string {
+  return encodeBase32(secureRandomBytes(20));
+}
+
 export function generateBackupCodes(count = 8): string[] {
-  const chars = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZ';
   const codes = new Set<string>();
   while (codes.size < count) {
-    let part1 = '';
-    let part2 = '';
-    for (let i = 0; i < 4; i++) {
-      part1 += chars.charAt(Math.floor(Math.random() * chars.length));
-      part2 += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    codes.add(`${part1}-${part2}`);
+    const raw = encodeBase32(secureRandomBytes(5)).slice(0, 8);
+    codes.add(`${raw.slice(0, 4)}-${raw.slice(4)}`);
   }
   return Array.from(codes);
 }
 
-// Simple hash for pseudo-TOTP calculation
-function simpleHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-// Generates a 6-digit TOTP code for a given secret at the current 30s window
 export function getTwoFactorCurrentCode(secret: string, offsetWindow = 0): string {
-  const cleanSecret = secret.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-  const timeStep = Math.floor(Date.now() / 30000) + offsetWindow;
-  const combined = `${cleanSecret}:${timeStep}`;
-  const num = simpleHash(combined);
-  const code = (num % 1000000).toString().padStart(6, '0');
-  return code;
+  const counter = Math.floor(Date.now() / 30000) + offsetWindow;
+  const message = new Uint8Array(8);
+  const view = new DataView(message.buffer);
+  view.setUint32(0, Math.floor(counter / 0x100000000), false);
+  view.setUint32(4, counter >>> 0, false);
+  const digest = hmacSha1(decodeBase32(secret), message);
+  const offset = digest[digest.length - 1] & 0x0f;
+  const binary =
+    ((digest[offset] & 0x7f) << 24) |
+    (digest[offset + 1] << 16) |
+    (digest[offset + 2] << 8) |
+    digest[offset + 3];
+  return (binary % 1_000_000).toString().padStart(6, '0');
 }
 
-// Seconds remaining in the current 30-second window
 export function getTwoFactorSecondsRemaining(): number {
   return 30 - (Math.floor(Date.now() / 1000) % 30);
+}
+
+export function getTwoFactorOtpAuthUri(secret: string, accountName: string): string {
+  const issuer = 'Kova';
+  const label = `${issuer}:${accountName}`;
+  return `otpauth://totp/${encodeURIComponent(label)}?secret=${encodeURIComponent(secret)}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
 }
 
 export interface VerificationResult {
@@ -65,7 +174,6 @@ export interface VerificationResult {
   message?: string;
 }
 
-// Verifies a 6-digit TOTP or backup code
 export function verifyTwoFactorCode(
   secret: string,
   inputCode: string,
@@ -76,126 +184,20 @@ export function verifyTwoFactorCode(
     return { success: false, isBackupCode: false, remainingBackupCodes: backupCodes, message: 'Ingresa un código' };
   }
 
-  // 1. Check if it's a backup code (format XXXX-XXXX or XXXXXXXX)
-  const normalizedInput = cleanInput.includes('-')
-    ? cleanInput
-    : cleanInput.length === 8
-    ? `${cleanInput.slice(0, 4)}-${cleanInput.slice(4)}`
-    : cleanInput;
-
-  const backupIndex = backupCodes.findIndex(
-    (code) => code.toUpperCase() === normalizedInput || code.replace('-', '').toUpperCase() === cleanInput
-  );
-
+  const compactInput = cleanInput.replace('-', '');
+  const backupIndex = backupCodes.findIndex((code) => code.replace('-', '').toUpperCase() === compactInput);
   if (backupIndex !== -1) {
     const updated = [...backupCodes];
     updated.splice(backupIndex, 1);
-    return {
-      success: true,
-      isBackupCode: true,
-      remainingBackupCodes: updated,
-      message: 'Código de respaldo verificado con éxito',
-    };
+    return { success: true, isBackupCode: true, remainingBackupCodes: updated, message: 'Código de respaldo verificado' };
   }
 
-  // 2. Check 6-digit TOTP code (allow current window, previous window -1, or next window +1)
-  const digitsOnly = cleanInput.replace(/[^0-9]/g, '');
-  if (digitsOnly.length === 6) {
-    const current = getTwoFactorCurrentCode(secret, 0);
-    const prev = getTwoFactorCurrentCode(secret, -1);
-    const next = getTwoFactorCurrentCode(secret, 1);
-
-    // Dev ease: allow '123456' as universal test code if secret matches
-    if (digitsOnly === current || digitsOnly === prev || digitsOnly === next || digitsOnly === '123456') {
-      return {
-        success: true,
-        isBackupCode: false,
-        remainingBackupCodes: backupCodes,
-        message: 'Código de autenticación verificado',
-      };
+  if (/^\d{6}$/.test(cleanInput)) {
+    const valid = [-1, 0, 1].some((windowOffset) => getTwoFactorCurrentCode(secret, windowOffset) === cleanInput);
+    if (valid) {
+      return { success: true, isBackupCode: false, remainingBackupCodes: backupCodes, message: 'Código verificado' };
     }
   }
 
-  return {
-    success: false,
-    isBackupCode: false,
-    remainingBackupCodes: backupCodes,
-    message: 'Código incorrecto o expirado',
-  };
-}
-
-// Generate realistic SVG QR Code pattern for visual scanning
-export function generateQrSvg(secret: string, accountName = 'Usuario'): string {
-  const size = 21; // 21x21 standard QR grid
-  const clean = secret.replace(/[^A-Z0-9]/gi, '');
-  
-  // Matrix initialization
-  const matrix: boolean[][] = Array.from({ length: size }, () => Array(size).fill(false));
-
-  // Finder patterns at (0,0), (0, 14), (14, 0)
-  const addFinder = (startX: number, startY: number) => {
-    for (let r = 0; r < 7; r++) {
-      for (let c = 0; c < 7; c++) {
-        if (
-          r === 0 ||
-          r === 6 ||
-          c === 0 ||
-          c === 6 ||
-          (r >= 2 && r <= 4 && c >= 2 && c <= 4)
-        ) {
-          matrix[startY + r][startX + c] = true;
-        }
-      }
-    }
-  };
-
-  addFinder(0, 0);
-  addFinder(size - 7, 0);
-  addFinder(0, size - 7);
-
-  // Timing patterns
-  for (let i = 8; i < size - 8; i++) {
-    matrix[6][i] = i % 2 === 0;
-    matrix[i][6] = i % 2 === 0;
-  }
-
-  // Pseudo-random data pixels based on hash
-  let seed = simpleHash(`${clean}:${accountName}`);
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      // Don't overwrite finder patterns
-      const inFinder1 = r < 8 && c < 8;
-      const inFinder2 = r < 8 && c >= size - 8;
-      const inFinder3 = r >= size - 8 && c < 8;
-      const inCenter = r >= 8 && r <= 12 && c >= 8 && c <= 12;
-
-      if (!inFinder1 && !inFinder2 && !inFinder3 && !inCenter) {
-        seed = (seed * 9301 + 49297) % 233280;
-        matrix[r][c] = seed / 233280 > 0.52;
-      }
-    }
-  }
-
-  // Build SVG path
-  let rects = '';
-  const cellSize = 8;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (matrix[r][c]) {
-        rects += `<rect x="${c * cellSize}" y="${r * cellSize}" width="${cellSize}" height="${cellSize}" rx="1.5" fill="#ffffff" />`;
-      }
-    }
-  }
-
-  const totalSize = size * cellSize;
-
-  return `
-    <svg viewBox="0 0 ${totalSize} ${totalSize}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${totalSize}" height="${totalSize}" rx="12" fill="#0f111a" />
-      ${rects}
-      <!-- Center Shield Badge -->
-      <rect x="${8.5 * cellSize}" y="${8.5 * cellSize}" width="${4 * cellSize}" height="${4 * cellSize}" rx="6" fill="#6366f1" />
-      <text x="${10.5 * cellSize}" y="${11.2 * cellSize}" font-family="sans-serif" font-weight="900" font-size="16" fill="#ffffff" text-anchor="middle">K</text>
-    </svg>
-  `;
+  return { success: false, isBackupCode: false, remainingBackupCodes: backupCodes, message: 'Código incorrecto o expirado' };
 }

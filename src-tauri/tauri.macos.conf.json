@@ -1,0 +1,12 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "identifier": "com.kova.client",
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "infoPlist": "mobile/Info.macos.plist",
+      "entitlements": "mobile/Kova.macos.entitlements"
+    }
+  }
+}

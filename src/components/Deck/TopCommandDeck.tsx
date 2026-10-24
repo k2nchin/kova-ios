@@ -12,6 +12,7 @@ import {
   X,
   Layers,
   Activity,
+  Bot,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -25,6 +26,7 @@ export const TopCommandDeck: React.FC = () => {
     setIsSettingsOpen,
     setIsCommandPaletteOpen,
     setIsKovaAIOpen,
+    setIsDiscordHubOpen,
     isInVoice,
   } = useApp();
 
@@ -86,7 +88,7 @@ export const TopCommandDeck: React.FC = () => {
         {/* Spaces Horizontal Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-white/[0.03] border border-white/[0.06] rounded-2xl">
           {servers.map((s) => {
-            const isActive = activeServer.id === s.id;
+            const isActive = activeServer?.id === s.id;
             return (
               <button
                 key={s.id}
@@ -118,6 +120,17 @@ export const TopCommandDeck: React.FC = () => {
             title="Crear nuevo Espacio"
           >
             <Plus className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Discord Bot Live Status Pill */}
+          <button
+            onClick={() => setIsDiscordHubOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#5865f2]/15 hover:bg-[#5865f2]/25 border border-[#5865f2]/35 text-white text-[11px] font-semibold transition-all cursor-pointer shadow-sm"
+            title="Abrir Discord MCP & Bot Hub (JuanPi IA)"
+          >
+            <Bot size={13} className="text-cyan-400" />
+            <span className="hidden xl:inline text-purple-200">JuanPi IA</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           </button>
         </div>
       </div>

@@ -1,0 +1,23 @@
+# Never upload local credentials, data, caches or alternate export trees.
+**/.env
+**/.env.*
+**/.npm-cache/**
+.npm-cache/**
+.vercel/**
+.vercel-deploy/**
+.vs/**
+.idea/**
+.git/**
+node_modules/**
+server/node_modules/**
+server/data/**
+*.sqlite
+*.sqlite3
+*.db
+*.log
+build*.log
+dev*.log
+dist/**
+src-tauri/**
+release/**
+release-binaries/**

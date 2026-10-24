@@ -45,9 +45,9 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
 
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 select-none animate-in slide-in-from-bottom-3 duration-300">
-      <div className="flex items-center gap-2 p-2 rounded-2xl bg-[#0f121d]/90 border border-white/[0.12] shadow-2xl backdrop-blur-2xl glow-purple">
+      <div className="flex items-center gap-2 p-2 rounded-2xl bg-[#090414]/90 border border-purple-500/30 shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_25px_rgba(147,51,234,0.25)] backdrop-blur-2xl">
         {/* Layout Mode Switchers */}
-        <div className="flex items-center gap-1 pr-2 border-r border-white/[0.08]">
+        <div className="flex items-center gap-1 pr-2 border-r border-purple-900/30">
           {layoutButtons.map((btn) => {
             const isActive = layoutMode === btn.mode;
             return (
@@ -56,8 +56,8 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
                 onClick={() => setLayoutMode(btn.mode)}
                 className={`p-2 rounded-xl transition-all ${
                   isActive
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md glow-purple scale-105'
-                    : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/30 scale-105'
+                    : 'text-purple-300/70 hover:text-white hover:bg-purple-900/30'
                 }`}
                 title={btn.label}
               >
@@ -68,11 +68,11 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
         </div>
 
         {/* Quick Tools: Soundboard, Code Playground, Arcade */}
-        <div className="flex items-center gap-1 pr-2 border-r border-white/[0.08]">
+        <div className="flex items-center gap-1 pr-2 border-r border-purple-900/30">
 
           <button
             onClick={() => setIsSoundboardOpen(true)}
-            className="p-2 rounded-xl bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white transition-all border border-amber-500/30"
+            className="p-2 rounded-xl bg-purple-900/25 hover:bg-purple-600 text-purple-300 hover:text-white transition-all border border-purple-500/30"
             title="Kova Soundboard FX"
           >
             <Music2 className="w-4 h-4" />
@@ -80,7 +80,7 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
 
           <button
             onClick={() => setIsCodePlaygroundOpen(true)}
-            className="p-2 rounded-xl bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white transition-all border border-cyan-500/30"
+            className="p-2 rounded-xl bg-purple-900/25 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all border border-indigo-500/30"
             title="Playground de Código en vivo"
           >
             <Terminal className="w-4 h-4" />
@@ -88,7 +88,7 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
 
           <button
             onClick={() => setIsArcadeOpen(true)}
-            className="p-2 rounded-xl bg-pink-600/20 hover:bg-pink-600 text-pink-300 hover:text-white transition-all border border-pink-500/30"
+            className="p-2 rounded-xl bg-purple-900/25 hover:bg-pink-600 text-pink-300 hover:text-white transition-all border border-pink-500/30"
             title="Kova Arcade Minijuegos"
           >
             <Gamepad2 className="w-4 h-4" />
@@ -102,7 +102,7 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
             className={`p-2 rounded-xl transition-all ${
               currentUser.isMuted
                 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.06]'
+                : 'text-purple-300/70 hover:text-white hover:bg-purple-900/30'
             }`}
             title={currentUser.isMuted ? 'Activar micrófono' : 'Silenciar micrófono'}
           >
@@ -111,7 +111,7 @@ export const CyberDock: React.FC<CyberDockProps> = ({ layoutMode, setLayoutMode 
 
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all"
+            className="p-2 rounded-xl text-purple-300/70 hover:text-white hover:bg-purple-900/30 transition-all"
             title={soundEnabled ? 'Silenciar sonidos UI' : 'Activar sonidos UI'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}

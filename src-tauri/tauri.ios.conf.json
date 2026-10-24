@@ -1,0 +1,10 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "identifier": "com.kova.client",
+  "bundle": {
+    "iOS": {
+      "minimumSystemVersion": "15.0",
+      "infoPlist": "mobile/Info.ios.plist"
+    }
+  }
+}

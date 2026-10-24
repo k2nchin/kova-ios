@@ -5,6 +5,7 @@ export interface RealGoogleUser {
   name: string;
   email: string;
   picture: string;
+  accessToken: string;
 }
 
 export const DEFAULT_GOOGLE_CLIENT_ID =
@@ -27,13 +28,16 @@ export function saveGoogleClientId(clientId: string): void {
 }
 
 export async function openExternalUrl(url: string): Promise<void> {
+  const isTauri = '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
   try {
-    const tauri = (window as unknown as { __TAURI__?: { core?: { invoke?: (cmd: string, args: Record<string, unknown>) => Promise<unknown> } } }).__TAURI__;
-    if (tauri?.core?.invoke) {
-      await tauri.core.invoke('open_external_url', { url });
+    if (isTauri) {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('open_external_url', { url });
       return;
     }
-  } catch {}
+  } catch (error) {
+    if (isTauri) throw error;
+  }
   window.open(url, '_blank');
 }
 
@@ -64,7 +68,48 @@ export function openRealGoogleSignIn(
     const win = window.open(authUrl, 'GoogleSignIn', `width=${width},height=${height},left=${left},top=${top}`);
     if (!win || win.closed || typeof win.closed === 'undefined') {
       onError('El navegador bloqueó la ventana emergente de Google. Por favor permite las ventanas emergentes (popups).');
+      return;
     }
+
+    const poll = window.setInterval(async () => {
+      if (win.closed) {
+        window.clearInterval(poll);
+        onError('La ventana de Google se cerró antes de completar el inicio de sesión.');
+        return;
+      }
+
+      let hash: string;
+      try {
+        hash = win.location.hash;
+      } catch {
+        return;
+      }
+
+      try {
+        if (!hash.includes('access_token=')) return;
+        const params = new URLSearchParams(hash.substring(1));
+        const accessToken = params.get('access_token');
+        if (!accessToken) return;
+        window.clearInterval(poll);
+
+        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) throw new Error(`Google API error (${res.status})`);
+        const info = await res.json();
+        win.close();
+        onSuccess({
+          id: info.sub || '',
+          name: info.name || info.given_name || 'Usuario de Google',
+          email: info.email || '',
+          picture: info.picture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+          accessToken,
+        });
+      } catch (err) {
+        window.clearInterval(poll);
+        onError((err as Error).message || 'Error al obtener los datos de la cuenta de Google');
+      }
+    }, 250);
     return;
   }
 
@@ -102,10 +147,11 @@ export function openRealGoogleSignIn(
 
           const info = await res.json();
           const user: RealGoogleUser = {
-            id: info.sub || `google_${Date.now()}`,
+            id: info.sub || '',
             name: info.name || info.given_name || 'Usuario de Google',
             email: info.email,
             picture: info.picture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+            accessToken: response.access_token,
           };
           onSuccess(user);
         } catch (fetchErr: unknown) {

@@ -13,6 +13,8 @@ import {
   DMConversation,
   Role,
   KovaBot,
+  Attachment,
+  WorkspaceLayoutMode,
 } from '../types';
 import { DEFAULT_BOTS } from '../data/defaultBots';
 import {
@@ -27,6 +29,7 @@ import {
   INITIAL_STORIES,
   INITIAL_DM_CONVERSATIONS,
   CURRENT_USER,
+  BOT_JUANPI_IA,
 } from '../data/mockData';
 import { soundFx } from '../utils/soundEffects';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
@@ -38,8 +41,26 @@ import {
   translateTextWithGemini,
   generateMeetingMinutesWithGemini,
 } from '../services/geminiService';
-import { api, setAuthToken, clearAuthToken } from '../services/apiClient';
+import { api, getAuthToken, setAuthToken, clearAuthToken } from '../services/apiClient';
+import { isDesktopApp, isMobileApp } from '../utils/platform';
 import { connectSocket, disconnectSocket, getSocket } from '../services/socketClient';
+import { showNotification } from '../services/notificationService';
+
+// Stable local fallback for development/offline mode. The real server is the
+// source of truth; this mapping only keeps an offline userId immutable between
+// sessions and never derives identity from the editable username.
+const stableLocalId = (prefix: string, seed: string): string => {
+  const key = `kova.identity.${prefix}${seed.trim().toLowerCase()}`;
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const generated = `${prefix}${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
+    localStorage.setItem(key, generated);
+    return generated;
+  } catch {
+    return `${prefix}${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  }
+};
 
 export interface AIMessage {
   id: string;
@@ -60,12 +81,25 @@ export interface AppPreferences {
   confirmExternalLinks: boolean;
 }
 
+export interface AppNotification {
+  id: string;
+  type: 'stream' | 'bot' | 'mention' | 'role' | 'system' | 'friend';
+  title: string;
+  description: string;
+  timestamp: string;
+  read: boolean;
+  channelId?: string;
+  actionLabel?: string;
+  url?: string;
+}
+
 interface AppContextType {
   // Authentication & User Session
   isAuthenticated: boolean;
-  loginWithGoogle: (googleUser?: Partial<User>) => void;
-  loginWithEmail: (email: string, pass: string) => void;
-  registerUser: (username: string, email: string, pass: string, displayName?: string) => void;
+  loginAsGuest: () => Promise<void>;
+  loginWithGoogle: (googleUser?: Partial<User> & { email?: string; googleAccessToken?: string }) => Promise<void>;
+  loginWithEmail: (email: string, pass: string) => Promise<void>;
+  registerUser: (username: string, email: string, pass: string, displayName?: string) => Promise<void>;
   logout: () => void;
   // Workspace & Servers
   servers: Server[];
@@ -76,12 +110,21 @@ interface AppContextType {
   currentUser: User;
   setCurrentUser: React.Dispatch<React.SetStateAction<User>>;
   setUserPresence: (status: UserStatus) => void;
+  // Realtime gateway
+  realtimeConnected: boolean;
+  typingUsers: string[];
+  setTyping: (typing: boolean) => void;
+  presenceByUser: Record<string, 'online' | 'offline'>;
+  // Workspace layout (Pulse hub, split, chat focus...)
+  layoutMode: WorkspaceLayoutMode;
+  setLayoutMode: (mode: WorkspaceLayoutMode) => void;
   messages: Message[];
   sendMessage: (
     content: string,
     codeBlock?: { language: string; code: string },
     replyId?: string,
-    voiceNote?: { duration: number }
+    voiceNote?: { duration: number },
+    attachments?: Attachment[]
   ) => void;
   addReaction: (messageId: string, emoji: string) => void;
   deleteMessage: (messageId: string) => void;
@@ -96,6 +139,12 @@ interface AppContextType {
   toggleDeafen: () => void;
   toggleCamera: () => void;
   toggleScreenShare: () => void;
+  // Push-to-talk (desktop)
+  pushToTalkEnabled: boolean;
+  pushToTalkKey: string;
+  isPushToTalkHeld: boolean;
+  setPushToTalkEnabled: (enabled: boolean) => void;
+  setPushToTalkKey: (key: string) => void;
   // Threads & Drawer
   activeThread: Thread | null;
   openThread: (message: Message) => void;
@@ -162,9 +211,10 @@ interface AppContextType {
   setIsInviteModalOpen: (open: boolean) => void;
   inviteServerId: string | null;
   openInviteModal: (serverId?: string) => void;
-  pendingFriendRequests: { id: string; username: string; tag: string; timestamp: string }[];
-  sendFriendRequest: (usernameOrTag: string) => void;
+  pendingFriendRequests: { id: string; username: string; tag: string; timestamp: string; direction?: 'incoming' | 'outgoing'; userId?: string }[];
+  sendFriendRequest: (userId: string) => void;
   cancelFriendRequest: (id: string) => void;
+  acceptFriendRequest: (id: string) => void;
   isMemberListOpen: boolean;
   setIsMemberListOpen: (open: boolean) => void;
   isPinnedDrawerOpen: boolean;
@@ -178,7 +228,8 @@ interface AppContextType {
     name: string,
     description?: string,
     iconUrl?: string,
-    template?: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro'
+    template?: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro',
+    visibility?: 'public' | 'private'
   ) => void;
   joinServerByInvite: (inviteCodeOrId: string) => boolean;
   createChannel: (name: string, type: ChannelType, categoryId?: string) => void;
@@ -193,18 +244,21 @@ interface AppContextType {
   setEditingChannelId: (id: string | null) => void;
   isDiscoveryOpen: boolean;
   setIsDiscoveryOpen: (open: boolean) => void;
-  joinPublicServer: (server: Server) => void;
+  joinPublicServer: (serverId: string) => Promise<boolean>;
   editMessage: (messageId: string, newContent: string) => void;
   // Server Settings & Roles
   isServerSettingsOpen: boolean;
   setIsServerSettingsOpen: (open: boolean) => void;
-  serverSettingsTab: 'overview' | 'roles' | 'members';
-  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members') => void;
+  serverSettingsTab: 'overview' | 'roles' | 'members' | 'discord';
+  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'discord') => void;
   createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Role;
   updateRole: (serverId: string, roleId: string, updates: Partial<Role>) => void;
   deleteRole: (serverId: string, roleId: string) => void;
   toggleMemberRole: (serverId: string, memberId: string, roleId: string) => void;
   updateServerDetails: (serverId: string, updates: { name?: string; icon?: string; banner?: string; description?: string }) => void;
+  // Discord MCP & Bot Hub
+  isDiscordHubOpen: boolean;
+  setIsDiscordHubOpen: (open: boolean) => void;
   // Notes
   notes: NoteDocument[];
   addNote: (title: string, content: string, tags: string[]) => void;
@@ -233,6 +287,16 @@ interface AppContextType {
   disableTwoFactor: () => void;
   verifyTwoFactor: (code: string) => boolean;
   regenerateBackupCodes: () => string[];
+  // Notifications & Live Streams
+  notifications: AppNotification[];
+  unreadNotificationsCount: number;
+  isNotificationsOpen: boolean;
+  setIsNotificationsOpen: (open: boolean) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
+  dismissNotification: (id: string) => void;
+  isLiveStreamsOpen: boolean;
+  setIsLiveStreamsOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -303,37 +367,8 @@ const ensureServerRoles = (serverList: Server[], user: User): Server[] => {
   return serverList.map((s) => {
     const roles = s.roles && s.roles.length > 0 ? s.roles : createDefaultRoles(s.id);
     const ownerRoleId = `role_owner_${s.id}`;
-    let channels = s.channels;
-    let categories = s.categories || [];
-
-    if (!channels || channels.length === 0) {
-      const catTextId = `cat_text_${s.id}`;
-      const catVoiceId = `cat_voice_${s.id}`;
-      const chanGenId = `chan_gen_${s.id}`;
-      const chanVoiceId = `chan_voice_${s.id}`;
-
-      categories = [
-        { id: catTextId, name: 'CANALES DE TEXTO', channelIds: [chanGenId] },
-        { id: catVoiceId, name: 'CANALES DE VOZ (HD)', channelIds: [chanVoiceId] },
-      ];
-
-      channels = [
-        {
-          id: chanGenId,
-          name: 'general',
-          type: 'text',
-          topic: `Canal principal de conversación en ${s.name}`,
-          categoryId: catTextId,
-        },
-        {
-          id: chanVoiceId,
-          name: 'Voz Principal (HD)',
-          type: 'voice',
-          topic: 'Audio de alta fidelidad 96kHz WebRTC',
-          categoryId: catVoiceId,
-        },
-      ];
-    }
+    const channels = Array.isArray(s.channels) ? s.channels : [];
+    const categories = Array.isArray(s.categories) ? s.categories : [];
 
     return {
       ...s,
@@ -347,12 +382,38 @@ const ensureServerRoles = (serverList: Server[], user: User): Server[] => {
   });
 };
 
+const ALLOW_OFFLINE_AUTH = import.meta.env.DEV && import.meta.env.VITE_ALLOW_OFFLINE_AUTH === 'true';
+
+const messageFromApi = (item: any, fallbackUser: User): Message => {
+  const author: User = item.author ? {
+    ...fallbackUser,
+    id: item.author.id,
+    userId: item.author.userId || item.author.id,
+    username: item.author.username || 'usuario',
+    displayName: item.author.displayName || item.author.username || 'Usuario',
+    tag: item.author.tag || '0000',
+    avatar: item.author.avatar || fallbackUser.avatar,
+    status: item.author.status || 'online',
+  } : fallbackUser;
+  const date = new Date(item.createdAt || Date.now());
+  return {
+    id: item.id,
+    channelId: item.channelId,
+    author,
+    content: item.content || '',
+    timestamp: `Hoy a las ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+    edited: Boolean(item.edited),
+    reactions: Array.isArray(item.reactions) ? item.reactions : [],
+    attachments: Array.isArray(item.attachments) ? item.attachments : [],
+  };
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Authentication & Session Persistence
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
       const session = localStorage.getItem('kova.auth.session');
-      return session === 'true';
+      return session === 'true' && (ALLOW_OFFLINE_AUTH || Boolean(getAuthToken()));
     } catch {
       return false;
     }
@@ -454,10 +515,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newCodes;
   };
 
-  const loginWithGoogle = async (googleUser?: Partial<User>) => {
+  const loginAsGuest = async () => {
+    if (!isMobileApp()) throw new Error('El modo invitado solo está disponible en la aplicación móvil.');
+    const guestId = stableLocalId('guest_', 'android-test');
+    const guestNumber = guestId.slice(-4).toUpperCase();
+    const user: User = {
+      ...CURRENT_USER,
+      id: guestId,
+      userId: guestId,
+      username: `invitado_${guestNumber}`,
+      displayName: `Invitado ${guestNumber}`,
+      email: '',
+      tag: 'GUEST',
+      verified: false,
+      badges: [],
+      roles: [],
+      customStatus: 'Sesión de prueba móvil',
+    };
+
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    connectSocket();
+    try {
+      localStorage.setItem('kova.auth.session', 'true');
+      localStorage.setItem('kova.auth.user', JSON.stringify(user));
+      localStorage.setItem('kova.auth.guest', 'true');
+    } catch {}
+    toast.success(`¡Bienvenido, ${user.displayName}!`);
+  };
+
+  const loginWithGoogle = async (googleUser?: Partial<User> & { email?: string; googleAccessToken?: string }) => {
     let user: User = {
       ...currentUser,
-      id: googleUser?.id || `google_${Date.now()}`,
+      id: googleUser?.id || stableLocalId('google_', googleUser?.email || ''),
       username: googleUser?.username || 'google_user',
       displayName: googleUser?.displayName || 'Usuario de Google',
       avatar:
@@ -468,9 +558,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     try {
+      if (!googleUser?.googleAccessToken) {
+        throw new Error('Google no devolvió una credencial verificable.');
+      }
       const res = await api.loginGoogle({
+        accessToken: googleUser.googleAccessToken,
         googleId: user.id,
-        email: (googleUser as any)?.email || `${user.username}@gmail.com`,
+        email: googleUser.email || `${user.username}@gmail.com`,
         displayName: user.displayName,
         avatarUrl: user.avatar,
       });
@@ -479,11 +573,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         user = {
           ...user,
           id: res.user.id,
+          userId: res.user.userId || res.user.id,
           tag: res.user.tag || user.tag,
+          email: res.user.email || user.email,
+          verified: Boolean(res.user.verified),
         };
       }
     } catch (err) {
       console.warn('[Kova Backend Sync] Modo offline / local para Google Auth:', err);
+      if (!ALLOW_OFFLINE_AUTH) {
+        throw new Error('No se pudo crear una sesión de Kova con el servidor. Inténtalo de nuevo.');
+      }
     }
 
     setCurrentUser(user);
@@ -515,7 +615,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const username = email.split('@')[0] || 'usuario';
     let user: User = {
       ...currentUser,
-      id: `user_${Date.now()}`,
+      id: stableLocalId('user_', email),
       username,
       displayName: username.charAt(0).toUpperCase() + username.slice(1),
       status: 'online',
@@ -529,16 +629,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         user = {
           ...user,
           id: res.user.id,
+          userId: res.user.userId || res.user.id,
           username: res.user.username,
           displayName: res.user.displayName,
           tag: res.user.tag || user.tag,
-          avatar: res.user.avatarUrl || user.avatar,
+          avatar: res.user.avatar || res.user.avatarUrl || user.avatar,
+          email: res.user.email || email,
+          verified: Boolean(res.user.verified),
         };
         toast.success(`¡Bienvenido de nuevo, ${user.displayName}!`);
       }
     } catch (err: any) {
       console.warn('[Kova Backend Sync] Fallback local para login:', err);
-      toast.info(err.message || 'Iniciando sesión en modo local');
+      if (!ALLOW_OFFLINE_AUTH) {
+        throw new Error(err?.message || 'No se pudo iniciar sesión con el servidor de Kova.');
+      }
+      toast.info('Servidor no disponible: sesión local de desarrollo activada');
     }
 
     setCurrentUser(user);
@@ -569,7 +675,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const registerUser = async (username: string, email: string, pass: string, displayName?: string) => {
     let user: User = {
       ...currentUser,
-      id: `user_${Date.now()}`,
+      id: stableLocalId('user_', email),
       username: username.toLowerCase().replace(/\s+/g, '_'),
       displayName: displayName || username,
       status: 'online',
@@ -588,14 +694,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         user = {
           ...user,
           id: res.user.id,
+          userId: res.user.userId || res.user.id,
+          username: res.user.username || user.username,
+          displayName: res.user.displayName || user.displayName,
           tag: res.user.tag || user.tag,
-          avatar: res.user.avatarUrl || user.avatar,
+          avatar: res.user.avatar || res.user.avatarUrl || user.avatar,
+          email: res.user.email || email,
+          verified: Boolean(res.user.verified),
         };
         toast.success('¡Cuenta creada y sincronizada con éxito!');
       }
     } catch (err: any) {
       console.warn('[Kova Backend Sync] Fallback local para registro:', err);
-      toast.info(err.message || 'Registrando usuario en modo local');
+      if (!ALLOW_OFFLINE_AUTH) {
+        throw new Error(err?.message || 'No se pudo crear la cuenta en el servidor de Kova.');
+      }
+      toast.info('Servidor no disponible: cuenta local de desarrollo activada');
     }
 
     setCurrentUser(user);
@@ -623,86 +737,203 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundFx.playAISparkle();
   };
 
+  // Notifications & Live Streams state
+  // Empty until a real event arrives from the account/server.
+  // Declared before any consumer (e.g. logout) to avoid TDZ hazards.
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('kova.notifications.v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   const logout = () => {
+    void api.logout().catch(() => undefined);
     clearAuthToken();
     disconnectSocket();
     setIsAuthenticated(false);
     setActiveVoiceChannelId(null);
+    setCurrentUser(CURRENT_USER);
+    setServers([]);
+    setAllMessages({});
+    setStories([]);
+    setFriends([]);
+    setDmConversations([]);
+    setPendingFriendRequests([]);
+    setNotifications([]);
+    setNotes(INITIAL_NOTES);
+    setAiHistory([
+      {
+        id: 'ai_msg_0',
+        sender: 'ai' as const,
+        text: '¡Hola! Soy **Kova AI**. Estoy aquí para ayudarte a resumir canales, traducir mensajes, redactar código y optimizar tu flujo de trabajo en Kova. ¿En qué puedo ayudarte hoy?',
+        timestamp: 'Ahora',
+      },
+    ]);
     try {
       localStorage.setItem('kova.auth.session', 'false');
+      localStorage.removeItem('kova.auth.user');
+      localStorage.removeItem('kova.stories.v3');
+      localStorage.removeItem('kova.friends.v2');
+      localStorage.removeItem('kova.dms.v3');
+      localStorage.removeItem('kova.pending_friends.v1');
     } catch {}
     soundFx.playLeaveVoice();
   };
 
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken() || ALLOW_OFFLINE_AUTH) return;
+    let cancelled = false;
+    api.getMe().then((remoteUser) => {
+      if (cancelled || !remoteUser) return;
+      setCurrentUser((previous) => ({ ...previous, ...remoteUser, id: remoteUser.id, userId: remoteUser.userId || remoteUser.id }));
+    }).catch(() => {
+      if (cancelled) return;
+      clearAuthToken();
+      localStorage.setItem('kova.auth.session', 'false');
+      setIsAuthenticated(false);
+      toast.error('Tu sesión expiró. Vuelve a iniciar sesión.');
+    });
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
+
   // Dynamic Servers with localStorage persistence
+  const serverCacheKey = `kova.servers.v12.${currentUser.id}`;
+  const [serversCacheReadyForUser, setServersCacheReadyForUser] = useState(currentUser.id);
   const [servers, setServers] = useState<Server[]>(() => {
     try {
-      const saved = localStorage.getItem('kova.servers.v9_custom');
+      const saved = localStorage.getItem(`kova.servers.v12.${currentUser.id}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return ensureServerRoles(parsed, CURRENT_USER);
+        if (Array.isArray(parsed)) return ensureServerRoles(parsed, currentUser);
       }
     } catch {}
-    return ensureServerRoles(INITIAL_SERVERS, CURRENT_USER);
+    return [];
   });
 
   useEffect(() => {
+    setServersCacheReadyForUser('');
     try {
-      localStorage.setItem('kova.servers.v9_custom', JSON.stringify(servers));
+      const saved = localStorage.getItem(`kova.servers.v12.${currentUser.id}`);
+      const parsed = saved ? JSON.parse(saved) : [];
+      setServers(Array.isArray(parsed) ? ensureServerRoles(parsed, currentUser) : []);
+    } catch { setServers([]); }
+    setServersCacheReadyForUser(currentUser.id);
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    if (serversCacheReadyForUser !== currentUser.id) return;
+    try {
+      localStorage.setItem(serverCacheKey, JSON.stringify(servers));
     } catch {}
-  }, [servers]);
+  }, [servers, serverCacheKey, serversCacheReadyForUser, currentUser.id]);
 
-  const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || '');
-  const [activeChannelId, setActiveChannelId] = useState<string>(() => servers[0]?.channels[0]?.id || '');
-  const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken()) return;
+    let cancelled = false;
+    api.getServers().then((remote) => {
+      if (cancelled || !Array.isArray(remote)) return;
+      setServers((local) => {
+        const merged = remote.map((space: any) => {
+          const cached = local.find((item) => item.id === space.id);
+          return ensureServerRoles([{ ...(cached || {}), ...space } as Server], currentUser)[0];
+        });
+        return merged;
+      });
+    }).catch((error) => console.warn('[Kova spaces sync]', error));
+    return () => { cancelled = true; };
+  }, [isAuthenticated, currentUser.id]);
 
-  // Sincronización en tiempo real vía Socket.IO
+  const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || '783512978086821928');
+  const [activeChannelId, setActiveChannelId] = useState<string>(() => {
+    const general = servers[0]?.channels.find((c) => c.id === '1546044315950911550' || c.name.includes('chat-general'));
+    return general?.id || servers[0]?.channels[0]?.id || '1546044315950911550';
+  });
+  const [allMessages, setAllMessages] = useState<Record<string, Message[]>>({});
+
+  // Sincronización en tiempo real vía Socket.IO: mensajes, presencia y "escribiendo…"
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [typingByChannel, setTypingByChannel] = useState<Record<string, Record<string, string>>>({});
+  const [presenceByUser, setPresenceByUser] = useState<Record<string, 'online' | 'offline'>>({});
+
   useEffect(() => {
     if (!isAuthenticated) return;
     const socket = connectSocket();
 
+    const updateChannel = (channelId: string, update: (messages: Message[]) => Message[]) =>
+      setAllMessages((prev) => (prev[channelId] ? { ...prev, [channelId]: update(prev[channelId]) } : prev));
+
     const handleMessageCreated = (msg: any) => {
-      if (!msg || !msg.channelId) return;
+      if (!msg?.channelId || !msg.id) return;
+      // Our own messages are reconciled by the REST response (local_ → persisted id).
+      if (msg.author?.id === currentUser.id) return;
+      const incoming = messageFromApi(msg, currentUser);
       setAllMessages((prev) => {
         const channelMsgs = prev[msg.channelId] || [];
         if (channelMsgs.some((m) => m.id === msg.id)) return prev;
-
-        const newMsg: Message = {
-          id: msg.id,
-          channelId: msg.channelId,
-          author: {
-            id: msg.author?.id || 'unknown',
-            username: msg.author?.username || 'usuario',
-            displayName: msg.author?.displayName || 'Usuario',
-            tag: msg.author?.tag || '0001',
-            avatar: msg.author?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-            status: 'online',
-          },
-          content: msg.content,
-          timestamp: 'Hoy a las ' + new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          reactions: msg.reactions || [],
-          replyTo: msg.replyTo
-            ? {
-                id: msg.replyTo.id,
-                authorName: msg.replyTo.author?.displayName || 'Usuario',
-                content: msg.replyTo.content?.slice(0, 80) || '',
-              }
-            : undefined,
-        };
-
-        return {
-          ...prev,
-          [msg.channelId]: [...channelMsgs, newMsg],
-        };
+        return { ...prev, [msg.channelId]: [...channelMsgs, incoming] };
       });
+      setTypingByChannel((prev) => {
+        if (!prev[msg.channelId]?.[msg.author?.id]) return prev;
+        const { [msg.author.id]: _removed, ...rest } = prev[msg.channelId];
+        return { ...prev, [msg.channelId]: rest };
+      });
+    };
+    const handleMessageUpdated = (msg: any) => {
+      if (!msg?.channelId) return;
+      updateChannel(msg.channelId, (messages) => messages.map((m) => (m.id === msg.id ? { ...m, content: msg.content, edited: true } : m)));
+    };
+    const handleMessageDeleted = (msg: any) => {
+      if (!msg?.channelId) return;
+      updateChannel(msg.channelId, (messages) => messages.filter((m) => m.id !== msg.id));
+    };
+    const handleReactions = (update: any) => {
+      if (!update?.channelId || !Array.isArray(update.reactions)) return;
+      updateChannel(update.channelId, (messages) => messages.map((m) => (m.id === update.messageId ? { ...m, reactions: update.reactions } : m)));
+    };
+    const handleTyping = (event: any) => {
+      if (!event?.channelId || !event.userId || event.userId === currentUser.id) return;
+      setTypingByChannel((prev) => {
+        const channel = { ...(prev[event.channelId] || {}) };
+        if (event.typing) channel[event.userId] = event.displayName || 'Alguien';
+        else delete channel[event.userId];
+        return { ...prev, [event.channelId]: channel };
+      });
+    };
+    const handlePresence = (event: any) => {
+      if (!event?.userId) return;
+      setPresenceByUser((prev) => ({ ...prev, [event.userId]: event.status === 'offline' ? 'offline' : 'online' }));
+    };
+    const handleConnect = () => {
+      setRealtimeConnected(true);
+      if (activeChannelId) socket.emit('channel:join', { channelId: activeChannelId });
+    };
+    const handleDisconnect = () => {
+      setRealtimeConnected(false);
+      setTypingByChannel({});
     };
 
     socket.on('message:created', handleMessageCreated);
+    socket.on('message:updated', handleMessageUpdated);
+    socket.on('message:deleted', handleMessageDeleted);
+    socket.on('message:reactions', handleReactions);
+    socket.on('channel:typing', handleTyping);
+    socket.on('presence:changed', handlePresence);
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    if (socket.connected) setRealtimeConnected(true);
 
     return () => {
       socket.off('message:created', handleMessageCreated);
+      socket.off('message:updated', handleMessageUpdated);
+      socket.off('message:deleted', handleMessageDeleted);
+      socket.off('message:reactions', handleReactions);
+      socket.off('channel:typing', handleTyping);
+      socket.off('presence:changed', handlePresence);
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, activeChannelId, currentUser]);
 
   // Cambiar de sala en Socket.IO cuando cambia el canal activo
   useEffect(() => {
@@ -713,11 +944,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [activeChannelId]);
 
+  // Ask which members are online whenever the realtime link (re)connects or the space changes.
+  useEffect(() => {
+    if (!realtimeConnected) return;
+    const memberIds = servers.find((server) => server.id === activeServerId)?.members?.map((member) => member.id) || [];
+    if (memberIds.length === 0) return;
+    getSocket().emit('presence:query', { userIds: memberIds }, (reply: { online?: string[] }) => {
+      const online = new Set(reply?.online || []);
+      setPresenceByUser((prev) => {
+        const next = { ...prev };
+        for (const id of memberIds) next[id] = online.has(id) ? 'online' : 'offline';
+        return next;
+      });
+    });
+  }, [realtimeConnected, activeServerId, servers]);
+
+  const setTyping = (typing: boolean) => {
+    const socket = getSocket();
+    if (socket.connected && activeChannelId) socket.emit('channel:typing', { channelId: activeChannelId, typing });
+  };
+  const typingUsers = Object.values(typingByChannel[activeChannelId] || {});
+
+  // REST polling is the reliable cross-device path on Vercel/serverless. Socket.IO
+  // is used only when an actual realtime gateway URL has been configured.
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken() || !activeChannelId || !servers.some((server) => server.id === activeServerId)) return;
+    let cancelled = false;
+    const loadMessages = async () => {
+      try {
+        const remote = await api.getMessages(activeChannelId, 100);
+        if (cancelled || !Array.isArray(remote)) return;
+        const normalized = remote.map((item: any) => messageFromApi(item, currentUser));
+        setAllMessages((previous) => {
+          const pending = (previous[activeChannelId] || []).filter((message) => message.id.startsWith('local_'));
+          const ids = new Set(normalized.map((message) => message.id));
+          return { ...previous, [activeChannelId]: [...normalized, ...pending.filter((message) => !ids.has(message.id))] };
+        });
+      } catch (error) {
+        if (!cancelled) console.warn('[Kova messages sync]', error);
+      }
+    };
+    void loadMessages();
+    // With a live socket, polling is only a safety net for missed events.
+    const timer = window.setInterval(loadMessages, realtimeConnected ? 30000 : 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [isAuthenticated, activeChannelId, activeServerId, currentUser.id, servers, realtimeConnected]);
+
   // Themes & Sound
   const [theme, setThemeState] = useState<BackgroundTheme>(() => {
     try {
       const saved = localStorage.getItem('kova.theme.v1');
-      if (saved && ['oled', 'nebula', 'matrix', 'synthwave', 'discord'].includes(saved)) {
+      if (saved && ['oled', 'nebula', 'matrix', 'synthwave', 'crimson', 'abyss', 'emerald', 'amethyst', 'amber'].includes(saved)) {
         return saved as BackgroundTheme;
       }
     } catch {}
@@ -890,10 +1167,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundFx.playAISparkle();
   };
 
+  const storyReactionsRef = React.useRef<Set<string>>(new Set());
+
   const reactToStory = (storyId: string, _emoji: string) => {
-    setStories((prev) =>
-      prev.map((s) => (s.id === storyId ? { ...s, likes: s.likes + 1 } : s))
-    );
+    const key = `${storyId}:${currentUser.id}`;
+
+    setStories((prev) => {
+      const reacted = storyReactionsRef.current.has(key);
+      if (reacted) {
+        storyReactionsRef.current.delete(key);
+      } else {
+        storyReactionsRef.current.add(key);
+      }
+      return prev.map((s) => {
+        if (s.id !== storyId) return s;
+        return { ...s, likes: Math.max(0, s.likes + (reacted ? -1 : 1)) };
+      });
+    });
   };
 
   // Friends System State
@@ -918,38 +1208,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [friends]);
 
-  const addFriend = (usernameOrTag: string) => {
-    const cleanName = usernameOrTag.trim();
-    if (!cleanName) return;
-
-    const namePart = cleanName.split('#')[0] || cleanName;
-    const tagPart = cleanName.includes('#') ? cleanName.split('#')[1] : Math.floor(1000 + Math.random() * 9000).toString();
-
-    const newFriend: User = {
-      id: `friend_${Date.now()}`,
-      username: namePart.toLowerCase().replace(/\s+/g, '_'),
-      displayName: namePart,
-      tag: tagPart,
-      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(namePart)}`,
-      status: 'online',
-      customStatus: '¡Nuevo amigo en Kova!',
-      roles: ['Member'],
-    };
-
-    setFriends((prev) => {
-      if (prev.some((f) => f.displayName.toLowerCase() === namePart.toLowerCase())) {
-        return prev;
-      }
-      return [newFriend, ...prev];
-    });
-
-    soundFx.playJoinVoice();
-    toast.success(`¡Solicitud aceptada! ${namePart}#${tagPart} ahora es tu amigo.`);
+  const addFriend = (userId: string) => {
+    if (!userId.trim()) return;
+    void sendFriendRequest(userId);
   };
 
   const removeFriend = (userId: string) => {
     setFriends((prev) => prev.filter((f) => f.id !== userId));
-    toast.info('Amigo eliminado de tu lista');
+    if (getAuthToken()) void api.removeFriend(userId).then(() => toast.info('Amigo eliminado de tu lista')).catch(async (error) => {
+      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar al amigo.');
+      await refreshFriends();
+    });
+    else toast.info('Amigo eliminado de tu lista');
   };
 
   // Direct Messages (DMs) State
@@ -977,14 +1247,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [dmConversations]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken()) return;
+    let cancelled = false;
+    const refreshDMs = async () => {
+      try {
+        const remote = await api.getDMConversations();
+        if (cancelled || !Array.isArray(remote)) return;
+        setDmConversations((previous) => remote.map((item) => {
+          const prior = previous.find((conversation) => conversation.user.id === item.user.id);
+          return {
+            id: `dm_${item.user.id}`,
+            user: { ...(prior?.user || currentUser), ...item.user },
+            unreadCount: prior?.unreadCount || 0,
+            lastMessage: item.lastMessage,
+            lastMessageTime: item.lastMessageTime ? new Date(item.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            messages: prior?.messages || [],
+          };
+        }));
+      } catch (error) { if (!cancelled) console.warn('[Kova direct-message list sync]', error); }
+    };
+    void refreshDMs();
+    const timer = window.setInterval(refreshDMs, 6000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [isAuthenticated, currentUser.id]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken() || !activeDMUserId) return;
+    let cancelled = false;
+    void api.getDirectMessages(activeDMUserId, 100).then((remote) => {
+      if (cancelled || !Array.isArray(remote)) return;
+      setDmConversations((previous) => {
+        const conversation = previous.find((item) => item.user.id === activeDMUserId);
+        if (!conversation) return previous;
+        const messages = remote.map((item: any) => ({
+          id: item.id,
+          authorId: item.authorId,
+          content: item.content,
+          timestamp: `Hoy a las ${new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        }));
+        return previous.map((item) => item.user.id === activeDMUserId ? { ...item, messages } : item);
+      });
+    }).catch((error) => { if (!cancelled) toast.error(error instanceof Error ? error.message : 'No se pudo cargar la conversación.'); });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, activeDMUserId]);
+
   const sendDirectMessage = (receiverId: string, content: string) => {
     if (!content.trim()) return;
     soundFx.playMessageSent();
+    const localId = `local_dm_${crypto.randomUUID?.() || Date.now()}`;
 
     setDmConversations((prev) => {
       const timeStr = 'Hoy a las ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const newDM = {
-        id: `dm_msg_${Date.now()}`,
+        id: localId,
         authorId: currentUser.id,
         content: content.trim(),
         timestamp: timeStr,
@@ -1024,6 +1340,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ];
       }
     });
+    if (getAuthToken()) {
+      // Replace the optimistic row with the server's canonical message ID.
+      void api.sendDirectMessage(receiverId, content.trim()).then((saved) => {
+        setDmConversations((previous) => previous.map((conversation) => conversation.user.id === receiverId ? {
+          ...conversation,
+          messages: conversation.messages.map((message) => message.id.startsWith('local_dm_') && message.authorId === currentUser.id && message.content === content.trim() ? { ...message, id: saved.id, timestamp: `Hoy a las ${new Date(saved.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` } : message),
+        } : conversation));
+      }).catch((error) => {
+        setDmConversations((previous) => previous.map((conversation) => conversation.user.id === receiverId ? { ...conversation, messages: conversation.messages.filter((message) => message.id !== localId) } : conversation));
+        toast.error(error instanceof Error ? error.message : 'No se pudo enviar el mensaje directo.');
+      });
+    }
   };
 
   // Threads
@@ -1040,6 +1368,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [presetCategoryId, setPresetCategoryId] = useState<string | undefined>(undefined);
   const [isMemberListOpen, setIsMemberListOpen] = useState(true);
   const [isPinnedDrawerOpen, setIsPinnedDrawerOpen] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<WorkspaceLayoutMode>('split');
 
   // Invite Modal State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -1052,7 +1381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Pending Friend Requests (Discord-style: sending a request does not pretend to add an instant friend)
-  const [pendingFriendRequests, setPendingFriendRequests] = useState<{ id: string; username: string; tag: string; timestamp: string }[]>(() => {
+  const [pendingFriendRequests, setPendingFriendRequests] = useState<{ id: string; username: string; tag: string; timestamp: string; direction?: 'incoming' | 'outgoing'; userId?: string }[]>(() => {
     try {
       const saved = localStorage.getItem('kova.pending_friends.v1');
       if (saved) return JSON.parse(saved);
@@ -1066,27 +1395,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [pendingFriendRequests]);
 
-  const sendFriendRequest = (usernameOrTag: string) => {
-    const clean = usernameOrTag.trim();
-    if (!clean) return;
-    const namePart = clean.split('#')[0] || clean;
-    const tagPart = clean.includes('#') ? clean.split('#')[1] : Math.floor(1000 + Math.random() * 9000).toString();
+  const refreshFriends = React.useCallback(async () => {
+    try {
+      const data = await api.getFriends();
+      setFriends(Array.isArray(data.friends) ? data.friends : []);
+      const incoming = (data.incoming || []).map((r: any) => ({ id: r.id, username: r.user.displayName || r.user.username, tag: r.user.tag || '0000', userId: r.user.id, timestamp: 'Recibida', direction: 'incoming' as const }));
+      const outgoing = (data.outgoing || []).map((r: any) => ({ id: r.id, username: r.user.displayName || r.user.username, tag: r.user.tag || '0000', userId: r.user.id, timestamp: 'Enviada', direction: 'outgoing' as const }));
+      setPendingFriendRequests((previous) => {
+        const knownIncoming = new Set(previous.filter((item) => item.direction === 'incoming').map((item) => item.id));
+        const freshIncoming = incoming.filter((item: { id: string }) => !knownIncoming.has(item.id));
+        if (freshIncoming.length) {
+          setNotifications((current) => [
+            ...freshIncoming.map((request: { id: string; username: string }) => ({
+              id: `friend_${request.id}`,
+              type: 'friend' as const,
+              title: 'Nueva solicitud de amistad',
+              description: `${request.username} quiere agregarte en Kova.`,
+              timestamp: 'Ahora',
+              read: false,
+            })),
+            ...current.filter((notification) => !freshIncoming.some((request: { id: string }) => notification.id === `friend_${request.id}`)),
+          ]);
+          freshIncoming.forEach((request: { username: string }) => {
+            toast.info(`${request.username} te envió una solicitud de amistad`);
+            void showNotification('Nueva solicitud de amistad', `${request.username} quiere agregarte en Kova.`);
+          });
+        }
+        return [...incoming, ...outgoing];
+      });
+    } catch (error) {
+      console.warn('[Kova friends sync]', error);
+    }
+  }, []);
 
-    const newReq = {
-      id: `req_${Date.now()}`,
-      username: namePart,
-      tag: tagPart,
-      timestamp: 'Ahora',
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    refreshFriends();
+    const timer = window.setInterval(refreshFriends, 6000);
+    const refreshOnReturn = () => { if (document.visibilityState === 'visible') void refreshFriends(); };
+    window.addEventListener('focus', refreshFriends);
+    document.addEventListener('visibilitychange', refreshOnReturn);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshFriends);
+      document.removeEventListener('visibilitychange', refreshOnReturn);
     };
+  }, [isAuthenticated, refreshFriends]);
 
-    setPendingFriendRequests((prev) => [newReq, ...prev]);
-    soundFx.playAISparkle();
-    toast.success(`¡Solicitud de amistad enviada a ${namePart}#${tagPart}!`);
+  const sendFriendRequest = async (userId: string) => {
+    const clean = userId.trim();
+    if (!clean) return;
+    try {
+      const result = await api.sendFriendRequest(clean);
+      setPendingFriendRequests((prev) => [{ id: result.id, username: result.user.displayName || result.user.username, tag: result.user.tag || '0000', userId: result.user.id, timestamp: 'Ahora', direction: 'outgoing' }, ...prev]);
+      soundFx.playAISparkle();
+      toast.success(`Solicitud enviada a ${result.user.displayName || result.user.username}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo enviar la solicitud.');
+    }
   };
 
-  const cancelFriendRequest = (id: string) => {
-    setPendingFriendRequests((prev) => prev.filter((r) => r.id !== id));
-    toast.info('Solicitud de amistad cancelada');
+  const cancelFriendRequest = async (id: string) => {
+    try {
+      await api.deleteFriendRequest(id);
+      setPendingFriendRequests((prev) => prev.filter((r) => r.id !== id));
+      toast.info('Solicitud eliminada');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la solicitud.'); }
+  };
+
+  const acceptFriendRequest = async (id: string) => {
+    try {
+      await api.acceptFriendRequest(id);
+      await refreshFriends();
+      soundFx.playJoinVoice();
+      toast.success('Ahora son amigos en Kova');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo aceptar la solicitud.'); }
   };
 
   // Bots & App Directory state
@@ -1105,6 +1488,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [bots]);
 
   const [isAppDirectoryOpen, setIsAppDirectoryOpen] = useState(false);
+
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isLiveStreamsOpen, setIsLiveStreamsOpen] = useState(false);
+
+  const unreadNotificationsCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    try { localStorage.setItem('kova.notifications.v1', JSON.stringify(notifications.slice(0, 100))); } catch {}
+  }, [notifications]);
+
+  const markNotificationAsRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const dismissNotification = (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
 
   // Notes state
   const [notes, setNotes] = useState<NoteDocument[]>(INITIAL_NOTES);
@@ -1128,21 +1534,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     topic: '',
   };
 
-  const fallbackServer: Server = INITIAL_SERVERS[0] || {
+  const fallbackServer: Server = {
     id: 'server_default',
-    name: 'Kova Official Space',
-    acronym: 'KO',
-    description: 'Servidor oficial de Kova Community',
+    name: 'Sin espacio creado',
+    acronym: '—',
+    description: 'Crea tu primer espacio para comenzar en Kova.',
     ownerId: currentUser.id,
     themeGradient: 'from-purple-600 via-indigo-600 to-cyan-500',
-    categories: [
-      { id: 'cat_text_fb', name: 'CANALES DE TEXTO', channelIds: ['chan_general'] },
-      { id: 'cat_voice_fb', name: 'CANALES DE VOZ (HD)', channelIds: ['chan_voice_fb'] },
-    ],
-    channels: [
-      { id: 'chan_general', name: 'general', type: 'text', topic: 'Canal general de conversación', categoryId: 'cat_text_fb' },
-      { id: 'chan_voice_fb', name: 'Voz Principal (HD)', type: 'voice', topic: 'Audio WebRTC 96kHz', categoryId: 'cat_voice_fb' },
-    ],
+    categories: [],
+    channels: [],
     roles: createDefaultRoles('fallback'),
     members: [{ ...currentUser, roles: ['role_owner_fallback'] }],
   };
@@ -1177,9 +1577,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     content: string,
     codeBlock?: { language: string; code: string },
     replyId?: string,
-    voiceNote?: { duration: number }
+    voiceNote?: { duration: number },
+    attachments?: Attachment[]
   ) => {
-    if (!content.trim() && !codeBlock && !voiceNote) return;
+    if (!content.trim() && !codeBlock && !voiceNote && !attachments?.length) return;
 
     soundFx.playMessageSent();
 
@@ -1195,13 +1596,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    const localId = `local_${crypto.randomUUID?.() || Date.now()}`;
     const newMsg: Message = {
-      id: `msg_${Date.now()}`,
+      id: localId,
       channelId: activeChannel.id,
       author: currentUser,
       content,
       codeBlock,
       voiceNote,
+      attachments,
       timestamp: 'Hoy a las ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       reactions: [],
       replyTo: replyInfo,
@@ -1212,17 +1615,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       [activeChannel.id]: [...(prev[activeChannel.id] || []), newMsg],
     }));
 
-    try {
-      const socket = getSocket();
-      if (socket && socket.connected) {
-        socket.emit('message:send', {
-          channelId: activeChannel.id,
-          content,
-          replyToId: replyId,
+    if (getAuthToken()) {
+      void api.sendMessage(activeChannel.id, { content, replyToId: replyId, attachments })
+        .then((saved) => {
+          const persisted = messageFromApi(saved, currentUser);
+          setAllMessages((previous) => ({ ...previous, [activeChannel.id]: (previous[activeChannel.id] || []).map((message) => message.id === localId ? persisted : message) }));
+        })
+        .catch((error) => {
+          setAllMessages((previous) => ({ ...previous, [activeChannel.id]: (previous[activeChannel.id] || []).filter((message) => message.id !== localId) }));
+          toast.error(error instanceof Error ? error.message : 'No se pudo guardar el mensaje.');
         });
-      }
-    } catch (err) {
-      console.warn('[Socket Emit Error]', err);
     }
   };
 
@@ -1254,6 +1656,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return { ...prev, [activeChannel.id]: updated };
     });
+    if (getAuthToken()) void api.toggleReaction(messageId, emoji).then((result) => {
+      setAllMessages((previous) => ({
+        ...previous,
+        [activeChannel.id]: (previous[activeChannel.id] || []).map((message) => message.id === messageId ? { ...message, reactions: result.reactions || [] } : message),
+      }));
+    }).catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudo guardar la reacción.'));
   };
 
   const deleteMessage = (messageId: string) => {
@@ -1261,6 +1669,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       [activeChannel.id]: (prev[activeChannel.id] || []).filter((m) => m.id !== messageId),
     }));
+    if (getAuthToken() && !messageId.startsWith('local_')) void api.deleteMessage(messageId).catch(async (error) => {
+      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el mensaje.');
+      try {
+        const remote = await api.getMessages(activeChannel.id, 100);
+        setAllMessages((previous) => ({ ...previous, [activeChannel.id]: remote.map((item: any) => messageFromApi(item, currentUser)) }));
+      } catch {}
+    });
   };
 
   const togglePinMessage = (messageId: string) => {
@@ -1275,28 +1690,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Voice Controls
   const joinVoiceChannel = (channelId: string) => {
-    soundFx.playJoinVoice();
-    setActiveVoiceChannelId(channelId);
+    // Do not claim a user is connected until Kova has a real WebRTC/SFU transport.
+    // The former implementation only added the current user to local state, which
+    // made the voice room look connected without transmitting audio to anyone.
     setActiveChannelId(channelId);
     setIsDMViewActive(false);
-    try {
-      confetti({
-        particleCount: 35,
-        spread: 60,
-        origin: { y: 0.85, x: 0.15 },
-        colors: ['#10b981', '#06b6d4', '#8b5cf6'],
-      });
-    } catch {}
+    setActiveVoiceChannelId(null);
+    toast.error('La voz entre usuarios todavía no está disponible. Kova necesita configurar un servidor WebRTC para conectar audio real.');
   };
 
   const leaveVoiceChannel = () => {
     soundFx.playLeaveVoice();
     setActiveVoiceChannelId(null);
+
+    // Reset voice media states immediately
+    setCurrentUser((prev) => ({
+      ...prev,
+      isSpeaking: false,
+      isScreenSharing: false,
+      isCameraOn: false,
+    }));
+
+    // Remove user from any connected voice channels across all servers
+    setServers((prevServers) =>
+      prevServers.map((srv) => ({
+        ...srv,
+        channels: srv.channels.map((chan) => {
+          if (chan.type === 'voice' && chan.connectedUsers?.includes(currentUser.id)) {
+            return {
+              ...chan,
+              connectedUsers: chan.connectedUsers.filter((uId) => uId !== currentUser.id),
+            };
+          }
+          return chan;
+        }),
+      }))
+    );
+
+    // If currently viewing a voice channel, immediately return to a text channel in the server
+    const currentServer = servers.find((s) => s.id === activeServerId) || servers[0];
+    if (currentServer) {
+      const activeChan = currentServer.channels.find((c) => c.id === activeChannelId);
+      if (!activeChan || activeChan.type === 'voice') {
+        const textChannel = currentServer.channels.find(
+          (c) => c.type === 'text' || c.type === 'announcements'
+        ) || currentServer.channels[0];
+        if (textChannel) {
+          setActiveChannelId(textChannel.id);
+        }
+      }
+    }
+
+    toast.info('Desconectado del canal de voz');
   };
 
   const toggleMute = () => {
     soundFx.playMuteToggle(!currentUser.isMuted);
     setCurrentUser((prev) => ({ ...prev, isMuted: !prev.isMuted }));
+  };
+
+  // --- Push-to-talk (desktop): la tecla global controla el microfono ---
+  const [pushToTalkEnabled, setPushToTalkEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return isDesktopApp() && localStorage.getItem('kova.ptt.enabled') === '1';
+  });
+  const [pushToTalkKey, setPushToTalkKeyState] = useState(() => {
+    if (typeof window === 'undefined') return 'Control+Space';
+    return localStorage.getItem('kova.ptt.key') || 'Control+Space';
+  });
+  const [isPushToTalkHeld, setIsPushToTalkHeld] = useState(false);
+
+  useEffect(() => {
+    if (!isDesktopApp()) return;
+    let unregisterFn: (() => void) | undefined;
+    let disposed = false;
+    (async () => {
+      try {
+        const { register, unregister } = await import('@tauri-apps/plugin-global-shortcut');
+        if (disposed) return;
+        await unregister(pushToTalkKey).catch(() => undefined);
+        if (!pushToTalkEnabled) return;
+        await register(pushToTalkKey, (event) => {
+          if (event.state === 'Pressed') {
+            setIsPushToTalkHeld(true);
+            setCurrentUser((prev) => (prev.isMuted ? { ...prev, isMuted: false } : prev));
+          } else if (event.state === 'Released') {
+            setIsPushToTalkHeld(false);
+            setCurrentUser((prev) => (!prev.isMuted ? { ...prev, isMuted: true } : prev));
+          }
+        });
+        unregisterFn = () => {
+          void unregister(pushToTalkKey).catch(() => undefined);
+        };
+      } catch (error) {
+        console.warn('[Kova PTT]', error);
+      }
+    })();
+    return () => {
+      disposed = true;
+      unregisterFn?.();
+    };
+  }, [pushToTalkEnabled, pushToTalkKey]);
+
+  const setPushToTalkEnabled = (enabled: boolean) => {
+    setPushToTalkEnabledState(enabled);
+    try {
+      localStorage.setItem('kova.ptt.enabled', enabled ? '1' : '0');
+    } catch {}
+    // PTT activado: el microfono queda cerrado hasta presionar la tecla.
+    // PTT desactivado: el microfono vuelve a modo abierto.
+    setCurrentUser((prev) => ({ ...prev, isMuted: enabled }));
+  };
+
+  const setPushToTalkKey = (key: string) => {
+    setPushToTalkKeyState(key);
+    try {
+      localStorage.setItem('kova.ptt.key', key);
+    } catch {}
   };
 
   const toggleDeafen = () => {
@@ -1615,52 +2125,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       let reply = '';
 
-      if (matchedAuto) {
+      if (bot.id === 'bot_juanpi_ia') {
+        const lower = content.toLowerCase();
+        if (lower.includes('!stream')) {
+          reply = '🔴 **¡DIRECTO EN VIVO DE JUANPI1X!**\n🎮 **Juego Actual**: *Just Chatting & Gaming Squad*\n📺 **Transmisión**: https://twitch.tv/juanpi1x | https://youtube.com/@juanpi1x\n⚡ ¡Entra al directo, deja tu like y únete al escuadrón!';
+        } else if (lower.includes('!redes')) {
+          reply = '🌐 **Redes Sociales Oficiales de JuanPi1x**:\n• 🟣 **Twitch**: https://twitch.tv/juanpi1x\n• 🔴 **YouTube**: https://youtube.com/@juanpi1x\n• 🐦 **X (Twitter)**: https://x.com/juanpi1x\n• 📸 **Instagram**: https://instagram.com/juanpi1x\n• 🎵 **TikTok**: https://tiktok.com/@juanpi1x\n• 💬 **Discord**: https://discord.gg/juanpi1x';
+        } else if (lower.includes('!roles')) {
+          reply = '🎭 **Auto-Roles de JuanPi1x Community**:\n• 🎮🕹 **STREAMERS**: Notificaciones de directos y creadores\n• 👑 **OWNER & FUNDADOR**: JuanPi1x\n• 🤖 **JUANPI IA (BOT OFICIAL)**: Automatización y avisos de la comunidad\n• 🛡️ **MODERADOR SUPREMO**: Gestión del servidor\n• 💎 **VIP PASS**: Lounge exclusivo y salas privadas\n• 🔔 **AVISOS DIRECTOS**: Alerta cuando JuanPi1x prende directo\n• 🎮 **GAMER SQUAD**: Ping para buscar partida';
+        } else if (lower.includes('!tickets')) {
+          reply = '🎫 **Sistema de Tickets de Soporte**:\nTu solicitud ha sido enviada al canal `#🎫│soporte-tickets`. JuanPi1x y el equipo de moderadores te atenderán a la brevedad.';
+        } else if (lower.includes('!partida')) {
+          const juego = content.replace(/!partida/i, '').trim() || 'juegos competitivos';
+          reply = `🎯 **Gamer Squad Convocatoria**:\n¡Se buscan compañeros para jugar **${juego}**! Únete a la sala de voz \`🎮 │ Gaming Squad\` o responde en \`#🎯│buscar-partida\`.`;
+        } else if (lower.includes('!vip')) {
+          reply = '💎 **Ventajas de VIP PASS**:\n1. Acceso ilimitado al canal `#💎│chat-vip` y `#👑 │ Lounge VIP`.\n2. Insignia dorada exclusiva en tu perfil.\n3. Prioridad para unirse a partidas y llamadas durante los directos de JuanPi1x.';
+        } else if (lower.includes('!bot') || lower.includes('!discord')) {
+          reply = '🤖 **Estado de JuanPi IA (Bot Oficial)**:\n• 🟢 **Estado**: En línea y operativo\n• ⚡ **Respuesta**: En tiempo real\n• 👥 **Comunidad**: Listo para ayudarte';
+        } else if (lower.includes('!ayuda') || lower.includes('!help')) {
+          reply = '📜 **Comandos de JuanPi IA**:\n• `!stream` - Estado y enlace del directo\n• `!redes` - Redes oficiales\n• `!roles` - Guía de auto-roles\n• `!tickets` - Abrir ticket de soporte\n• `!partida <juego>` - Convocar escuadra\n• `!vip` - Beneficios VIP Pass\n• `!bot` - Estado del bot\n• `@JuanPi IA [pregunta]` - Asistente IA en el chat';
+        } else if (isMentioned) {
+          const query = content.replace(`@${bot.name}`, '').replace(/@JuanPi IA/gi, '').trim();
+          if (!query) {
+            reply = '⚡ **JuanPi IA**: ¡Hola! Soy el bot oficial de JuanPi1x Community. Usa `!ayuda` para ver mis comandos o pregúntame lo que necesites.';
+          } else {
+            try {
+              const prompt = `Eres JuanPi IA, un agente nativo de Kova. Responde con personalidad cercana, útil y directa. Organiza la respuesta en bloques breves, ofrece un siguiente paso práctico y evita mencionar Discord. Usa Markdown limpio.\n\nPregunta: ${query}`;
+              const aiResponse = await askGemini(prompt);
+              reply = aiResponse;
+            } catch {
+              reply = `⚡ **JuanPi IA**: ¡Recibido! Procesando tu consulta: "${query}". Sistemas de JuanPi1x Community operativos.`;
+            }
+          }
+        } else if (matchedAuto) {
+          reply = matchedAuto.response;
+        } else {
+          reply = `🤖 **JuanPi IA**: Comando no reconocido. Escribe \`!ayuda\` para ver la lista completa de comandos.`;
+        }
+      } else if (matchedAuto) {
         reply = matchedAuto.response;
       } else if (bot.id === 'bot_lofi') {
         if (content.includes('!play') || content.includes('!music')) {
           const song = content.replace(/!play|!music/gi, '').trim() || 'beats to relax/study to';
-          reply = `🎶 **Lofi Girl** empezó a reproducir: *${song}* ☕ 📻\n[▶ Transmitiendo en vivo en el canal de voz | 320kbps High-Fi Audio]`;
+          reply = `🎶 **Kova Lofi** empezó a reproducir: *${song}* ☕ 📻\n[▶ Transmitiendo en vivo en la sala de voz | 320kbps High-Fi Audio]`;
         } else if (content.includes('!pause') || content.includes('!stop')) {
-          reply = '⏸️ **Lofi Girl**: Música en pausa en el canal de voz.';
+          reply = '⏸️ **Kova Lofi**: Música en pausa en la sala de voz.';
         } else if (content.includes('!queue') || content.includes('!cola')) {
-          reply = '📜 **Lofi Girl Playlist Activa**:\n1. 🎵 *Kupla - Sleepy Bees* (2:45)\n2. 🎵 *Idealism - Phantasm* (3:12)\n3. 🎵 *Jinsang - Bliss* (2:30)';
+          reply = '📜 **Kova Lofi Playlist Activa**:\n1. 🎵 *Kupla - Sleepy Bees* (2:45)\n2. 🎵 *Idealism - Phantasm* (3:12)\n3. 🎵 *Jinsang - Bliss* (2:30)';
         } else {
-          reply = '🎧 **Lofi Girl**: Usa `!play <canción>`, `!pause`, o `!queue` para controlar la música.';
+          reply = '🎧 **Kova Lofi**: Usa `!play <canción>`, `!pause`, o `!queue` para controlar la música.';
         }
-      } else if (bot.id === 'bot_mee6') {
+      } else if (bot.id === 'bot_sentinel') {
         if (content.includes('!level') || content.includes('!rank')) {
-          reply = `🏆 **MEE6 Rank**:\n👤 Usuario: **${currentUser.displayName}**\n⭐ Nivel: **18** | Total XP: **4,850** | Posición: **#1 en ${activeServer.name}** 🥇`;
+          reply = `🏆 **Kova Sentinel**:\n👤 Usuario: **${currentUser.displayName}**\n⭐ Nivel: **18** | Total XP: **4,850** | Posición: **#1 en ${activeServer.name}** 🥇`;
         } else if (content.includes('!clear') || content.includes('!clean')) {
-          reply = '🧹 **MEE6 Moderación**: 5 mensajes eliminados por petición del moderador. Canal limpio y ordenado.';
+          reply = '🧹 **Kova Sentinel**: 5 mensajes eliminados por petición del moderador. Canal limpio y ordenado.';
         } else if (content.includes('!warn')) {
-          reply = '⚠️ **MEE6 Moderación**: Advertencia registrada en el registro de auditoría del servidor.';
+          reply = '⚠️ **Kova Sentinel**: Advertencia registrada en el registro de auditoría del espacio.';
         } else {
-          reply = '🛡️ **MEE6**: Usa `!level` para ver tu tarjeta de rango o `!clear` para moderar.';
+          reply = '🛡️ **Kova Sentinel**: Usa `!level` para ver tu tarjeta de rango o `!clear` para moderar.';
         }
-      } else if (bot.id === 'bot_dankmemer') {
+      } else if (bot.id === 'bot_memes') {
         if (content.includes('!meme')) {
           const memes = [
-            '🐸 **Dank Memer**: *Cuando el código compila sin ningún error a la primera...*\n*( ͡° ͜ʖ ͡°) Algo anda muy mal, revisa el git status.*',
-            '🐸 **Dank Memer**: *Yo a las 3 AM:* "Voy a cambiar solo un color de CSS".\n*5 horas después:* 14 dependencias actualizadas y reescribí el backend.',
-            '🐸 **Dank Memer**: *El cliente:* "¿Pueden hacer que la IA haga todo sola para el viernes?"\n*El dev senior:* `git push --force origin main` y a rezar.',
+            '🤣 **Kova Memes**: *Cuando el código compila sin ningún error a la primera...*\n*( ͡° ͜ʖ ͡°) Algo anda muy mal, revisa el git status.*',
+            '🤣 **Kova Memes**: *Yo a las 3 AM:* "Voy a cambiar solo un color de CSS".\n*5 horas después:* 14 dependencias actualizadas y reescribí el backend.',
+            '🤣 **Kova Memes**: *El cliente:* "¿Pueden hacer que la IA haga todo sola para el viernes?"\n*El dev senior:* `git push --force origin main` y a rezar.',
           ];
           reply = memes[Math.floor(Math.random() * memes.length)];
         } else if (content.includes('!coin') || content.includes('!flip')) {
-          reply = `🪙 **Dank Memer**: Lanzando la moneda al aire... ¡Salió **${Math.random() > 0.5 ? 'CARA 🌕' : 'CRUZ 🌑'}**!`;
+          reply = `🪙 **Kova Memes**: Lanzando la moneda al aire... ¡Salió **${Math.random() > 0.5 ? 'CARA 🌕' : 'CRUZ 🌑'}**!`;
         } else if (content.includes('!daily')) {
-          reply = '💰 **Dank Memer**: ¡Has reclamado tus **5,000 PepeCoins** diarias! Tu balance actual: **24,500 🪙**';
+          reply = '💰 **Kova Memes**: ¡Has reclamado tus **5,000 Kova Coins** diarias! Tu balance actual: **24,500 🪙**';
         } else {
-          reply = '🐸 **Dank Memer**: ¡Comandos disponibles: `!meme`, `!coin`, `!daily`!';
+          reply = '🤣 **Kova Memes**: ¡Comandos disponibles: `!meme`, `!coin`, `!daily`!';
         }
-      } else if (bot.id === 'bot_dalle') {
+      } else if (bot.id === 'bot_imagen') {
         if (content.includes('!imagine')) {
           const prompt = content.replace(/!imagine/i, '').replace(`@${bot.name}`, '').trim() || 'Cyberpunk neon city 8k resolution';
-          reply = `🎨 **DALL-E Art Engine**:\n> *Prompt: "${prompt}"*\n\n🖼️ Generando arte conceptual fotorrealista...\n✨ ¡Render completado con éxito! [Kova Cyberpunk Style | 4096x4096px]`;
+          reply = `🎨 **Kova Imagine**:\n> *Prompt: "${prompt}"*\n\n🖼️ Generando arte conceptual fotorrealista...\n✨ ¡Render completado con éxito! [Kova Cyberpunk Style | 4096x4096px]`;
         } else {
-          reply = '🎨 **DALL-E**: Usa `!imagine <tu descripción visual>` para generar arte conceptual.';
+          reply = '🎨 **Kova Imagine**: Usa `!imagine <tu descripción visual>` para generar arte conceptual.';
         }
-      } else if (bot.id === 'bot_serverstats') {
+      } else if (bot.id === 'bot_stats') {
         reply = `📊 **Estadísticas Oficiales de ${activeServer.name}**:\n• 👥 **Miembros totales**: ${activeServer.members.length}\n• 💬 **Canales de texto/voz**: ${activeServer.channels.length}\n• 🛡️ **Roles configurados**: ${activeServer.roles.length}\n• 🟢 **Latencia de servidor**: 22ms | 🌐 **Región**: Cloud Global (Kova DC-1)`;
       } else if (bot.id === 'bot_gemini' || bot.systemPrompt) {
         const query = content.replace(bot.prefix || '', '').replace(`@${bot.name}`, '').trim();
@@ -1687,17 +2234,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             id: `msg_bot_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             channelId,
             author: {
-              id: `user_${bot.id}`,
-              username: bot.name,
+              id: bot.id === 'bot_juanpi_ia' ? 'bot_juanpi_ia' : `user_${bot.id}`,
+              username: bot.username || bot.name,
               displayName: bot.name,
               avatar: bot.avatar,
               tag: 'BOT',
               status: 'online',
+              roles: bot.id === 'bot_juanpi_ia' ? ['1546059730059788412'] : [],
             },
             content: reply,
             timestamp: 'Ahora',
             reactions: [],
             aiGenerated: true,
+            botCard: {
+              eyebrow: bot.id === 'bot_juanpi_ia' ? 'AGENTE OFICIAL DE KOVA' : 'AUTOMATIZACIÓN DEL ESPACIO',
+              title: bot.name,
+              description: reply,
+              tone: /error|advertencia|no reconocido/i.test(reply) ? 'warning' : /éxito|activo|conectado|completado/i.test(reply) ? 'success' : 'ai',
+              suggestions: bot.id === 'bot_juanpi_ia' ? ['!ayuda', '!stream', '!redes'] : [bot.prefix ? `${bot.prefix}help` : '!ayuda'],
+              footer: 'Puedes tocar una sugerencia para continuar.',
+            },
           };
 
           setAllMessages((prev) => ({
@@ -1740,10 +2296,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     name: string,
     description?: string,
     iconUrl?: string,
-    template: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro' = 'amigos'
+    template: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro' = 'amigos',
+    visibility: 'public' | 'private' = 'private'
   ) => {
     soundFx.playJoinVoice();
-    const newServerId = `server_${Date.now()}`;
+    const newServerId = `server_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
 
     const defaultRoles = createDefaultRoles(newServerId);
     const ownerRoleId = `role_owner_${newServerId}`;
@@ -1752,8 +2309,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       roles: [ownerRoleId],
     };
 
-    let categories: ChannelCategory[] = [];
-    let channels: Channel[] = [];
+    let categories: ChannelCategory[];
+    let channels: Channel[];
 
     if (template === 'amigos') {
       const catInfo = `cat_info_${newServerId}`;
@@ -1894,7 +2451,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       icon: iconUrl || '',
       description: description || `Servidor de ${template}`,
       ownerId: currentUser.id,
-      themeGradient: 'from-purple-600 to-indigo-600',
+      visibility,
+      themeGradient: 'from-zinc-700 to-zinc-950',
       categories,
       channels,
       roles: defaultRoles,
@@ -1910,14 +2468,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsCreateServerOpen(false);
 
     // Sync with backend database in background
-    api.createServer({ name, description, iconUrl })
-      .catch((err) => console.warn('[Backend Sync Server Notice]:', err));
+    if (getAuthToken()) {
+      api.createServer({ id: newServerId, name, description, iconUrl, visibility, categories: categories.map(({ id, name: categoryName }) => ({ id, name: categoryName })), channels })
+        .catch((err) => {
+          console.warn('[Backend Sync Server Notice]:', err);
+          setServers((previous) => previous.filter((server) => server.id !== newServerId));
+          setIsDMViewActive(true);
+          toast.error(err instanceof Error ? `No se pudo guardar el servidor: ${err.message}` : 'No se pudo guardar el servidor.');
+        });
+    }
 
     toast.success(`¡Servidor "${name}" creado con éxito!`);
   };
 
   const joinServerByInvite = (inviteCodeOrId: string): boolean => {
-    const cleanCode = inviteCodeOrId.replace(/^.*\/invite\//, '').trim();
+    const cleanCode = inviteCodeOrId.replace(/^.*\/invite\//, '').split(/[/?#]/)[0].trim();
     if (!cleanCode) return false;
 
     // Check if server already in local server list
@@ -1935,14 +2500,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Try joining via backend API
     api.joinServer(cleanCode)
-      .then(() => {
-        toast.success('Te has unido al servidor con éxito');
+      .then((joinedServer) => {
+        setServers((prev) => prev.some((s) => s.id === joinedServer.id) ? prev : [...prev, joinedServer]);
+        setActiveServerId(joinedServer.id);
+        setActiveChannelId(joinedServer.channels?.[0]?.id || '');
+        setIsDMViewActive(false);
+        toast.success(`Te has unido a ${joinedServer.name}`);
       })
       .catch((err) => {
         console.warn('[Join Server Notice]', err);
+        toast.error(err?.message || 'No se pudo usar esta invitación');
       });
-
-    toast.success(`Unido al servidor con código: ${cleanCode}`);
     setIsCreateServerOpen(false);
     return true;
   };
@@ -1990,6 +2558,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveChannelId(newChanId);
     }
     setIsCreateChannelOpen(false);
+    if (getAuthToken()) api.createChannel({ id: newChanId, serverId: activeServer.id, categoryId, name: formattedName, type, topic: newChannel.topic })
+      .catch((error) => {
+        setServers((previous) => previous.map((server) => server.id !== activeServer.id ? server : {
+          ...server,
+          channels: server.channels.filter((channel) => channel.id !== newChanId),
+          categories: server.categories.map((category) => ({ ...category, channelIds: category.channelIds.filter((id) => id !== newChanId) })),
+        }));
+        toast.error(error instanceof Error ? error.message : 'No se pudo guardar la señal online.');
+      });
     toast.success(`Canal ${type === 'voice' ? 'de voz 🔊' : '#'}${formattedName} creado`);
   };
 
@@ -2003,6 +2580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
+    if (getAuthToken()) void api.updateChannel(channelId, { name: updates.name, topic: updates.topic, categoryId: updates.categoryId }).catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudo guardar el canal en línea.'));
     toast.success('Canal actualizado');
   };
 
@@ -2010,20 +2588,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [isDiscoveryOpen, setIsDiscoveryOpen] = useState(false);
 
-  const joinPublicServer = (server: Server) => {
-    setServers((prev) => {
-      const exists = prev.some((s) => s.id === server.id);
-      if (exists) return prev;
-      return [...prev, server];
-    });
-    setActiveServerId(server.id);
-    if (server.channels.length > 0) {
-      setActiveChannelId(server.channels[0].id);
+  const joinPublicServer = async (serverId: string) => {
+    if (!getAuthToken()) {
+      toast.error('Inicia sesión para unirte a una comunidad.');
+      return false;
     }
-    setIsDMViewActive(false);
+    try {
+      const space = await api.joinServer(serverId);
+      const server = ensureServerRoles([space as Server], currentUser)[0];
+      setServers((previous) => previous.some((item) => item.id === server.id) ? previous : [...previous, server]);
+      setActiveServerId(server.id);
+      setActiveChannelId(server.channels[0]?.id || '');
+      setIsDMViewActive(false);
+      toast.success(`Te has unido a ${server.name}`);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo unir a esta comunidad.');
+      return false;
+    }
   };
 
-  const editMessage = (messageId: string, newContent: string) => {
+  const editMessage = async (messageId: string, newContent: string) => {
+    if (getAuthToken() && !messageId.startsWith('local_')) {
+      try {
+        await api.updateMessage(messageId, newContent);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo guardar la edición.');
+        return;
+      }
+    }
     setAllMessages((prev) => {
       const current = prev[activeChannel.id] || [];
       const updated = current.map((m) =>
@@ -2034,7 +2627,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.success('Mensaje editado');
   };
 
-  const createCategory = (name: string) => {
+  const createCategory = async (name: string) => {
     soundFx.playReactionAdded();
     const newCatId = `cat_${Date.now()}`;
     const newCategory: ChannelCategory = {
@@ -2053,24 +2646,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    if (getAuthToken()) {
+      try {
+        await api.createCategory({ id: newCatId, serverId: activeServer.id, name: newCategory.name });
+      } catch (error) {
+        setServers((prev) => prev.map((server) => server.id === activeServer.id ? { ...server, categories: server.categories.filter((category) => category.id !== newCatId) } : server));
+        toast.error(error instanceof Error ? error.message : 'No se pudo guardar la categoría.');
+        return;
+      }
+    }
+
     setIsCreateCategoryOpen(false);
     toast.success(`Categoría "${name.toUpperCase()}" creada`);
   };
 
-  const deleteCategory = (categoryId: string) => {
+  const deleteCategory = async (categoryId: string) => {
+    if (getAuthToken()) {
+      try {
+        await api.deleteCategory(categoryId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo eliminar la categoría.');
+        return;
+      }
+    }
     soundFx.playLeaveVoice();
-    setServers((prev) =>
-      prev.map((s) => {
-        if (s.id !== activeServer.id) return s;
-        return {
-          ...s,
-          categories: s.categories.filter((cat) => cat.id !== categoryId),
-          channels: s.channels.map((ch) =>
-            ch.categoryId === categoryId ? { ...ch, categoryId: undefined } : ch
-          ),
-        };
-      })
-    );
+    setServers((prev) => prev.map((server) => server.id !== activeServer.id ? server : ({
+      ...server,
+      categories: server.categories.filter((category) => category.id !== categoryId),
+      channels: server.channels.map((channel) => channel.categoryId === categoryId ? { ...channel, categoryId: undefined } : channel),
+    })));
     toast.success('Categoría eliminada');
   };
 
@@ -2078,22 +2682,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser((prev) => ({ ...prev, status, customStatus: customStatus ?? prev.customStatus }));
   };
 
-  const deleteServer = (serverId: string) => {
-    soundFx.playLeaveVoice();
-    const remaining = servers.filter((s) => s.id !== serverId);
-    setServers(remaining);
-    if (remaining.length > 0) {
-      setActiveServerId(remaining[0].id);
-      setActiveChannelId(remaining[0].channels[0]?.id || '');
-    } else {
-      setActiveServerId('');
-      setActiveChannelId('');
-      setIsDMViewActive(true);
+  const deleteServer = async (serverId: string) => {
+    if (getAuthToken()) {
+      try {
+        await api.deleteServer(serverId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el servidor en línea.');
+        return;
+      }
     }
+    soundFx.playLeaveVoice();
+    setServers((prev) => {
+      const remaining = prev.filter((s) => s.id !== serverId);
+      if (remaining.length > 0) {
+        const nextServer = remaining[0];
+        setActiveServerId(nextServer.id);
+        setActiveChannelId(nextServer.channels[0]?.id || '');
+      } else {
+        setActiveServerId('');
+        setActiveChannelId('');
+        setIsDMViewActive(true);
+      }
+      return remaining;
+    });
     toast.success('Servidor eliminado');
   };
 
-  const deleteChannel = (channelId: string) => {
+  const deleteChannel = async (channelId: string) => {
+    if (getAuthToken()) {
+      try {
+        await api.deleteChannel(channelId);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el canal en línea.');
+        return;
+      }
+    }
     soundFx.playLeaveVoice();
     setServers((prev) =>
       prev.map((s) => {
@@ -2122,7 +2745,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Server Settings & Roles State & Handlers
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
-  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members'>('roles');
+  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'discord'>('roles');
+  const [isDiscordHubOpen, setIsDiscordHubOpen] = useState(false);
 
   const createRole = (
     serverId: string,
@@ -2220,13 +2844,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
+    if (getAuthToken()) void api.updateServer(serverId, { name: updates.name, description: updates.description, icon: updates.icon, banner: updates.banner }).catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudieron guardar los ajustes en línea.'));
     toast.success('Ajustes del servidor guardados');
   };
 
   return (
     <AppContext.Provider
       value={{
-        isAuthenticated,
+    isAuthenticated,
+        realtimeConnected,
+        typingUsers,
+        setTyping,
+        presenceByUser,
+    loginAsGuest,
         loginWithGoogle,
         loginWithEmail,
         registerUser,
@@ -2260,6 +2890,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleDeafen,
         toggleCamera,
         toggleScreenShare,
+        pushToTalkEnabled,
+        pushToTalkKey,
+        isPushToTalkHeld,
+        setPushToTalkEnabled,
+        setPushToTalkKey,
         activeThread,
         openThread,
         closeThread,
@@ -2322,10 +2957,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pendingFriendRequests,
         sendFriendRequest,
         cancelFriendRequest,
+        acceptFriendRequest,
         isMemberListOpen,
         setIsMemberListOpen,
         isPinnedDrawerOpen,
         setIsPinnedDrawerOpen,
+        layoutMode,
+        setLayoutMode,
         profileModalUser,
         openUserProfile,
         closeUserProfile,
@@ -2349,6 +2987,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsServerSettingsOpen,
         serverSettingsTab,
         setServerSettingsTab,
+        isDiscordHubOpen,
+        setIsDiscordHubOpen,
         createRole,
         updateRole,
         deleteRole,
@@ -2379,6 +3019,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         disableTwoFactor,
         verifyTwoFactor,
         regenerateBackupCodes,
+        notifications,
+        unreadNotificationsCount,
+        isNotificationsOpen,
+        setIsNotificationsOpen,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+        dismissNotification,
+        isLiveStreamsOpen,
+        setIsLiveStreamsOpen,
       }}
     >
       {children}

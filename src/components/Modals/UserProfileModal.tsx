@@ -24,11 +24,15 @@ import {
   Calendar,
   Send,
   Radio,
+  CheckCircle2,
+  Ban,
+  Flag,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Role, User } from '../../types';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
+import { api } from '../../services/apiClient';
 
 export const UserProfileModal: React.FC = () => {
   const {
@@ -52,6 +56,8 @@ export const UserProfileModal: React.FC = () => {
   const [quickMsgInput, setQuickMsgInput] = useState('');
   const [userNote, setUserNote] = useState('');
   const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState('');
 
   if (!profileModalUser) return null;
 
@@ -74,14 +80,14 @@ export const UserProfileModal: React.FC = () => {
     setIsEditingThought(false);
   };
 
-  const handleNitroClick = () => {
+  const handleKovaPulseClick = () => {
     confetti({
       particleCount: 50,
       spread: 50,
       origin: { y: 0.6 },
       colors: ['#f47fff', '#5865f2', '#00a8fc', '#23a55a'],
     });
-    toast.success('¡Kova Nitro Boost activado!');
+    toast.success('¡Pulso Kova activado! Tu perfil ahora tiene una identidad propia.');
   };
 
   const handleEditProfile = () => {
@@ -97,6 +103,25 @@ export const UserProfileModal: React.FC = () => {
     closeUserProfile();
     sendDirectMessage(user.id, msg);
     toast.success(`Mensaje enviado a ${user.displayName}`);
+  };
+
+  const handleBlockUser = async () => {
+    try {
+      await api.blockUser(user.id);
+      toast.success(`${user.displayName} fue bloqueado.`);
+      closeUserProfile();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo bloquear esta cuenta.');
+    }
+  };
+
+  const handleReportUser = async () => {
+    try {
+      await api.reportUser(user.id, 'Reporte desde perfil');
+      toast.success('Reporte recibido. El equipo de Kova lo revisará.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo enviar el reporte.');
+    }
   };
 
   // Status dot & badge rendering (compact 16px)
@@ -141,15 +166,15 @@ export const UserProfileModal: React.FC = () => {
   };
 
   // Default badges list
-  const badges = user.badges || ['nitro', 'hypesquad', 'leaf', 'gift', 'dev', 'quest', 'gaming'];
+  const badges = user.badges || ['pulse', 'signal', 'leaf', 'gift', 'dev', 'quest', 'gaming'];
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150 select-none font-['Plus_Jakarta_Sans',sans-serif]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150 select-none font-['Plus_Jakarta_Sans',sans-serif]"
       onClick={closeUserProfile}
     >
       <div
-        className="w-full max-w-[310px] rounded-2xl bg-[#111214] border border-[#26282d] shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-150 flex flex-col"
+        className="kova-user-profile-modal w-full max-w-[430px] rounded-[28px] bg-[#0d071c] border border-purple-500/25 shadow-[0_0_35px_rgba(147,51,234,0.2)] overflow-hidden relative animate-in zoom-in-95 duration-150 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Header Banner */}
@@ -178,10 +203,10 @@ export const UserProfileModal: React.FC = () => {
               <img
                 src={user.avatar}
                 alt={user.displayName}
-                className="w-16 h-16 rounded-full object-cover ring-4 ring-[#111214] bg-[#111214] shadow-xl"
+                className="w-16 h-16 rounded-full object-cover ring-4 ring-[#0d071c] bg-[#0d071c] shadow-xl"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-xl font-black ring-4 ring-[#111214] shadow-xl font-['Outfit']">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-xl font-black ring-4 ring-[#0d071c] shadow-xl font-['Outfit']">
                 {(user.displayName || 'U').slice(0, 1)}
               </div>
             )}
@@ -190,20 +215,20 @@ export const UserProfileModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Badges Pill (Discord Style in Top Right) */}
-          <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-[#1e1f22] border border-white/[0.05] shadow-md">
-            {badges.includes('nitro') && (
+          {/* Badges Pill (Top Right) */}
+          <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-purple-950/40 border border-purple-500/20 shadow-md">
+            {badges.includes('pulse') && (
               <span
                 className="w-4 h-4 rounded-md flex items-center justify-center bg-purple-500/20 text-[#f47fff] hover:scale-110 transition-transform cursor-pointer"
-                title="Suscriptor de Kova Nitro"
+                title="Miembro Kova Pulse"
               >
                 <Flame size={11} className="fill-[#f47fff]" />
               </span>
             )}
-            {badges.includes('hypesquad') && (
+            {badges.includes('signal') && (
               <span
                 className="w-4 h-4 rounded-md flex items-center justify-center bg-cyan-500/20 text-[#00a8fc] hover:scale-110 transition-transform cursor-pointer"
-                title="HypeSquad Bravery"
+                title="Emisario de Señales Kova"
               >
                 <Sparkles size={11} />
               </span>
@@ -257,19 +282,40 @@ export const UserProfileModal: React.FC = () => {
           <div className="space-y-1">
             <div className="flex items-center gap-1">
               <h2 className="text-[15px] font-bold text-white font-['Outfit'] tracking-tight flex items-center gap-1 truncate leading-tight">
-                <span>{user.displayName || 'Juanpi'}</span>
+                <span>{user.displayName || 'Usuario'}</span>
                 {isOwner && <Crown size={12} className="text-amber-400 fill-amber-400 shrink-0" />}
+                {isMe && currentUser.badges?.includes('verified_dev') && <CheckCircle2 size={14} className="text-sky-400 fill-sky-400/20 animate-pulse shrink-0" />}
               </h2>
               <span className="text-slate-400 text-[10px]">ツ</span>
             </div>
             <div className="text-[11px] text-[#949ba4] font-medium leading-none">
               {user.username || 'invitado_kova'}
             </div>
+            {isMe && (
+              <div className="pt-1">
+                {isEditingNickname ? (
+                  <div className="flex items-center gap-1 bg-[#0d071c] border border-purple-500/50 rounded-xl px-2.5 py-1">
+                    <input
+                      value={nicknameInput}
+                      onChange={(e) => setNicknameInput(e.target.value)}
+                      placeholder="Apodo..."
+                      className="flex-1 bg-transparent outline-none text-xs text-white"
+                    />
+                    <button onClick={() => { updateUserProfile({ displayName: nicknameInput || user.displayName }); setIsEditingNickname(false); toast.success('Apodo actualizado'); }} className="text-xs text-emerald-400">Guardar</button>
+                    <button onClick={() => setIsEditingNickname(false)} className="text-xs text-slate-400">Cancelar</button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setNicknameInput(user.displayName || ''); setIsEditingNickname(true); }} className="text-[10px] text-purple-300 hover:text-purple-200 flex items-center gap-1">
+                    <Pencil size={10} /> Cambiar apodo
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Custom Status / Thought Bubble */}
             <div className="pt-1">
               {isEditingThought ? (
-                <div className="flex items-center gap-1 bg-[#1e1f22] border border-purple-500/50 rounded-xl px-2.5 py-1 shadow-sm">
+                <div className="flex items-center gap-1 bg-[#0d071c] border border-purple-500/50 rounded-xl px-2.5 py-1 shadow-sm">
                   <input
                     type="text"
                     value={thoughtInput}
@@ -295,14 +341,14 @@ export const UserProfileModal: React.FC = () => {
                       setIsEditingThought(true);
                     }
                   }}
-                  className={`inline-flex items-center gap-1.5 px-2 py-0.8 rounded-lg bg-[#1e1f22] border border-white/[0.04] text-[10px] text-slate-300 ${
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.8 rounded-lg bg-purple-950/30 border border-purple-500/20 text-[10px] text-slate-300 ${
                     isMe ? 'cursor-pointer hover:border-purple-500/40 hover:text-white' : ''
                   }`}
                   title={isMe ? 'Haz clic para editar estado' : undefined}
                 >
                   <Smile size={11} className="text-purple-400 shrink-0" />
                   <span className="truncate max-w-[200px] italic">
-                    {user.thoughtBubble || user.customStatus || 'Elige una criatura mítica...'}
+                    {user.thoughtBubble || user.customStatus || 'Definir un estado...'}
                   </span>
                   {isMe && <Pencil size={9} className="text-slate-500 ml-0.5" />}
                 </div>
@@ -310,15 +356,15 @@ export const UserProfileModal: React.FC = () => {
             </div>
           </div>
 
-          <div className="h-[1px] bg-white/[0.06]" />
+          <div className="h-[1px] bg-purple-950/40" />
 
-          {/* 4. "Tunea tu perfil" Card (Nitro / Store Banner) */}
+          {/* 4. Kova Pulse identity card */}
           {showPromo && (
-            <div className="p-2.5 rounded-xl bg-gradient-to-r from-purple-950/30 to-indigo-950/30 border border-purple-500/25 space-y-1.5 shadow-sm">
+            <div className="p-2.5 rounded-xl bg-gradient-to-r from-purple-950/40 to-indigo-950/40 border border-purple-500/25 space-y-1.5 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-purple-300 font-['Outfit'] flex items-center gap-1">
                   <Sparkles size={11} className="text-[#f47fff]" />
-                  <span>Tunea tu perfil con Kova Nitro</span>
+                  <span>Activa tu pulso Kova</span>
                 </span>
                 <button
                   type="button"
@@ -332,19 +378,19 @@ export const UserProfileModal: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={handleNitroClick}
-                  className="flex-1 py-1 px-2 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer border border-purple-500/30"
+                  onClick={handleKovaPulseClick}
+                  className="flex-1 py-1 px-2 rounded-lg bg-purple-600/40 hover:bg-purple-600/60 text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer border border-purple-500/30"
                 >
                   <Rocket size={11} className="text-[#f47fff]" />
-                  <span>Obtener Nitro</span>
+                  <span>Activar pulso</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => toast.info('Tienda de temas próximamente')}
-                  className="flex-1 py-1 px-2 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-slate-300 hover:text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                  className="flex-1 py-1 px-2 rounded-lg bg-purple-950/30 hover:bg-purple-900/40 text-slate-300 hover:text-white text-[10px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer border border-purple-500/20"
                 >
                   <Store size={11} />
-                  <span>Tienda</span>
+                  <span>Explorar estilos</span>
                 </button>
               </div>
             </div>
@@ -352,90 +398,64 @@ export const UserProfileModal: React.FC = () => {
 
           {/* 5. Sobre mí (About Me) */}
           <div className="space-y-1">
-            <div className="text-[9px] font-bold text-[#949ba4] uppercase font-mono tracking-wider">
+            <div className="text-[9px] font-bold text-purple-400 uppercase font-mono tracking-wider">
               SOBRE MÍ
             </div>
-            <div className="p-2 rounded-xl bg-[#1e1f22] border border-white/[0.04] text-[11px] text-[#dbdee1] leading-relaxed whitespace-pre-line font-normal">
-              {user.bio || 'Tired of life 🥷\nAparataje Music Group'}
+            <div className="p-2 rounded-xl bg-[#07020e] border border-purple-900/30 text-[11px] text-slate-200 leading-relaxed whitespace-pre-line font-normal">
+              {user.bio || 'Sin biografía aún.'}
             </div>
           </div>
 
           {/* 6. Miembro desde (Member Since) */}
           <div className="space-y-1">
-            <div className="text-[9px] font-bold text-[#949ba4] uppercase font-mono tracking-wider">
+            <div className="text-[9px] font-bold text-purple-400 uppercase font-mono tracking-wider">
               MIEMBRO DESDE
             </div>
-            <div className="p-2 rounded-xl bg-[#1e1f22] border border-white/[0.04] flex items-center gap-2 text-[10px] text-slate-300">
-              <Calendar size={13} className="text-cyan-400 shrink-0" />
-              <span>Miembro de Kova desde septiembre de 2026</span>
+            <div className="p-2 rounded-xl bg-[#07020e] border border-purple-900/30 flex items-center gap-2 text-[10px] text-slate-300">
+              <Calendar size={13} className="text-purple-400 shrink-0" />
+              <span>Miembro de Kova</span>
             </div>
           </div>
 
           {/* 7. Voice Channel Activity Card */}
-          <div className="p-2 rounded-xl bg-[#1e1f22] border border-white/[0.05] space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] text-[#949ba4] font-semibold">
-              <span className="flex items-center gap-1">
-                <Radio size={11} className="text-emerald-400 animate-pulse" />
-                <span>En canal de voz</span>
-              </span>
-              <button
-                type="button"
-                className="text-slate-500 hover:text-slate-300"
-                onClick={() => toast.info('Detalles de la sala de voz')}
-              >
-                <MoreHorizontal size={11} />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* Stacked Avatars */}
-              <div className="flex -space-x-1.5 shrink-0">
-                <div className="w-5 h-5 rounded-full ring-2 ring-[#1e1f22] bg-emerald-500 flex items-center justify-center text-[9px] text-white font-bold">
-                  🐲
-                </div>
-                <div className="w-5 h-5 rounded-full ring-2 ring-[#1e1f22] bg-purple-600 flex items-center justify-center text-[9px] text-white font-bold">
-                  🥷
-                </div>
-                <div className="w-5 h-5 rounded-full ring-2 ring-[#1e1f22] bg-slate-700 flex items-center justify-center text-[8px] text-slate-300 font-mono">
-                  +2
-                </div>
+          {activeServer?.channels?.some((c) => c.type === 'voice') && (
+            <div className="p-2.5 rounded-xl bg-[#07020e] border border-purple-900/30 space-y-2">
+              <div className="flex items-center justify-between text-[10px] text-purple-300 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Radio size={11} className="text-emerald-400 animate-pulse" />
+                  <span>Sala de voz disponible</span>
+                </span>
               </div>
 
               <div className="min-w-0 flex-1 text-left">
-                <div className="text-[11px] font-bold text-white flex items-center gap-1 truncate">
-                  <Volume2 size={11} className="text-[#23a55a] shrink-0 animate-pulse" />
+                <div className="text-[11px] font-bold text-white flex items-center gap-1.5 truncate">
+                  <Volume2 size={12} className="text-purple-400 shrink-0" />
                   <span className="truncate">
-                    {activeServer?.channels?.find((c) => c.type === 'voice')?.name || 'Voz Principal (HD)'}
-                  </span>
-                  <span className="text-[9px] font-normal text-[#949ba4] truncate">
-                    en {activeServer?.name || 'Kova'}
+                    {activeServer?.channels?.find((c) => c.type === 'voice')?.name || 'Sala de voz'}
                   </span>
                 </div>
-                <div className="text-[9px] text-emerald-400 flex items-center gap-1">
-                  <span>Audio HD WebRTC 96kHz</span>
-                  <Radio size={8} className="animate-pulse" />
+                <div className="text-[9px] text-purple-400/80 flex items-center gap-1 mt-0.5">
+                  <span>Audio HD WebRTC</span>
                 </div>
               </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const voiceCh = activeServer?.channels?.find((c) => c.type === 'voice');
-                if (voiceCh) {
-                  joinVoiceChannel(voiceCh.id);
-                  closeUserProfile();
-                  toast.success(`Conectado a ${voiceCh.name}`);
-                } else {
-                  toast.info('Canal de voz no disponible en este momento');
-                }
-              }}
-              className="w-full py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 text-white text-[11px] font-bold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5 border border-emerald-500/30"
-            >
-              <Volume2 size={12} className="text-emerald-400" />
-              <span>Entrar a la voz</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const voiceCh = activeServer?.channels?.find((c) => c.type === 'voice');
+                  if (voiceCh) {
+                    joinVoiceChannel(voiceCh.id);
+                    closeUserProfile();
+                    toast.success(`Conectado a ${voiceCh.name}`);
+                  }
+                }}
+                className="w-full py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-[11px] font-bold transition-all cursor-pointer shadow-md glow-purple flex items-center justify-center gap-1.5"
+              >
+                <Volume2 size={12} />
+                <span>Entrar a la voz</span>
+              </button>
+            </div>
+          )}
 
           {/* 8. Roles Section */}
           <div className="space-y-1">
@@ -458,13 +478,13 @@ export const UserProfileModal: React.FC = () => {
                 memberRoles.map((r) => (
                   <span
                     key={r.id}
-                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[#2b2d31] text-slate-200 border border-white/[0.04] flex items-center gap-1 shadow-sm"
+                    className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-purple-950/40 text-purple-200 border border-purple-900/40 flex items-center gap-1.5 shadow-sm"
                   >
                     <span
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      className="w-1.5 h-1.5 rounded-full shrink-0 shadow-[0_0_6px_currentColor]"
                       style={{ backgroundColor: r.color }}
                     />
-                    <span className="text-slate-400">|</span>
+                    <span className="text-purple-400/50">|</span>
                     <span>{r.name}</span>
                     {isOwnerOrAdmin && (
                       <button
@@ -479,28 +499,7 @@ export const UserProfileModal: React.FC = () => {
                   </span>
                 ))
               ) : (
-                <>
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[#2b2d31] text-slate-200 border border-white/[0.04] flex items-center gap-1 shadow-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#3498db] shrink-0" />
-                    <span className="text-slate-400">|</span>
-                    <span>Men</span>
-                  </span>
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[#2b2d31] text-slate-200 border border-white/[0.04] flex items-center gap-1 shadow-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#546e7a] shrink-0" />
-                    <span className="text-slate-400">|</span>
-                    <span>Comunidad</span>
-                  </span>
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[#2b2d31] text-slate-200 border border-white/[0.04] flex items-center gap-1 shadow-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#f1c40f] shrink-0" />
-                    <span className="text-slate-400">|</span>
-                    <span>Amigos</span>
-                  </span>
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[#2b2d31] text-slate-200 border border-white/[0.04] flex items-center gap-1 shadow-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#e74c3c] shrink-0" />
-                    <span className="text-slate-400">/</span>
-                    <span>+18</span>
-                  </span>
-                </>
+                <span className="text-[11px] text-purple-400/50 italic">Sin roles asignados</span>
               )}
             </div>
 
@@ -534,13 +533,13 @@ export const UserProfileModal: React.FC = () => {
             )}
           </div>
 
-          {/* 9. Nota (Discord Style Private Note) */}
+          {/* 9. Nota (Private Note) */}
           <div className="space-y-1">
-            <div className="text-[9px] font-bold text-[#949ba4] uppercase font-mono tracking-wider">
+            <div className="text-[9px] font-bold text-purple-400 uppercase font-mono tracking-wider">
               NOTA
             </div>
             {isEditingNote ? (
-              <div className="p-1.5 rounded-xl bg-[#1e1f22] border border-purple-500/40">
+              <div className="p-2 rounded-xl bg-[#07020e] border border-purple-500/40">
                 <textarea
                   value={userNote}
                   onChange={(e) => setUserNote(e.target.value)}
@@ -553,7 +552,7 @@ export const UserProfileModal: React.FC = () => {
             ) : (
               <div
                 onClick={() => setIsEditingNote(true)}
-                className="p-1.5 rounded-xl bg-[#1e1f22] border border-white/[0.04] text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+                className="p-2 rounded-xl bg-[#07020e] border border-purple-900/30 text-[10px] text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
               >
                 {userNote || 'Haz clic para añadir una nota...'}
               </div>
@@ -566,7 +565,7 @@ export const UserProfileModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleEditProfile}
-                className="w-full py-1.5 px-3 rounded-lg bg-[#5865F2] hover:bg-[#4752C4] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer"
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-md glow-purple cursor-pointer"
               >
                 <Pencil size={12} />
                 <span>Editar perfil</span>
@@ -574,18 +573,18 @@ export const UserProfileModal: React.FC = () => {
             ) : (
               <div className="space-y-1.5">
                 {/* Quick DM Input */}
-                <form onSubmit={handleSendQuickMessage} className="flex items-center gap-1">
+                <form onSubmit={handleSendQuickMessage} className="flex items-center gap-1.5">
                   <input
                     type="text"
                     value={quickMsgInput}
                     onChange={(e) => setQuickMsgInput(e.target.value)}
                     placeholder={`Enviar mensaje a @${user.displayName}...`}
-                    className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#1e1f22] border border-white/[0.08] focus:border-[#5865F2] text-[10px] text-white placeholder-slate-500 outline-none transition-all"
+                    className="flex-1 px-3 py-1.5 rounded-xl bg-[#07020e] border border-purple-900/30 focus:border-purple-500 text-[10px] text-white placeholder-slate-500 outline-none transition-all"
                   />
                   <button
                     type="submit"
                     disabled={!quickMsgInput.trim()}
-                    className="p-1.5 rounded-lg bg-[#5865F2] hover:bg-[#4752C4] disabled:opacity-40 text-white cursor-pointer transition-all shrink-0"
+                    className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white cursor-pointer transition-all shrink-0 shadow-md glow-purple"
                     title="Enviar mensaje directo"
                   >
                     <Send size={12} />
@@ -593,15 +592,22 @@ export const UserProfileModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      addFriend(user.displayName);
-                      toast.success(`Solicitud enviada a ${user.displayName}`);
+                      addFriend(user.id);
                     }}
-                    className="p-1.5 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] text-white cursor-pointer transition-all shrink-0"
+                    className="p-2 rounded-xl bg-purple-950/30 hover:bg-purple-900/40 text-purple-300 border border-purple-500/20 cursor-pointer transition-all shrink-0"
                     title="Añadir amigo"
                   >
                     <UserPlus size={12} />
                   </button>
                 </form>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button type="button" onClick={handleReportUser} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-semibold text-slate-300 transition hover:bg-white/[0.08]">
+                    <Flag size={12} /> Reportar
+                  </button>
+                  <button type="button" onClick={handleBlockUser} className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-[10px] font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                    <Ban size={12} /> Bloquear
+                  </button>
+                </div>
               </div>
             )}
           </div>

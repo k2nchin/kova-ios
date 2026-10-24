@@ -1,5 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { reportKovaError } from '../services/errorReporter';
 
 interface Props {
   children: ReactNode;
@@ -22,6 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    reportKovaError(error, { source: 'react-boundary', componentStack: errorInfo.componentStack || undefined });
   }
 
   render() {

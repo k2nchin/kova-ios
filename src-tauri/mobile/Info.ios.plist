@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>Kova usa la cámara cuando decides participar con video.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Kova usa el micrófono para las salas de voz y llamadas.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Kova accede a tus fotos cuando eliges una imagen para compartir o para tu perfil.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.kova.client.auth</string>
+      <key>CFBundleURLSchemes</key>
+      <array><string>kova</string></array>
+    </dict>
+  </array>
+</dict>
+</plist>

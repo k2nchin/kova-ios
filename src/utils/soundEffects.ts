@@ -3,6 +3,8 @@
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private soundEnabled: boolean = true;
+  private masterVolume = 1;
+  private masterGain: GainNode | null = null;
 
   constructor() {
     // AudioContext will be initialized on first user interaction
@@ -19,6 +21,28 @@ class SoundEngine {
       this.ctx.resume();
     }
     return this.ctx;
+  }
+
+  // All voices route through a single master gain so volume is a real,
+  // globally-applied control instead of a per-sound constant.
+  private getOutput(ctx: AudioContext): AudioNode {
+    if (!this.masterGain || this.masterGain.context !== ctx) {
+      this.masterGain = ctx.createGain();
+      this.masterGain.gain.value = this.masterVolume;
+      this.masterGain.connect(this.getOutput(ctx));
+    }
+    return this.masterGain;
+  }
+
+  public setMasterVolume(volume: number) {
+    this.masterVolume = Math.max(0, Math.min(1, volume));
+    if (this.masterGain) {
+      this.masterGain.gain.value = this.masterVolume;
+    }
+  }
+
+  public getMasterVolume(): number {
+    return this.masterVolume;
   }
 
   public setSoundEnabled(enabled: boolean) {
@@ -46,7 +70,7 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.getOutput(ctx));
 
     osc.start();
     osc.stop(ctx.currentTime + 0.08);
@@ -70,7 +94,7 @@ class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.06 + 0.25);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
 
       osc.start(ctx.currentTime + idx * 0.06);
       osc.stop(ctx.currentTime + idx * 0.06 + 0.25);
@@ -94,7 +118,7 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.getOutput(ctx));
 
     osc.start();
     osc.stop(ctx.currentTime + 0.15);
@@ -120,7 +144,7 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.getOutput(ctx));
 
     osc.start();
     osc.stop(ctx.currentTime + 0.07);
@@ -144,7 +168,7 @@ class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.04 + 0.2);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
 
       osc.start(ctx.currentTime + idx * 0.04);
       osc.stop(ctx.currentTime + idx * 0.04 + 0.2);
@@ -153,7 +177,7 @@ class SoundEngine {
 
   // 6. Soundboard Effects
   public playSoundboardFx(
-    type: 'laser' | 'victory' | 'cyberhorn' | 'arcade' | 'airhorn' | 'quack' | 'applause' | 'badumtss' | 'discord_ping' | 'bruh'
+    type: 'laser' | 'victory' | 'cyberhorn' | 'arcade' | 'airhorn' | 'quack' | 'applause' | 'badumtss' | 'kova_ping' | 'bruh'
   ) {
     if (!this.soundEnabled) return;
     const ctx = this.getContext();
@@ -170,7 +194,7 @@ class SoundEngine {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
       osc.start();
       osc.stop(ctx.currentTime + 0.2);
     } else if (type === 'victory') {
@@ -183,7 +207,7 @@ class SoundEngine {
         gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.08);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.08 + 0.35);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.getOutput(ctx));
         osc.start(ctx.currentTime + i * 0.08);
         osc.stop(ctx.currentTime + i * 0.08 + 0.35);
       });
@@ -197,7 +221,7 @@ class SoundEngine {
       gain.gain.setValueAtTime(0.08, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
       osc.start();
       osc.stop(ctx.currentTime + 0.2);
     } else if (type === 'cyberhorn') {
@@ -208,7 +232,7 @@ class SoundEngine {
       gain.gain.setValueAtTime(0.12, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
       osc.start();
       osc.stop(ctx.currentTime + 0.4);
     } else if (type === 'airhorn') {
@@ -222,7 +246,7 @@ class SoundEngine {
           gain.gain.setValueAtTime(0.08, ctx.currentTime + offset);
           gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.18);
           osc.connect(gain);
-          gain.connect(ctx.destination);
+          gain.connect(this.getOutput(ctx));
           osc.start(ctx.currentTime + offset);
           osc.stop(ctx.currentTime + offset + 0.18);
         });
@@ -236,7 +260,7 @@ class SoundEngine {
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
     } else if (type === 'applause') {
@@ -249,7 +273,7 @@ class SoundEngine {
         gain.gain.setValueAtTime(0.06, ctx.currentTime + i * 0.05);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.05 + 0.08);
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.getOutput(ctx));
         osc.start(ctx.currentTime + i * 0.05);
         osc.stop(ctx.currentTime + i * 0.05 + 0.08);
       }
@@ -261,7 +285,7 @@ class SoundEngine {
       gain1.gain.setValueAtTime(0.15, ctx.currentTime);
       gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
       osc1.connect(gain1);
-      gain1.connect(ctx.destination);
+      gain1.connect(this.getOutput(ctx));
       osc1.start();
       osc1.stop(ctx.currentTime + 0.12);
 
@@ -271,7 +295,7 @@ class SoundEngine {
       gain2.gain.setValueAtTime(0.15, ctx.currentTime + 0.15);
       gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
       osc2.connect(gain2);
-      gain2.connect(ctx.destination);
+      gain2.connect(this.getOutput(ctx));
       osc2.start(ctx.currentTime + 0.15);
       osc2.stop(ctx.currentTime + 0.28);
 
@@ -282,10 +306,10 @@ class SoundEngine {
       gain3.gain.setValueAtTime(0.1, ctx.currentTime + 0.32);
       gain3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
       osc3.connect(gain3);
-      gain3.connect(ctx.destination);
+      gain3.connect(this.getOutput(ctx));
       osc3.start(ctx.currentTime + 0.32);
       osc3.stop(ctx.currentTime + 0.6);
-    } else if (type === 'discord_ping') {
+    } else if (type === 'kova_ping') {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -294,7 +318,7 @@ class SoundEngine {
       gain.gain.setValueAtTime(0.12, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
       osc.start();
       osc.stop(ctx.currentTime + 0.35);
     } else if (type === 'bruh') {
@@ -306,7 +330,7 @@ class SoundEngine {
       gain.gain.setValueAtTime(0.16, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(this.getOutput(ctx));
       osc.start();
       osc.stop(ctx.currentTime + 0.35);
     }
@@ -329,10 +353,40 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(this.getOutput(ctx));
 
     osc.start();
     osc.stop(ctx.currentTime + 0.15);
+  }
+
+  // 8. Spatial Ping (Radar de Voz) — stereo-panned blip from a normalized position.
+  // x: -100 (izquierda) .. 100 (derecha) · y: -100 (arriba) .. 100 (abajo)
+  public playSpatialPing(x: number, y: number) {
+    if (!this.soundEnabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = Math.max(-1, Math.min(1, x / 100));
+
+    // Distance from listener (center) attenuates volume: center = 1.0, edge = 0.55
+    const distance = Math.min(1, Math.sqrt(x * x + y * y) / 100);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.14 * (1 - distance * 0.45), ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    // Farther voices sound slightly deeper (doppler-style cue)
+    osc.frequency.setValueAtTime(880 - distance * 180, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(560, ctx.currentTime + 0.22);
+
+    osc.connect(gain);
+    gain.connect(panner);
+    panner.connect(this.getOutput(ctx));
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.28);
   }
 }
 

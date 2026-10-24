@@ -69,7 +69,7 @@ export const ServerSidebar: React.FC = () => {
           title="Kova Inicio y Mensajes Directos"
         >
           <img
-            src="/kova-logo.png"
+            src="/kova-chrome-cube.png"
             alt="Kova"
             className="w-full h-full object-contain"
           />

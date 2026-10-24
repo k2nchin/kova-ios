@@ -31,11 +31,11 @@ export const KovaAIPanel: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-150">
       <div
-        className="w-full max-w-2xl h-[620px] rounded-3xl bg-[#11131c] border border-purple-500/30 shadow-2xl flex flex-col overflow-hidden glow-purple animate-in zoom-in-95 duration-150"
+        className="w-full max-w-2xl h-[620px] rounded-3xl bg-[#0d071c] border border-purple-500/30 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_25px_rgba(147,51,234,0.15)] flex flex-col overflow-hidden glow-purple animate-in zoom-in-95 duration-150 backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Header */}
-        <div className="h-14 px-6 border-b border-white/[0.08] bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#11131c] flex items-center justify-between">
+        <div className="h-14 px-6 border-b border-purple-950/40 bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-[#0d071c] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center text-white shadow-md">
               <Sparkles className="w-4 h-4 animate-pulse" />
@@ -119,12 +119,12 @@ export const KovaAIPanel: React.FC = () => {
         </div>
 
         {/* 3. Quick Suggestion Chips */}
-        <div className="px-6 py-2 border-t border-white/[0.06] bg-[#0e1017] flex items-center gap-2 overflow-x-auto">
+        <div className="px-6 py-2 border-t border-purple-950/40 bg-[#080312] flex items-center gap-2 overflow-x-auto">
           {quickPrompts.map((q, idx) => (
             <button
               key={idx}
               onClick={() => askKovaAI(q.prompt)}
-              className="px-3 py-1 rounded-full bg-white/[0.04] hover:bg-purple-600/20 text-slate-300 hover:text-purple-300 border border-white/[0.08] hover:border-purple-500/30 text-[11px] font-medium whitespace-nowrap transition-all"
+              className="px-3 py-1 rounded-full bg-purple-950/40 hover:bg-purple-600/30 text-purple-200 hover:text-white border border-purple-900/40 text-[11px] font-medium whitespace-nowrap transition-all cursor-pointer"
             >
               {q.label}
             </button>
@@ -132,19 +132,19 @@ export const KovaAIPanel: React.FC = () => {
         </div>
 
         {/* 4. Prompt Input Form */}
-        <form onSubmit={handleSubmit} className="p-4 bg-[#0c0d13] border-t border-white/[0.06]">
-          <div className="flex items-center gap-2 bg-[#161822] border border-purple-500/30 focus-within:border-purple-500/70 rounded-2xl px-4 py-2.5 shadow-lg transition-colors">
+        <form onSubmit={handleSubmit} className="p-4 bg-[#06020e] border-t border-purple-950/40">
+          <div className="flex items-center gap-2 bg-[#0d071c] border border-purple-500/30 focus-within:border-purple-500/70 rounded-2xl px-4 py-2.5 shadow-lg transition-colors">
             <input
               type="text"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Haz una pregunta a Kova AI o pide una acción..."
-              className="flex-1 bg-transparent text-xs text-slate-100 placeholder-slate-500 focus:outline-none"
+              className="flex-1 bg-transparent text-xs text-purple-100 placeholder-purple-400/40 focus:outline-none"
             />
             <button
               type="submit"
               disabled={!prompt.trim() || isAILoading}
-              className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white disabled:opacity-40 transition-all shadow-md"
+              className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white disabled:opacity-40 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)] cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
             </button>

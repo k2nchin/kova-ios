@@ -1,10 +1,10 @@
-# ⚡ Kova Desktop Client
+# Kova Desktop & Mobile Client
 
 <div align="center">
   <h3>Next-Generation Voice, Chat & AI Collaboration Platform</h3>
-  <p>Construido con Tauri v2, Rust, React 19, TypeScript y Tailwind CSS.</p>
+	<p>Construido con Tauri v2, Rust, React 19, TypeScript y Tailwind CSS para escritorio, Android e iOS.</p>
 
-  [![Version](https://img.shields.io/badge/version-1.0.0-6366f1.svg)](https://github.com/)
+  [![Version](https://img.shields.io/badge/version-1.0.13-6366f1.svg)](https://kova-k2nchin.vercel.app/downloads)
   [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d7.svg)](https://github.com/)
   [![Tauri](https://img.shields.io/badge/tauri-v2.11-brightgreen.svg)](https://tauri.app/)
   [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -24,12 +24,8 @@
   - Códigos de respaldo de emergencia con descarga segura.
   - Verificación estricta en el inicio de sesión.
 - 🎨 **Temas Ultra Profundos & Personalización Visual**:
-  - *Dark Carmesí (Blood Moon Abyss)*
-  - *Abyss Blue (Profundidad Marina)*
-  - *Emerald Void (Bosque Nocturno)*
-  - *Amethyst Eclipse (Vacío Amatista)*
-  - *Cyber Amber (Eclipse Dorado)*
-  - *OLED Puro, Synthwave 80s, Matrix Terminal y Discord Classic*.
+  - Presets neutrales Kova: *OLED, Grafito, Acero, Plata, Carbón y Eclipse*.
+  - Todos los temas usan la identidad monocromática oficial de Kova.
 - ⚡ **Ligero y Veloz**: Menos de 10 MB de consumo de binario, inicio instantáneo gracias a la arquitectura Tauri v2.
 
 ---
@@ -38,9 +34,9 @@
 
 | Edición | Descarga Directa | Tamaño | Descripción |
 | :--- | :--- | :--- | :--- |
-| **Instalador Oficial** | [⬇️ Descargar Setup](https://github.com/k2nchin/kova/releases/download/v1.0.0/Kova-v1.0.0-Setup.exe) | **~2.1 MB** | Instalador guiado con acceso directo en Inicio y Escritorio. |
-| **Portable (ZIP)** | [⬇️ Descargar Portable](https://github.com/k2nchin/kova/releases/download/v1.0.0/Kova-v1.0.0-Windows-Portable.zip) | **~2.7 MB** | Paquete comprimido listo para descomprimir y usar sin instalación. |
-| **Todas las Versiones** | [Ver Release v1.0.0 en GitHub](https://github.com/k2nchin/kova/releases/tag/v1.0.0) | — | Registro oficial de cambios y sumas de verificación. |
+| **Instalador Oficial** | [⬇️ Descargar Setup](https://kova-k2nchin.vercel.app/updates/Kova_1.0.13_x64-setup.exe) | **~9.6 MB** | Instalador guiado con acceso directo en Inicio y Escritorio. |
+| **Página de descargas** | [Ver todas las plataformas](https://kova-k2nchin.vercel.app/downloads) | — | Versión actual, notas de la versión y suma SHA-256 del instalador. |
+| **Portable (ZIP)** | Próximamente | — | Paquete comprimido listo para descomprimir y usar sin instalación. |
 
 ---
 
@@ -61,7 +57,7 @@ npm install
 
 # 3. Configurar variables de entorno
 cp .env.example .env
-# Edita .env y añade tu VITE_GEMINI_API_KEY
+# Edita .env y configura la URL de tu backend Kova
 ```
 
 ### Ejecutar en desarrollo
@@ -77,6 +73,28 @@ npm run tauri dev
 ```bash
 # Compilar instalador y ejecutable
 npm run tauri build
+
+### Desarrollo y compilación móvil
+
+Android requiere Android Studio, SDK, **JDK 17** y un dispositivo/emulador conectado:
+
+```bash
+npm run mobile:android:dev
+npm run mobile:android:build
+```
+
+Si Android Studio usa un JBR más reciente, configura `JAVA_HOME` apuntando a un
+JDK 17 antes de ejecutar Gradle.
+
+iOS requiere macOS y Xcode:
+
+```bash
+npm run mobile:ios:dev
+npm run mobile:ios:build
+```
+
+El esquema `kova://auth` queda reservado para devolver el resultado del OAuth
+móvil. Debe registrarse como URI autorizada en la configuración móvil de Google.
 ```
 
 ---

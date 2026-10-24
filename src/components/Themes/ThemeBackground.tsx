@@ -9,8 +9,7 @@ export type BackgroundTheme =
   | 'amber'
   | 'nebula'
   | 'matrix'
-  | 'synthwave'
-  | 'discord';
+  | 'synthwave';
 
 interface ThemeBackgroundProps {
   theme: BackgroundTheme;
@@ -75,6 +74,15 @@ export const ThemeBackground: React.FC<ThemeBackgroundProps> = ({ theme }) => {
       window.removeEventListener('resize', handleResize);
     };
   }, [theme]);
+
+  const neutralPresets: Record<string, string> = {
+    oled: 'linear-gradient(145deg,#020203,#0b0b0e 55%,#000)', crimson: 'linear-gradient(145deg,#09090b,#19191d 55%,#050506)',
+    abyss: 'linear-gradient(145deg,#050507,#111216 55%,#030304)', emerald: 'linear-gradient(145deg,#070708,#161619 55%,#040405)',
+    amethyst: 'linear-gradient(145deg,#08080a,#202024 55%,#050506)', amber: 'linear-gradient(145deg,#09090a,#252529 55%,#050506)',
+    nebula: 'linear-gradient(145deg,#050507,#29292e 55%,#08080a)', matrix: 'linear-gradient(145deg,#030304,#161619 55%,#020203)',
+    synthwave: 'linear-gradient(145deg,#070708,#222226 55%,#050506)',
+  };
+  return <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" style={{ background: neutralPresets[theme] || neutralPresets.oled }} />;
 
   // 1. CRIMSON (BLOOD MOON / CYBERNETIC SCARLET)
   if (theme === 'crimson') {
@@ -259,26 +267,7 @@ export const ThemeBackground: React.FC<ThemeBackgroundProps> = ({ theme }) => {
     );
   }
 
-  // 9. DISCORD (MODERN GAMER BLURPLE / NITRO GLASS GLOW)
-  if (theme === 'discord') {
-    return (
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-[#1e1f22]">
-        {/* Discord Blurple Glowing Orbs */}
-        <div className="absolute -top-24 -left-16 w-[60vw] h-[60vw] rounded-full bg-[#5865F2]/28 blur-[130px] animate-pulse duration-[7000ms]" />
-        <div className="absolute top-1/3 -right-20 w-[55vw] h-[55vw] rounded-full bg-[#5865F2]/24 blur-[130px] animate-pulse duration-[9000ms]" />
-        <div className="absolute -bottom-24 left-1/3 w-[60vw] h-[60vw] rounded-full bg-[#4752C4]/25 blur-[140px] animate-pulse duration-[11000ms]" />
-        
-        {/* Subtle Gamer Dot Mesh */}
-        <div className="absolute inset-0 bg-[radial-gradient(rgba(88,101,242,0.18)_1px,transparent_1px)] bg-[size:36px_36px] opacity-70 pointer-events-none" />
-
-        {/* Discord Brand Gradient Crown */}
-        <div className="absolute top-0 inset-x-0 h-[450px] bg-[radial-gradient(ellipse_at_top,rgba(88,101,242,0.3)_0%,rgba(71,82,196,0.12)_45%,transparent_75%)] pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(24,25,28,0.75)_100%)] pointer-events-none" />
-      </div>
-    );
-  }
-
-  // 10. OLED (CARBON FIBER STEALTH & ZERO BLEED ULTRA-BLACK)
+  // 9. OLED (CARBON FIBER STEALTH & ZERO BLEED ULTRA-BLACK)
   return (
     <div className="fixed inset-0 pointer-events-none z-0 bg-[#000000] overflow-hidden">
       {/* Sleek Carbon Hex / Dot Matrix Weave Pattern for True OLED Depth */}

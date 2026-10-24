@@ -97,7 +97,7 @@ export const CreateStoryModal: React.FC = () => {
                 className="w-7 h-7 rounded-full object-cover ring-2 ring-white/50"
               />
               <span className="text-xs font-bold text-white shadow-sm font-['Outfit']">
-                {currentUser.displayName || 'Juanpi'}
+                {currentUser.displayName || 'Usuario'}
               </span>
             </div>
 

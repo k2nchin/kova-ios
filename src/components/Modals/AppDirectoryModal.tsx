@@ -137,13 +137,13 @@ export const AppDirectoryModal: React.FC = () => {
       onClick={() => setIsAppDirectoryOpen(false)}
     >
       <div
-        className="w-full max-w-4xl h-[680px] rounded-3xl bg-[#11131c] border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="w-full max-w-4xl h-[680px] rounded-3xl bg-[#0d071c] border border-purple-500/30 shadow-[0_10px_40px_rgba(0,0,0,0.8),0_0_25px_rgba(147,51,234,0.15)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Top Header */}
-        <header className="h-16 px-6 border-b border-white/[0.06] bg-gradient-to-r from-purple-950/40 via-indigo-950/20 to-[#11131c] flex items-center justify-between shrink-0">
+        <header className="h-16 px-6 border-b border-purple-950/40 bg-gradient-to-r from-purple-950/40 via-indigo-950/20 to-[#0d071c] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center text-white shadow-md">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-600/30">
               <Bot size={20} />
             </div>
             <div>
@@ -151,26 +151,26 @@ export const AppDirectoryModal: React.FC = () => {
                 <h2 className="text-sm font-bold text-white font-['Outfit']">
                   Directorio de Aplicaciones y Bots
                 </h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-semibold">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-semibold border border-purple-500/30">
                   Discord & Kova Engine
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Gestiona bots para <strong className="text-slate-200">#{activeServer.name}</strong>
+              <p className="text-[11px] text-purple-300/60">
+                Gestiona bots para <strong className="text-purple-200">#{activeServer.name}</strong>
               </p>
             </div>
           </div>
 
           <button
             onClick={() => setIsAppDirectoryOpen(false)}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-purple-300/70 hover:text-white hover:bg-purple-900/30 transition-colors cursor-pointer"
           >
             <X size={18} />
           </button>
         </header>
 
         {/* 2. Top Tabs */}
-        <div className="px-6 border-b border-white/[0.06] bg-[#0c0e15] flex items-center justify-between shrink-0">
+        <div className="px-6 border-b border-purple-950/40 bg-[#080312] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('directory')}
@@ -380,58 +380,58 @@ export const AppDirectoryModal: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-200">Nombre del Bot *</label>
+                    <label className="text-xs font-semibold text-purple-200">Nombre del Bot *</label>
                     <input
                       type="text"
                       value={newBotName}
                       onChange={(e) => setNewBotName(e.target.value)}
                       placeholder="Ej. CyberCompanion, Jarvis, WaifuAI"
-                      className="w-full px-3 py-2 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full px-3 py-2 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
                       required
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-200">Usuario / Tag</label>
+                    <label className="text-xs font-semibold text-purple-200">Usuario / Tag</label>
                     <input
                       type="text"
                       value={newBotUsername}
                       onChange={(e) => setNewBotUsername(e.target.value)}
                       placeholder="Ej. cyber_companion"
-                      className="w-full px-3 py-2 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
+                      className="w-full px-3 py-2 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-200">Descripción del Bot</label>
+                  <label className="text-xs font-semibold text-purple-200">Descripción del Bot</label>
                   <textarea
                     rows={2}
                     value={newBotDesc}
                     onChange={(e) => setNewBotDesc(e.target.value)}
                     placeholder="¿Qué hace tu bot y cómo ayuda en el servidor?"
-                    className="w-full px-3 py-2 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 resize-none"
+                    className="w-full px-3 py-2 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 resize-none"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-200">Prefijo de Comando</label>
+                    <label className="text-xs font-semibold text-purple-200">Prefijo de Comando</label>
                     <input
                       type="text"
                       value={newBotPrefix}
                       onChange={(e) => setNewBotPrefix(e.target.value)}
                       placeholder="!"
-                      className="w-full px-3 py-2 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                      className="w-full px-3 py-2 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-200">Categoría</label>
+                    <label className="text-xs font-semibold text-purple-200">Categoría</label>
                     <select
                       value={newBotCategory}
                       onChange={(e) => setNewBotCategory(e.target.value as KovaBot['category'])}
-                      className="w-full px-3 py-2 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full px-3 py-2 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
                     >
                       <option value="ai">Inteligencia Artificial</option>
                       <option value="moderation">Moderación</option>
@@ -510,14 +510,14 @@ export const AppDirectoryModal: React.FC = () => {
                       value={systemPrompt}
                       onChange={(e) => setSystemPrompt(e.target.value)}
                       placeholder="Define cómo debe hablar el bot, su tono (sarcástico, profesional, entusiasta)..."
-                      className="w-full px-3 py-2 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 resize-none font-sans"
+                      className="w-full px-3 py-2 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500 resize-none font-sans"
                     />
                   </div>
                 )}
 
                 {/* Custom Auto-Responses */}
                 <div className="space-y-2 pt-2">
-                  <label className="text-xs font-semibold text-slate-200 block">
+                  <label className="text-xs font-semibold text-purple-200 block">
                     Respuestas Automáticas por Palabra Clave (Auto-Responses)
                   </label>
 
@@ -525,17 +525,17 @@ export const AppDirectoryModal: React.FC = () => {
                     {autoResponses.map((ar, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-2 rounded-xl bg-[#0c0e15] border border-white/[0.06] text-xs"
+                        className="flex items-center justify-between p-2 rounded-xl bg-[#06020e] border border-purple-950/40 text-xs"
                       >
                         <div className="truncate">
                           <span className="font-mono text-purple-400">"{ar.trigger}"</span>
                           <span className="text-slate-500 mx-1.5">➔</span>
-                          <span className="text-slate-300">{ar.response}</span>
+                          <span className="text-purple-200">{ar.response}</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => setAutoResponses(autoResponses.filter((_, i) => i !== idx))}
-                          className="text-slate-500 hover:text-rose-400 p-1"
+                          className="text-purple-400/60 hover:text-rose-400 p-1 cursor-pointer"
                         >
                           <X size={13} />
                         </button>
@@ -550,19 +550,19 @@ export const AppDirectoryModal: React.FC = () => {
                       value={newTrigger}
                       onChange={(e) => setNewTrigger(e.target.value)}
                       placeholder="Detonador (ej. reglas)"
-                      className="w-1/3 px-3 py-1.5 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-1/3 px-3 py-1.5 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
                     />
                     <input
                       type="text"
                       value={newResponse}
                       onChange={(e) => setNewResponse(e.target.value)}
                       placeholder="Respuesta (ej. Regla 1: Ser amables)"
-                      className="flex-1 px-3 py-1.5 bg-[#0c0e15] border border-white/[0.1] rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="flex-1 px-3 py-1.5 bg-[#06020e] border border-purple-950/50 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
                     />
                     <button
                       type="button"
                       onClick={handleAddAutoResponse}
-                      className="px-3 py-1.5 bg-white/[0.08] hover:bg-white/[0.15] text-white rounded-xl text-xs font-bold"
+                      className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold cursor-pointer"
                     >
                       Añadir
                     </button>
@@ -618,9 +618,9 @@ export const AppDirectoryModal: React.FC = () => {
                   <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto">
                     <Bot size={24} />
                   </div>
-                  <h4 className="text-sm font-bold text-white">No hay bots instalados en este servidor</h4>
+                  <h4 className="text-sm font-bold text-white">No hay bots instalados en este espacio</h4>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    Visita el Directorio de Bots para instalar Lofi Girl, MEE6, Dank Memer o crear tu propio bot personalizado.
+                    Visita el Directorio de Bots para instalar Kova Lofi, Kova Sentinel, Kova Memes o crear tu propio bot personalizado.
                   </p>
                   <button
                     type="button"
