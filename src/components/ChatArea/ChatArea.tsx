@@ -60,7 +60,6 @@ const KOVA_QUICK_ACTIONS = [
   { command: '/redes', desc: 'Enlaces oficiales de redes sociales de JuanPi1x', example: '/redes' },
   { command: '/roles', desc: 'Menú interactivo de selección de auto-roles', example: '/roles' },
   { command: '/bot', desc: 'Diagnóstico de latencia y estado de JuanPi IA & Discord MCP', example: '/bot' },
-  { command: '/discord-sync', desc: 'Abre el Centro de Control Discord MCP & Bot Hub', example: '/discord-sync' },
   { command: '/partida', desc: 'Convoca una escuadra para jugar (Apex, Overwatch, etc.)', example: '/partida apex' },
   { command: '/vip', desc: 'Ventajas del rango VIP Pass en la comunidad', example: '/vip' },
   { command: '/ticket', desc: 'Abre un ticket de soporte privado con administración', example: '/ticket' },
@@ -239,7 +238,6 @@ export const ChatArea: React.FC = () => {
     generateMinutesToNotes,
     askKovaAI,
     processBotTriggers,
-    setIsDiscordHubOpen,
     typingUsers,
     setTyping,
   } = useApp();
@@ -445,12 +443,8 @@ export const ChatArea: React.FC = () => {
 
     let fullText = text;
 
-    // Discord Slash Commands parsing
-    if (text.startsWith('/discord-sync') || text.startsWith('/discord')) {
-      setIsDiscordHubOpen(true);
-      setDraft('');
-      return;
-    } else if (text.startsWith('/stream')) {
+    // Slash commands parsing
+    if (text.startsWith('/stream')) {
       fullText = '!stream';
     } else if (text.startsWith('/redes')) {
       fullText = '!redes';

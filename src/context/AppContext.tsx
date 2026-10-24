@@ -251,16 +251,14 @@ interface AppContextType {
   // Server Settings & Roles
   isServerSettingsOpen: boolean;
   setIsServerSettingsOpen: (open: boolean) => void;
-  serverSettingsTab: 'overview' | 'roles' | 'members' | 'discord';
-  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'discord') => void;
+  serverSettingsTab: 'overview' | 'roles' | 'members';
+  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members') => void;
   createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Role;
   updateRole: (serverId: string, roleId: string, updates: Partial<Role>) => void;
   deleteRole: (serverId: string, roleId: string) => void;
   toggleMemberRole: (serverId: string, memberId: string, roleId: string) => void;
   updateServerDetails: (serverId: string, updates: { name?: string; icon?: string; banner?: string; description?: string }) => void;
   // Discord MCP & Bot Hub
-  isDiscordHubOpen: boolean;
-  setIsDiscordHubOpen: (open: boolean) => void;
   // Notes
   notes: NoteDocument[];
   addNote: (title: string, content: string, tags: string[]) => void;
@@ -2863,8 +2861,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Server Settings & Roles State & Handlers
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
-  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'discord'>('roles');
-  const [isDiscordHubOpen, setIsDiscordHubOpen] = useState(false);
+  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members'>('roles');
 
   const createRole = (
     serverId: string,
@@ -3107,8 +3104,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsServerSettingsOpen,
         serverSettingsTab,
         setServerSettingsTab,
-        isDiscordHubOpen,
-        setIsDiscordHubOpen,
         createRole,
         updateRole,
         deleteRole,

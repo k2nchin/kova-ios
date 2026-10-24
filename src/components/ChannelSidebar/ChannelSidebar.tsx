@@ -62,7 +62,6 @@ export const ChannelSidebar: React.FC = () => {
     setIsEditChannelOpen,
     setEditingChannelId,
     setIsAppDirectoryOpen,
-    setIsDiscordHubOpen,
   } = useApp();
 
   const [isServerMenuOpen, setIsServerMenuOpen] = useState(false);
@@ -316,21 +315,6 @@ export const ChannelSidebar: React.FC = () => {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setIsServerMenuOpen(false)} />
               <div className="absolute top-full left-1 right-1 z-50 mt-1 p-1.5 rounded-2xl bg-[#0d071c] border border-purple-500/30 shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_20px_rgba(147,51,234,0.15)] space-y-1 animate-in fade-in zoom-in-95 duration-100 text-purple-100 backdrop-blur-xl">
-                <button
-                  onClick={() => {
-                    setIsServerMenuOpen(false);
-                    setIsDiscordHubOpen(true);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-white bg-gradient-to-r from-[#5865f2]/25 to-purple-900/30 hover:from-[#5865f2]/35 hover:to-purple-900/45 border border-[#5865f2]/35 transition-all cursor-pointer text-left font-bold"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Bot size={14} className="text-cyan-400" />
-                    <span>Discord MCP & Bot Hub</span>
-                  </div>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 font-mono">
-                    ONLINE
-                  </span>
-                </button>
                 <button
                   onClick={() => {
                     setIsServerMenuOpen(false);

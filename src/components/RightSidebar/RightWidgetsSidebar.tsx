@@ -21,7 +21,6 @@ export const RightWidgetsSidebar: React.FC = () => {
     currentUser,
     openUserProfile,
     activeChannel,
-    setIsDiscordHubOpen,
     servers,
   } = useApp();
 

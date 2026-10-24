@@ -94,9 +94,6 @@ const UserProfileModal = lazy(() =>
 const AppDirectoryModal = lazy(() =>
   import('./components/Modals/AppDirectoryModal').then((m) => ({ default: m.AppDirectoryModal }))
 );
-const DiscordHubModal = lazy(() =>
-  import('./components/Modals/DiscordHubModal').then((m) => ({ default: m.DiscordHubModal }))
-);
 const NotificationsDrawer = lazy(() =>
   import('./components/Modals/NotificationsDrawer').then((m) => ({ default: m.NotificationsDrawer }))
 );
@@ -133,7 +130,6 @@ export const MainLayout: React.FC = () => {
     isDiscoveryOpen,
     profileModalUser,
     isAppDirectoryOpen,
-    isDiscordHubOpen,
     isNotificationsOpen,
     isLiveStreamsOpen,
     joinServerByInvite,
@@ -353,7 +349,6 @@ export const MainLayout: React.FC = () => {
         {profileModalUser && <UserProfileModal />}
         {isAppDirectoryOpen && <AppDirectoryModal />}
         {/* Discord Hub oculto por petición */}
-        {/* {isDiscordHubOpen && <DiscordHubModal />} */}
         {isNotificationsOpen && <NotificationsDrawer />}
         {isLiveStreamsOpen && <LiveStreamsModal />}
       </Suspense>
