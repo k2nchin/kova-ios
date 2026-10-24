@@ -7,6 +7,8 @@ import path from 'node:path';
 import { attachRealtime, emitToChannel, emitToUsers } from './realtime.mjs';
 import { askKovaAI, AiError } from './ai.mjs';
 import { createVoiceToken, VoiceError } from './voice.mjs';
+import { contentSchema, contentUserColumns, handleContentRoute } from './content.mjs';
+import { uploadsSchema, createUploadTicket, receiveLocalUpload, serveLocalFile, UploadError } from './storage.mjs';
 import { twoFactorSchema, twoFactorUserColumns, sealSecret, openSecret, generateSecret, otpauthUrl, verifyTotp, hashBackupCode, generateBackupCodes, looksLikeBackupCode, loginLockedFor, recordLoginFailure, clearLoginFailures, CHALLENGE_TTL_MS, CHALLENGE_MAX_ATTEMPTS } from './twoFactor.mjs';
 
 const port = Number(process.env.KOVA_API_PORT || 4000);
@@ -57,6 +59,9 @@ if (process.env.DATABASE_URL) {
 }
 await db.exec(schema);
 await db.exec(twoFactorSchema);
+await db.exec(contentSchema);
+await db.exec(uploadsSchema);
+for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
 try { await db.exec("ALTER TABLE spaces ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private'"); } catch {}
 try { await db.exec("ALTER TABLE spaces ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''"); } catch {}
@@ -66,7 +71,7 @@ try { await db.exec('ALTER TABLE signals ADD COLUMN category_id TEXT'); } catch 
 try { await db.exec('ALTER TABLE messages ADD COLUMN reply_to_id TEXT'); } catch {}
 try { await db.exec("ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); } catch {}
 try { await db.prepare('UPDATE sessions SET expires_at = ? WHERE expires_at IS NULL').run(new Date(0).toISOString()); } catch {}
-const userFromRow = (row) => row && ({ id: row.id, username: row.username, displayName: row.display_name, email: row.email, avatar: row.avatar, passwordHash: row.password_hash, twoFactorEnabled: Number(row.totp_enabled || 0) === 1 });
+const userFromRow = (row) => row && ({ id: row.id, username: row.username, displayName: row.display_name, email: row.email, avatar: row.avatar, passwordHash: row.password_hash, twoFactorEnabled: Number(row.totp_enabled || 0) === 1, bio: row.bio || '', banner: row.banner || '', customStatus: row.custom_status || '', thoughtBubble: row.thought_bubble || '' });
 const passwordHash = async (password) => {
   const salt = crypto.randomBytes(16).toString('hex');
   const derived = await scrypt(password, salt, 64);
@@ -105,7 +110,7 @@ const readBody = async (req) => {
 };
 const publicUser = (u) => {
   const hash = [...String(u.id || '')].reduce((n, c) => ((n * 33) ^ c.charCodeAt(0)) >>> 0, 5381);
-  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, email: u.email, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: false, twoFactorEnabled: Boolean(u.twoFactorEnabled) };
+  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, email: u.email, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: false, twoFactorEnabled: Boolean(u.twoFactorEnabled), bio: u.bio || '', banner: u.banner || '', customStatus: u.customStatus || '', thoughtBubble: u.thoughtBubble || '' };
 };
 const issueSession = async (user) => {
   const token = crypto.randomBytes(32).toString('hex');
@@ -145,6 +150,7 @@ const send = (res, status, body) => {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
     'access-control-allow-headers': 'Content-Type, Authorization',
+    'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'x-content-type-options': 'nosniff',
     'x-frame-options': 'DENY',
     'referrer-policy': 'strict-origin-when-cross-origin',
@@ -165,6 +171,20 @@ const handleRequest = async (req, res) => {
   }
   if (bucket.count > (requestPath.startsWith('/api/auth/') && req.method === 'POST' ? AUTH_RATE_LIMIT : RATE_LIMIT)) return send(res, 429, { message: 'Demasiadas solicitudes. Inténtalo de nuevo en un minuto.' });
   if (req.method === 'OPTIONS') return send(res, 204, {});
+  const localUploadMatch = requestPath.match(/^\/api\/uploads\/local\/([a-f0-9]{48})$/);
+  if (localUploadMatch && req.method === 'PUT') {
+    try {
+      await receiveLocalUpload(db, localUploadMatch[1], req);
+      return send(res, 200, { ok: true });
+    } catch (error) {
+      if (error instanceof UploadError) return send(res, error.status, { message: error.message, code: error.code });
+      throw error;
+    }
+  }
+  if (requestPath.startsWith('/api/files/') && req.method === 'GET') {
+    if (serveLocalFile(res, decodeURIComponent(requestPath.slice('/api/files/'.length)))) return;
+    return send(res, 404, { message: 'Archivo no encontrado.' });
+  }
   if (requestPath === '/api/health') return send(res, 200, { ok: true, service: 'kova-api', timestamp: new Date().toISOString() });
   if (requestPath === '/api/errors' && req.method === 'POST') {
     const body = await readBody(req);
@@ -314,6 +334,19 @@ const handleRequest = async (req, res) => {
   }
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = await db.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').get(token, new Date().toISOString());
+  if (requestPath === '/api/uploads' && req.method === 'POST') {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const body = await readBody(req);
+    const proto = String(req.headers['x-forwarded-proto'] || 'http').split(',')[0];
+    const baseUrl = String(process.env.PUBLIC_API_URL || `${proto}://${req.headers.host}`).replace(/\/$/, '');
+    try {
+      return send(res, 200, await createUploadTicket(db, session.user_id, body, baseUrl));
+    } catch (error) {
+      if (error instanceof UploadError) return send(res, error.status, { message: error.message, code: error.code });
+      throw error;
+    }
+  }
+  if (await handleContentRoute({ req, res, requestPath, session, db, send, readBody, userFromRow, publicUser, canAccessSpace })) return;
   if (requestPath === '/api/voice/token' && req.method === 'POST') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const body = await readBody(req);
@@ -599,7 +632,8 @@ const handleRequest = async (req, res) => {
     }
     const body = await readBody(req);
     const content = String(body.content || '').trim();
-    const attachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 10).filter((item) => typeof item?.url === 'string' && /^https:\/\//i.test(item.url) && item.url.length <= 2048) : [];
+    const attachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 10).filter((item) => typeof item?.url === 'string' && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/)/i.test(item.url) && item.url.length <= 2048)
+      .map((item) => ({ id: String(item.id || '').slice(0, 64), url: item.url, name: String(item.name || 'archivo').slice(0, 200), type: ['image', 'video', 'audio'].includes(item.type) ? item.type : 'file', size: String(item.size || '').slice(0, 20) })) : [];
     if (!content && attachments.length === 0) return send(res, 400, { message: 'Escribe un mensaje antes de enviarlo.' });
     if (content.length > 10_000) return send(res, 413, { message: 'El mensaje supera el límite de 10 000 caracteres.' });
     const replyToId = String(body.replyToId || '').trim() || null;

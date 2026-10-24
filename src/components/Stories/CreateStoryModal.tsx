@@ -2,12 +2,14 @@ import React, { useState, useRef } from 'react';
 import { X, Image as ImageIcon, Sparkles, Send, Palette, Type, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
+import { uploadFile } from '../../services/apiClient';
 
 export const CreateStoryModal: React.FC = () => {
   const { isCreateStoryOpen, setIsCreateStoryOpen, addStory, currentUser } = useApp();
 
   const [text, setText] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
   const [selectedBg, setSelectedBg] = useState('from-purple-900 via-indigo-900 to-black');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -24,22 +26,39 @@ export const CreateStoryModal: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setMediaUrl(reader.result as string);
-      toast.success('Foto cargada para la historia');
-    };
-    reader.readAsDataURL(file);
+    // The story viewer renders images only for now.
+    if (!file.type.startsWith('image/')) {
+      toast.error('La historia debe ser una imagen.');
+      return;
+    }
+    setIsBusy(true);
+    const toastId = toast.loading('Subiendo archivo de la historia…');
+    uploadFile(file, 'story')
+      .then((url) => {
+        setMediaUrl(url);
+        toast.success('Archivo listo para la historia', { id: toastId });
+      })
+      .catch((error: Error) => toast.error(error.message || 'No se pudo subir el archivo.', { id: toastId }))
+      .finally(() => setIsBusy(false));
   };
 
-  const handlePublish = (e: React.FormEvent) => {
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim() && !mediaUrl) {
       toast.error('Por favor escribe un mensaje o sube una foto para tu historia');
       return;
     }
 
-    addStory(mediaUrl || undefined, text.trim() || undefined, selectedBg);
+    if (isBusy) return;
+    setIsBusy(true);
+    try {
+      await addStory(mediaUrl || undefined, text.trim() || undefined, selectedBg, mediaUrl ? 'image' : undefined);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo publicar la historia.');
+      return;
+    } finally {
+      setIsBusy(false);
+    }
     toast.success('¡Historia publicada con éxito!');
     setText('');
     setMediaUrl('');

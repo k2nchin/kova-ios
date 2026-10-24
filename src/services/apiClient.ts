@@ -26,6 +26,22 @@ export type AuthResponse =
   | { user: any; token: string; twoFactorRequired?: false; challenge?: undefined }
   | { twoFactorRequired: true; challenge: string; methods: string[]; user?: undefined; token?: undefined };
 
+export type UploadKind = 'avatar' | 'banner' | 'story' | 'sound' | 'attachment';
+
+/**
+ * Uploads a file through Kova: the API validates it and hands back a signed URL,
+ * the browser sends the bytes straight to storage, and the public URL is returned.
+ */
+export async function uploadFile(file: File, kind: UploadKind): Promise<string> {
+  const ticket = await api.createUpload({ kind, fileName: file.name, contentType: file.type || 'application/octet-stream', size: file.size });
+  const res = await fetch(ticket.uploadUrl, { method: ticket.method, headers: ticket.headers, body: file });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `No se pudo subir ${file.name}.`);
+  }
+  return ticket.publicUrl;
+}
+
 interface RequestOptions extends RequestInit {
   data?: unknown;
 }
@@ -134,6 +150,25 @@ export const api = {
   // Voice
   getVoiceToken: (channelId: string) =>
     request<{ token: string; url: string; room: string }>('/voice/token', { method: 'POST', data: { channelId } }),
+
+  // Uploads, profile and user content
+  createUpload: (data: { kind: UploadKind; fileName: string; contentType: string; size: number }) =>
+    request<{ uploadUrl: string; method: 'PUT'; headers: Record<string, string>; publicUrl: string }>('/uploads', { method: 'POST', data }),
+  updateProfile: (data: { displayName?: string; avatar?: string; banner?: string; bio?: string; customStatus?: string; thoughtBubble?: string }) =>
+    request<any>('/users/me', { method: 'PATCH', data }),
+  getStories: () => request<any[]>('/stories', { method: 'GET' }),
+  createStory: (data: { mediaUrl?: string; mediaType?: 'image' | 'video'; text?: string; backgroundColor?: string }) =>
+    request<any>('/stories', { method: 'POST', data }),
+  deleteStory: (storyId: string) => request<{ ok: true }>(`/stories/${encodeURIComponent(storyId)}`, { method: 'DELETE' }),
+  toggleStoryLike: (storyId: string) =>
+    request<{ id: string; likes: number; likedByMe: boolean }>(`/stories/${encodeURIComponent(storyId)}/like`, { method: 'POST' }),
+  getBots: () => request<any[]>('/bots', { method: 'GET' }),
+  createBot: (serverId: string, bot: unknown) => request<any>('/bots', { method: 'POST', data: { serverId, bot } }),
+  deleteBot: (botId: string) => request<{ ok: true }>(`/bots/${encodeURIComponent(botId)}`, { method: 'DELETE' }),
+  getSounds: () => request<Array<{ id: string; name: string; emoji: string; url: string; duration: number }>>('/sounds', { method: 'GET' }),
+  createSound: (data: { name: string; emoji: string; url: string; duration: number }) =>
+    request<{ id: string; name: string; emoji: string; url: string; duration: number }>('/sounds', { method: 'POST', data }),
+  deleteSound: (soundId: string) => request<{ ok: true }>(`/sounds/${encodeURIComponent(soundId)}`, { method: 'DELETE' }),
 
   // Kova AI Proxy
   askAI: (prompt: string, context?: any) =>

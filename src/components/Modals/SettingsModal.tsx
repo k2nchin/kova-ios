@@ -29,6 +29,7 @@ import { useApp } from '../../context/AppContext';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { isDesktopApp } from '../../utils/platform';
 import { checkForKovaUpdate } from '../../services/updateService';
+import { uploadFile } from '../../services/apiClient';
 
 function PreferenceToggle({
   label,
@@ -225,14 +226,14 @@ export const SettingsModal: React.FC = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setAvatar(result);
-      updateUserProfile({ avatar: result });
-      toast.success('¡Foto de perfil actualizada con éxito!');
-    };
-    reader.readAsDataURL(file);
+    const toastId = toast.loading('Subiendo foto de perfil…');
+    uploadFile(file, 'avatar')
+      .then(async (url) => {
+        setAvatar(url);
+        if (await updateUserProfile({ avatar: url })) toast.success('¡Foto de perfil actualizada con éxito!', { id: toastId });
+        else toast.dismiss(toastId);
+      })
+      .catch((error: Error) => toast.error(error.message || 'No se pudo subir la foto.', { id: toastId }));
   };
 
   // Handle local image upload for profile banner
@@ -245,24 +246,30 @@ export const SettingsModal: React.FC = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setBanner(result);
-      updateUserProfile({ banner: result });
-      toast.success('¡Banner de perfil actualizado!');
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('El banner no debe superar los 8MB');
+      return;
+    }
+
+    const toastId = toast.loading('Subiendo banner…');
+    uploadFile(file, 'banner')
+      .then(async (url) => {
+        setBanner(url);
+        if (await updateUserProfile({ banner: url })) toast.success('¡Banner de perfil actualizado!', { id: toastId });
+        else toast.dismiss(toastId);
+      })
+      .catch((error: Error) => toast.error(error.message || 'No se pudo subir el banner.', { id: toastId }));
   };
 
-  const saveSettings = () => {
-    updateUserProfile({
+  const saveSettings = async () => {
+    const ok = await updateUserProfile({
       displayName: name.trim() || currentUser.username || 'Usuario',
       customStatus: status.trim(),
       bio: bio.trim(),
       avatar: avatar || currentUser.avatar,
       banner: banner || currentUser.banner,
     });
+    if (!ok) return;
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1800);
   };

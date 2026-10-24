@@ -97,14 +97,15 @@ export const AppDirectoryModal: React.FC = () => {
     setNewResponse('');
   };
 
-  const handleCreateBot = (e: React.FormEvent) => {
+  const handleCreateBot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBotName.trim()) {
       toast.error('El nombre del bot es requerido');
       return;
     }
 
-    createCustomBot({
+    try {
+      await createCustomBot({
       name: newBotName.trim(),
       username: (newBotUsername.trim() || newBotName.toLowerCase().replace(/\s+/g, '_')).replace('@', ''),
       tag: 'BOT',
@@ -122,7 +123,11 @@ export const AppDirectoryModal: React.FC = () => {
           usage: `${newBotPrefix.trim() || '!'}help`,
         },
       ],
-    });
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el bot.');
+      return;
+    }
 
     // Reset form
     setNewBotName('');
@@ -664,7 +669,7 @@ export const AppDirectoryModal: React.FC = () => {
                         {bot.createdBy && (
                           <button
                             type="button"
-                            onClick={() => deleteCustomBot(bot.id)}
+                            onClick={() => void deleteCustomBot(bot.id)}
                             className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                             title="Eliminar bot permanentemente"
                           >

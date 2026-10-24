@@ -19,12 +19,14 @@ import {
 } from 'lucide-react';
 import { soundFx } from '../../utils/soundEffects';
 import { useApp } from '../../context/AppContext';
+import { api, uploadFile } from '../../services/apiClient';
+import { toast } from 'sonner';
 
 export interface CustomSoundItem {
   id: string;
   name: string;
   emoji: string;
-  audioData: string; // Base64 data URL
+  audioData: string; // Hosted audio URL (Kova storage)
   duration?: number;
   serverId?: string;
   serverName?: string;
@@ -60,14 +62,20 @@ const RECENT_KEY = 'kova.soundboard.recent';
 export const SoundboardModal: React.FC = () => {
   const { isSoundboardOpen, setIsSoundboardOpen, sendMessage, activeServer } = useApp();
 
-  const [customSounds, setCustomSounds] = useState<CustomSoundItem[]>(() => {
+  // Custom sounds live on the server so they follow the user across devices.
+  const [customSounds, setCustomSounds] = useState<CustomSoundItem[]>([]);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [isSavingSound, setIsSavingSound] = useState(false);
+
+  useEffect(() => {
+    if (!isSoundboardOpen) return;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    api.getSounds()
+      .then((sounds) => setCustomSounds(sounds.map((sound) => ({ id: sound.id, name: sound.name, emoji: sound.emoji, audioData: sound.url, duration: sound.duration || undefined, createdAt: Date.now() }))))
+      .catch((error) => console.warn('[Kova soundboard]', error));
+  }, [isSoundboardOpen]);
 
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
     try {
@@ -134,12 +142,6 @@ export const SoundboardModal: React.FC = () => {
     }
     setIsPreviewPlaying(false);
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(customSounds));
-    } catch {}
-  }, [customSounds]);
 
   useEffect(() => {
     try {
@@ -244,7 +246,9 @@ export const SoundboardModal: React.FC = () => {
     if (activePlayingId === id) {
       handleStopSound();
     }
-    setCustomSounds((prev) => prev.filter((s) => s.id !== id));
+    void api.deleteSound(id)
+      .then(() => setCustomSounds((prev) => prev.filter((s) => s.id !== id)))
+      .catch((error: Error) => toast.error(error.message || 'No se pudo eliminar el sonido.'));
     setFavoriteIds((prev) => prev.filter((item) => item !== id));
     setRecentIds((prev) => prev.filter((item) => item !== id));
   };
@@ -253,8 +257,12 @@ export const SoundboardModal: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('El archivo no debe superar los 5 MB.');
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorMessage('El archivo no debe superar los 2 MB.');
+      return;
+    }
+    if (!file.type.startsWith('audio/')) {
+      setErrorMessage('El archivo debe ser de audio (.mp3, .wav, .ogg).');
       return;
     }
 
@@ -265,17 +273,14 @@ export const SoundboardModal: React.FC = () => {
       setSoundName(cleanName);
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setAudioData(result);
-
-      const tempAudio = new Audio(result);
-      tempAudio.addEventListener('loadedmetadata', () => {
-        setAudioDuration(tempAudio.duration);
-      });
-    };
-    reader.readAsDataURL(file);
+    // Preview locally; the file is uploaded only when the sound is saved.
+    setAudioFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setAudioData(previewUrl);
+    const tempAudio = new Audio(previewUrl);
+    tempAudio.addEventListener('loadedmetadata', () => {
+      setAudioDuration(tempAudio.duration);
+    });
   };
 
   const togglePreview = () => {
@@ -297,31 +302,40 @@ export const SoundboardModal: React.FC = () => {
     }
   };
 
-  const handleSaveCustomSound = (e: React.FormEvent) => {
+  const handleSaveCustomSound = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!soundName.trim()) {
       setErrorMessage('Por favor introduce un nombre para el sonido.');
       return;
     }
-    if (!audioData) {
+    if (!audioData || !audioFile) {
       setErrorMessage('Por favor sube un archivo de audio (.mp3, .wav, .ogg).');
       return;
     }
+    if (isSavingSound) return;
 
     stopPreview();
-
-    const newSound: CustomSoundItem = {
-      id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      name: soundName.trim(),
-      emoji: soundEmoji || '🔊',
-      audioData,
-      duration: audioDuration > 0 ? Math.round(audioDuration * 10) / 10 : undefined,
-      serverId: activeServer?.id,
-      serverName: activeServer?.name,
-      createdAt: Date.now(),
-    };
+    setIsSavingSound(true);
+    let newSound: CustomSoundItem;
+    try {
+      const url = await uploadFile(audioFile, 'sound');
+      const saved = await api.createSound({
+        name: soundName.trim(),
+        emoji: soundEmoji || '🔊',
+        url,
+        duration: audioDuration > 0 ? Math.round(audioDuration * 10) / 10 : 0,
+      });
+      newSound = { id: saved.id, name: saved.name, emoji: saved.emoji, audioData: saved.url, duration: saved.duration || undefined, serverId: activeServer?.id, serverName: activeServer?.name, createdAt: Date.now() };
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo guardar el sonido.');
+      return;
+    } finally {
+      setIsSavingSound(false);
+    }
+    URL.revokeObjectURL(audioData);
 
     setCustomSounds((prev) => [newSound, ...prev]);
+    setAudioFile(null);
 
     setSoundName('');
     setSoundEmoji('🔊');

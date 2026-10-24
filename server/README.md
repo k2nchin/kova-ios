@@ -20,6 +20,8 @@ as appropriate:
 - `GEMINI_API_KEY`: Google AI Studio key for Kova IA (`/api/ai/chat`). Without it the endpoint answers 503 `AI_NOT_CONFIGURED`.
 - `GEMINI_MODEL`: optional model id (default `gemini-2.5-flash`).
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`: LiveKit server (Cloud or self-hosted) that carries voice audio. `/api/voice/token` answers 503 `VOICE_NOT_CONFIGURED` without them.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` (default `kova-uploads`): file uploads (attachments, avatars, banners, stories, sounds). Create the bucket as **public** and set its file size limit to 25 MB. The browser uploads directly to Supabase with a signed URL, so Vercel body limits do not apply. Without Supabase, a long-lived server stores files under `KOVA_UPLOADS_DIR` (default `<KOVA_DATA_DIR>/uploads`); on Vercel, uploads answer 503.
+- `PUBLIC_API_URL`: optional public base URL of the API, used for local-disk file links behind a proxy.
 
 Keep credentials in Vercel environment settings or a local ignored `.env.local`; never
 put them in source code, `vercel.json`, screenshots, or a committed `.env` file.

@@ -166,7 +166,8 @@ interface AppContextType {
   setSoundEnabled: (enabled: boolean) => void;
   preferences: AppPreferences;
   updatePreference: <K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) => void;
-  updateUserProfile: (updates: Partial<User>) => void;
+  /** Resolves to false (after showing an error) when the server rejected the change. */
+  updateUserProfile: (updates: Partial<User>) => Promise<boolean>;
   // Activities, Soundboard & Arcades
   isArcadeOpen: boolean;
   setIsArcadeOpen: (open: boolean) => void;
@@ -181,7 +182,7 @@ interface AppContextType {
   activeStoryIndex: number | null;
   openStoryViewer: (index: number) => void;
   closeStoryViewer: () => void;
-  addStory: (mediaUrl?: string, text?: string, backgroundColor?: string) => void;
+  addStory: (mediaUrl?: string, text?: string, backgroundColor?: string, mediaType?: 'image' | 'video') => Promise<void>;
   reactToStory: (storyId: string, emoji: string) => void;
   // Direct Messages & Friends
   isDMViewActive: boolean;
@@ -271,8 +272,8 @@ interface AppContextType {
   setIsAppDirectoryOpen: (open: boolean) => void;
   installBotToServer: (botId: string, serverId: string) => void;
   uninstallBotFromServer: (botId: string, serverId: string) => void;
-  createCustomBot: (botData: Omit<KovaBot, 'id' | 'installedServers' | 'verified'>) => KovaBot;
-  deleteCustomBot: (botId: string) => void;
+  createCustomBot: (botData: Omit<KovaBot, 'id' | 'installedServers' | 'verified'>) => Promise<KovaBot>;
+  deleteCustomBot: (botId: string) => Promise<void>;
   processBotTriggers: (content: string, channelId: string) => Promise<boolean>;
   // Two-Factor Authentication (2FA)
   isTwoFactorEnabled: boolean;
@@ -387,6 +388,33 @@ const ensureServerRoles = (serverList: Server[], user: User): Server[] => {
 };
 
 const ALLOW_OFFLINE_AUTH = import.meta.env.DEV && import.meta.env.VITE_ALLOW_OFFLINE_AUTH === 'true';
+
+const relativeTime = (iso: string) => {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (minutes < 1) return 'Ahora';
+  if (minutes < 60) return `hace ${minutes} min`;
+  return `hace ${Math.round(minutes / 60)} h`;
+};
+
+const storyFromApi = (item: any, fallbackUser: User): Story => ({
+  id: item.id,
+  author: item.author?.id === fallbackUser.id ? fallbackUser : {
+    ...fallbackUser,
+    id: item.author?.id,
+    userId: item.author?.id,
+    username: item.author?.username || 'usuario',
+    displayName: item.author?.displayName || item.author?.username || 'Usuario',
+    avatar: item.author?.avatar || fallbackUser.avatar,
+    tag: '0000',
+    status: 'online',
+  },
+  mediaUrl: item.mediaUrl,
+  text: item.text,
+  backgroundColor: item.backgroundColor,
+  createdAt: relativeTime(item.createdAt),
+  views: 0,
+  likes: Number(item.likes) || 0,
+});
 
 const messageFromApi = (item: any, fallbackUser: User): Message => {
   const author: User = item.author ? {
@@ -826,7 +854,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let cancelled = false;
     api.getMe().then((remoteUser) => {
       if (cancelled || !remoteUser) return;
-      setCurrentUser((previous) => ({ ...previous, ...remoteUser, id: remoteUser.id, userId: remoteUser.userId || remoteUser.id }));
+      // The server is the source of truth for the profile; presence and avatar
+      // fall back to what the client already has when the server has none.
+      setCurrentUser((previous) => ({
+        ...previous,
+        ...remoteUser,
+        id: remoteUser.id,
+        userId: remoteUser.userId || remoteUser.id,
+        status: previous.status,
+        avatar: remoteUser.avatar || previous.avatar,
+        banner: remoteUser.banner || undefined,
+        thoughtBubble: remoteUser.thoughtBubble || previous.thoughtBubble,
+      }));
     }).catch(() => {
       if (cancelled) return;
       clearAuthToken();
@@ -1120,16 +1159,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const soundEnabled = preferences.soundEnabled;
 
-  const updateUserProfile = (updates: Partial<User>) => {
-    setCurrentUser((prev) => {
-      const updated = { ...prev, ...updates };
-      try {
-        localStorage.setItem('kova.auth.user', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-    soundFx.playJoinVoice();
-    toast.success('Perfil y foto actualizados');
+  // Profile fields other people see are saved on the server; the rest (radar
+  // position, etc.) stays local. Updates apply optimistically and roll back on error.
+  const updateUserProfile = async (updates: Partial<User>) => {
+    const previous = currentUser;
+    setCurrentUser((prev) => ({ ...prev, ...updates }));
+    const serverFields = (['displayName', 'avatar', 'banner', 'bio', 'customStatus', 'thoughtBubble'] as const).filter((key) => key in updates);
+    if (serverFields.length === 0 || !getAuthToken()) return true;
+    try {
+      const saved = await api.updateProfile(Object.fromEntries(serverFields.map((key) => [key, updates[key] ?? ''])));
+      setCurrentUser((prev) => ({ ...prev, displayName: saved.displayName, avatar: saved.avatar || prev.avatar, banner: saved.banner || undefined, bio: saved.bio, customStatus: saved.customStatus, thoughtBubble: saved.thoughtBubble || prev.thoughtBubble }));
+      soundFx.playJoinVoice();
+      return true;
+    } catch (error) {
+      setCurrentUser(previous);
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar el perfil.');
+      return false;
+    }
   };
 
   // Voice call state
@@ -1154,28 +1200,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProfileModalUser(null);
   };
 
-  // Stories System State
-  const [stories, setStories] = useState<Story[]>(() => {
-    try {
-      localStorage.removeItem('kova.stories.v1');
-      localStorage.removeItem('kova.stories.v2');
-      const saved = localStorage.getItem('kova.stories.v3');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const mockIds = ['user_elena', 'user_alex', 'user_marcus', 'user_sophia', 'user_kai', 'user_luna'];
-          return parsed.filter((s: Story) => s && s.author && !mockIds.includes(s.author.id));
-        }
-      }
-    } catch {}
-    return [];
-  });
+  // Stories System State (served by the API; expire after 24h)
+  const [stories, setStories] = useState<Story[]>([]);
 
   useEffect(() => {
     try {
-      localStorage.setItem('kova.stories.v3', JSON.stringify(stories));
+      ['kova.stories.v1', 'kova.stories.v2', 'kova.stories.v3'].forEach((key) => localStorage.removeItem(key));
     } catch {}
-  }, [stories]);
+  }, []);
+
+  const loadStories = async () => {
+    if (!getAuthToken()) return;
+    try {
+      const remote = await api.getStories();
+      setStories(remote.map((item) => storyFromApi(item, currentUser)));
+    } catch (error) {
+      console.warn('[Kova stories]', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void loadStories();
+    const timer = window.setInterval(() => void loadStories(), 60_000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, currentUser.id]);
 
   const [isCreateStoryOpen, setIsCreateStoryOpen] = useState(false);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
@@ -1195,38 +1245,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveStoryIndex(null);
   };
 
-  const addStory = (mediaUrl?: string, text?: string, backgroundColor?: string) => {
-    const newStory: Story = {
-      id: `story_${Date.now()}`,
-      author: currentUser,
-      mediaUrl,
-      text,
-      backgroundColor: backgroundColor || 'from-purple-900 via-indigo-900 to-black',
-      createdAt: 'Ahora',
-      views: 1,
-      likes: 0,
-    };
-    setStories((prev) => [newStory, ...prev]);
+  const addStory = async (mediaUrl?: string, text?: string, backgroundColor?: string, mediaType?: 'image' | 'video') => {
+    const created = await api.createStory({ mediaUrl, mediaType, text, backgroundColor: backgroundColor || 'from-purple-900 via-indigo-900 to-black' });
+    setStories((prev) => [storyFromApi({ ...created, author: currentUser }, currentUser), ...prev]);
     soundFx.playAISparkle();
   };
 
-  const storyReactionsRef = React.useRef<Set<string>>(new Set());
-
   const reactToStory = (storyId: string, _emoji: string) => {
-    const key = `${storyId}:${currentUser.id}`;
-
-    setStories((prev) => {
-      const reacted = storyReactionsRef.current.has(key);
-      if (reacted) {
-        storyReactionsRef.current.delete(key);
-      } else {
-        storyReactionsRef.current.add(key);
-      }
-      return prev.map((s) => {
-        if (s.id !== storyId) return s;
-        return { ...s, likes: Math.max(0, s.likes + (reacted ? -1 : 1)) };
-      });
-    });
+    void api.toggleStoryLike(storyId)
+      .then((result) => setStories((prev) => prev.map((story) => (story.id === storyId ? { ...story, likes: result.likes } : story))))
+      .catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudo reaccionar a la historia.'));
   };
 
   // Friends System State
@@ -1516,19 +1544,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Bots & App Directory state
-  const [bots, setBots] = useState<KovaBot[]>(() => {
-    try {
-      const saved = localStorage.getItem('kova.bots.v1');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return DEFAULT_BOTS;
-  });
+  // Built-in bots ship with the app; custom bots are stored on the server per space.
+  const [bots, setBots] = useState<KovaBot[]>(DEFAULT_BOTS);
 
   useEffect(() => {
     try {
-      localStorage.setItem('kova.bots.v1', JSON.stringify(bots));
+      localStorage.removeItem('kova.bots.v1');
     } catch {}
-  }, [bots]);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken()) return;
+    let cancelled = false;
+    api.getBots()
+      .then((custom) => {
+        if (cancelled) return;
+        setBots([...custom.map((bot) => ({ ...bot, tag: bot.tag || 'BOT' }) as KovaBot), ...DEFAULT_BOTS]);
+      })
+      .catch((error) => console.warn('[Kova bots]', error));
+    return () => { cancelled = true; };
+  }, [isAuthenticated, currentUser.id]);
 
   const [isAppDirectoryOpen, setIsAppDirectoryOpen] = useState(false);
 
@@ -2140,13 +2175,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toast.info(`Bot ${targetBot ? targetBot.name : ''} expulsado del servidor`);
   };
 
-  const createCustomBot = (botData: Omit<KovaBot, 'id' | 'installedServers' | 'verified'>): KovaBot => {
-    const newBot: KovaBot = {
-      ...botData,
-      id: `bot_${Date.now()}`,
-      installedServers: [activeServer.id],
-      verified: false,
-    };
+  const createCustomBot = async (botData: Omit<KovaBot, 'id' | 'installedServers' | 'verified'>): Promise<KovaBot> => {
+    const newBot = (await api.createBot(activeServer.id, botData)) as KovaBot;
 
     setBots((prev) => [newBot, ...prev]);
 
@@ -2181,7 +2211,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newBot;
   };
 
-  const deleteCustomBot = (botId: string) => {
+  const deleteCustomBot = async (botId: string) => {
+    try {
+      await api.deleteBot(botId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo eliminar el bot.');
+      return;
+    }
     setBots((prev) => prev.filter((b) => b.id !== botId));
     setServers((prev) =>
       prev.map((s) => ({

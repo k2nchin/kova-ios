@@ -35,31 +35,25 @@ import { MessageItem } from './MessageItem';
 import { EmojiGifPicker } from './EmojiGifPicker';
 import { CommunityHeroBanner } from './CommunityHeroBanner';
 import { Attachment } from '../../types';
+import { uploadFile } from '../../services/apiClient';
 
-const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 const MAX_ATTACHMENT_COUNT = 5;
 
 const formatAttachmentSize = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
 
-const fileToAttachment = (file: File, index: number): Promise<Attachment> =>
-  new Promise((resolve, reject) => {
-    const base = {
-      id: `att_${Date.now()}_${index}`,
-      name: file.name,
-      size: formatAttachmentSize(file.size),
-    };
-    const mediaMatch = /^(image|video|audio)\//.exec(file.type);
-    if (!mediaMatch) {
-      resolve({ ...base, url: '', type: 'file' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () =>
-      resolve({ ...base, url: reader.result as string, type: mediaMatch[1] as Attachment['type'] });
-    reader.onerror = () => reject(new Error(`No se pudo leer ${file.name}`));
-    reader.readAsDataURL(file);
-  });
+// Uploads the file to Kova storage so every member can open it, not just the sender.
+const fileToAttachment = async (file: File, index: number): Promise<Attachment> => {
+  const mediaMatch = /^(image|video|audio)\//.exec(file.type);
+  return {
+    id: `att_${Date.now()}_${index}`,
+    name: file.name,
+    size: formatAttachmentSize(file.size),
+    url: await uploadFile(file, 'attachment'),
+    type: (mediaMatch?.[1] as Attachment['type']) || 'file',
+  };
+};
 
 const KOVA_QUICK_ACTIONS = [
   { command: '/stream', desc: 'Muestra el estado en vivo del directo de JuanPi1x', example: '/stream' },
@@ -406,16 +400,17 @@ export const ChatArea: React.FC = () => {
     const accepted = files.slice(0, room);
     const rejectedSize = accepted.filter((f) => f.size > MAX_ATTACHMENT_BYTES);
     const valid = accepted.filter((f) => f.size <= MAX_ATTACHMENT_BYTES);
-    if (rejectedSize.length) toast.error(`${rejectedSize.map((f) => f.name).join(', ')} supera los 8 MB.`);
+    if (rejectedSize.length) toast.error(`${rejectedSize.map((f) => f.name).join(', ')} supera los 25 MB.`);
     if (files.length > room) toast.error(`Solo se agregaron ${room} — máximo ${MAX_ATTACHMENT_COUNT} por mensaje.`);
     if (!valid.length) return;
+    const toastId = toast.loading(valid.length === 1 ? `Subiendo ${valid[0].name}…` : `Subiendo ${valid.length} archivos…`);
     try {
       const attachments = await Promise.all(valid.map((file, i) => fileToAttachment(file, i)));
       setPendingAttachments((prev) => [...prev, ...attachments]);
-      toast.success(attachments.length === 1 ? `Adjuntado: ${attachments[0].name}` : `${attachments.length} archivos adjuntados`);
+      toast.success(attachments.length === 1 ? `Adjuntado: ${attachments[0].name}` : `${attachments.length} archivos adjuntados`, { id: toastId });
     } catch (err) {
       console.warn('[Kova Attachments]', err);
-      toast.error('No se pudo adjuntar el archivo.');
+      toast.error(err instanceof Error ? err.message : 'No se pudo adjuntar el archivo.', { id: toastId });
     }
   };
 
