@@ -11,7 +11,8 @@ import { contentSchema, contentUserColumns, handleContentRoute } from './content
 import { uploadsSchema, createUploadTicket, receiveLocalUpload, serveLocalFile, UploadError } from './storage.mjs';
 import { twoFactorSchema, twoFactorUserColumns, sealSecret, openSecret, generateSecret, otpauthUrl, verifyTotp, hashBackupCode, generateBackupCodes, looksLikeBackupCode, loginLockedFor, recordLoginFailure, clearLoginFailures, CHALLENGE_TTL_MS, CHALLENGE_MAX_ATTEMPTS } from './twoFactor.mjs';
 
-const port = Number(process.env.KOVA_API_PORT || 4000);
+// Hosts such as Railway, Render or Fly inject PORT; KOVA_API_PORT wins for local setups.
+const port = Number(process.env.KOVA_API_PORT || process.env.PORT || 4000);
 // Vercel's deployment filesystem is read-only. Use its writable temporary
 // directory when no hosted PostgreSQL connection is configured.
 const dataDir = path.resolve(process.env.KOVA_DATA_DIR || (process.env.VERCEL ? '/tmp/kova-data' : './server/data'));
@@ -785,4 +786,12 @@ if (!process.env.VERCEL) {
   const allowedOrigins = String(process.env.KOVA_SOCKET_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
   await attachRealtime(server, { db, canAccessSpace, allowedOrigins });
   server.listen(port, () => console.log(`Kova API listening on http://localhost:${port}`));
+  // Hosts stop containers with SIGTERM: finish in-flight requests, then exit.
+  const shutdown = () => {
+    console.log('Kova API shutting down');
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 10_000).unref();
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
 }
