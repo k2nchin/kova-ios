@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { attachRealtime, emitToChannel, emitToUsers } from './realtime.mjs';
+import { twoFactorSchema, twoFactorUserColumns, sealSecret, openSecret, generateSecret, otpauthUrl, verifyTotp, hashBackupCode, generateBackupCodes, looksLikeBackupCode, loginLockedFor, recordLoginFailure, clearLoginFailures, CHALLENGE_TTL_MS, CHALLENGE_MAX_ATTEMPTS } from './twoFactor.mjs';
 
 const port = Number(process.env.KOVA_API_PORT || 4000);
 // Vercel's deployment filesystem is read-only. Use its writable temporary
@@ -14,6 +15,7 @@ if (process.env.VERCEL && !process.env.DATABASE_URL) throw new Error('DATABASE_U
 const requestBuckets = new Map();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 120;
+const AUTH_RATE_LIMIT = 20;
 const scrypt = promisify(crypto.scrypt);
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const schema = `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, avatar TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', visibility TEXT NOT NULL DEFAULT 'private', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS space_members (space_id TEXT NOT NULL, user_id TEXT NOT NULL, joined_at TEXT NOT NULL, PRIMARY KEY(space_id, user_id), FOREIGN KEY(space_id) REFERENCES spaces(id), FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, topic TEXT NOT NULL DEFAULT '', category_id TEXT, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS server_invites (code TEXT PRIMARY KEY, space_id TEXT NOT NULL, creator_id TEXT NOT NULL, expires_at TEXT, max_uses INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, signal_id TEXT NOT NULL, author_id TEXT NOT NULL, content TEXT NOT NULL, reply_to_id TEXT, attachments TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS message_reactions (message_id TEXT NOT NULL, user_id TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(message_id, user_id, emoji)); CREATE TABLE IF NOT EXISTS direct_messages (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS friend_requests (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, UNIQUE(sender_id, receiver_id)); CREATE TABLE IF NOT EXISTS friendships (user_a TEXT NOT NULL, user_b TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(user_a, user_b)); CREATE TABLE IF NOT EXISTS blocked_users (blocker_id TEXT NOT NULL, blocked_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(blocker_id, blocked_id)); CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, reporter_id TEXT NOT NULL, target_id TEXT NOT NULL, reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL);`;
@@ -52,6 +54,8 @@ if (process.env.DATABASE_URL) {
   };
 }
 await db.exec(schema);
+await db.exec(twoFactorSchema);
+for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
 try { await db.exec("ALTER TABLE spaces ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private'"); } catch {}
 try { await db.exec("ALTER TABLE spaces ADD COLUMN icon_url TEXT NOT NULL DEFAULT ''"); } catch {}
 try { await db.exec("ALTER TABLE spaces ADD COLUMN banner_url TEXT NOT NULL DEFAULT ''"); } catch {}
@@ -60,7 +64,7 @@ try { await db.exec('ALTER TABLE signals ADD COLUMN category_id TEXT'); } catch 
 try { await db.exec('ALTER TABLE messages ADD COLUMN reply_to_id TEXT'); } catch {}
 try { await db.exec("ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); } catch {}
 try { await db.prepare('UPDATE sessions SET expires_at = ? WHERE expires_at IS NULL').run(new Date(0).toISOString()); } catch {}
-const userFromRow = (row) => row && ({ id: row.id, username: row.username, displayName: row.display_name, email: row.email, avatar: row.avatar, passwordHash: row.password_hash });
+const userFromRow = (row) => row && ({ id: row.id, username: row.username, displayName: row.display_name, email: row.email, avatar: row.avatar, passwordHash: row.password_hash, twoFactorEnabled: Number(row.totp_enabled || 0) === 1 });
 const passwordHash = async (password) => {
   const salt = crypto.randomBytes(16).toString('hex');
   const derived = await scrypt(password, salt, 64);
@@ -99,7 +103,40 @@ const readBody = async (req) => {
 };
 const publicUser = (u) => {
   const hash = [...String(u.id || '')].reduce((n, c) => ((n * 33) ^ c.charCodeAt(0)) >>> 0, 5381);
-  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, email: u.email, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: false };
+  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, email: u.email, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: false, twoFactorEnabled: Boolean(u.twoFactorEnabled) };
+};
+const issueSession = async (user) => {
+  const token = crypto.randomBytes(32).toString('hex');
+  await db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, new Date().toISOString(), sessionExpiry());
+  return { user: publicUser(user), token };
+};
+// With 2FA enabled the password (or Google) step only yields a short-lived challenge.
+const completeFirstFactor = async (user) => {
+  if (!user.twoFactorEnabled) return issueSession(user);
+  const challenge = crypto.randomBytes(32).toString('hex');
+  await db.prepare('DELETE FROM login_challenges WHERE user_id = ? OR expires_at < ?').run(user.id, new Date().toISOString());
+  await db.prepare('INSERT INTO login_challenges (id, user_id, attempts, expires_at) VALUES (?, ?, 0, ?)').run(challenge, user.id, new Date(Date.now() + CHALLENGE_TTL_MS).toISOString());
+  return { twoFactorRequired: true, challenge, methods: ['totp', 'backup_code'] };
+};
+// Accepts a current TOTP code or an unused backup code. Returns the method used or null.
+const verifySecondFactor = async (userId, code) => {
+  const row = await db.prepare('SELECT totp_secret, totp_last_step FROM users WHERE id = ? AND totp_enabled = 1').get(userId);
+  if (!row) return null;
+  const secret = openSecret(row.totp_secret);
+  const step = secret ? verifyTotp(secret, code, row.totp_last_step) : null;
+  if (step !== null) {
+    await db.prepare('UPDATE users SET totp_last_step = ? WHERE id = ?').run(step, userId);
+    return 'totp';
+  }
+  if (!looksLikeBackupCode(code)) return null;
+  const used = await db.prepare('UPDATE backup_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at IS NULL').run(new Date().toISOString(), userId, hashBackupCode(code));
+  return used.changes > 0 ? 'backup_code' : null;
+};
+const replaceBackupCodes = async (userId) => {
+  const codes = generateBackupCodes(10);
+  await db.prepare('DELETE FROM backup_codes WHERE user_id = ?').run(userId);
+  for (const code of codes) await db.prepare('INSERT INTO backup_codes (user_id, code_hash, used_at) VALUES (?, ?, NULL)').run(userId, hashBackupCode(code));
+  return codes;
 };
 const send = (res, status, body) => {
   res.writeHead(status, {
@@ -124,7 +161,7 @@ const handleRequest = async (req, res) => {
   if (requestBuckets.size > 20_000) {
     for (const [key, value] of requestBuckets) if (now - value.startedAt > RATE_WINDOW_MS) requestBuckets.delete(key);
   }
-  if (bucket.count > RATE_LIMIT) return send(res, 429, { message: 'Demasiadas solicitudes. Inténtalo de nuevo en un minuto.' });
+  if (bucket.count > (requestPath.startsWith('/api/auth/') && req.method === 'POST' ? AUTH_RATE_LIMIT : RATE_LIMIT)) return send(res, 429, { message: 'Demasiadas solicitudes. Inténtalo de nuevo en un minuto.' });
   if (req.method === 'OPTIONS') return send(res, 204, {});
   if (requestPath === '/api/health') return send(res, 200, { ok: true, service: 'kova-api', timestamp: new Date().toISOString() });
   if (requestPath === '/api/errors' && req.method === 'POST') {
@@ -149,18 +186,25 @@ const handleRequest = async (req, res) => {
       if (String(error?.code || '').startsWith('23') || /unique|duplicate/i.test(String(error?.message))) return send(res, 409, { message: 'Ya existe una cuenta con ese correo.' });
       throw error;
     }
-    const token = crypto.randomBytes(32).toString('hex'); await db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, new Date().toISOString(), sessionExpiry());
-    return send(res, 201, { user: publicUser(user), token });
+    return send(res, 201, await issueSession(user));
   }
   if (requestPath === '/api/auth/login' && req.method === 'POST') {
-    const body = await readBody(req); const email = String(body.email || '').trim().toLowerCase(); const user = userFromRow(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
+    const body = await readBody(req); const email = String(body.email || '').trim().toLowerCase();
+    const throttleKey = `login:${email}`;
+    const lockedSeconds = await loginLockedFor(db, throttleKey);
+    if (lockedSeconds) return send(res, 429, { message: `Demasiados intentos fallidos. Inténtalo de nuevo en ${Math.ceil(lockedSeconds / 60)} min.`, code: 'LOGIN_LOCKED', retryAfter: lockedSeconds });
+    const user = userFromRow(await db.prepare('SELECT * FROM users WHERE email = ?').get(email));
     const password = String(body.password || '');
-    if (!user || !password || !(await verifyPassword(password, user.passwordHash))) return send(res, 401, { message: 'Email o contraseña incorrectos.' });
+    if (!user || !password || !(await verifyPassword(password, user.passwordHash))) {
+      await recordLoginFailure(db, throttleKey);
+      return send(res, 401, { message: 'Email o contraseña incorrectos.' });
+    }
+    await clearLoginFailures(db, throttleKey);
     if (!String(user.passwordHash).startsWith('scrypt$')) {
       user.passwordHash = await passwordHash(password);
       await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(user.passwordHash, user.id);
     }
-    const token = crypto.randomBytes(32).toString('hex'); await db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, new Date().toISOString(), sessionExpiry()); return send(res, 200, { user: publicUser(user), token });
+    return send(res, 200, await completeFirstFactor(user));
   }
   if (requestPath === '/api/auth/google' && req.method === 'POST') {
     const body = await readBody(req);
@@ -189,13 +233,73 @@ const handleRequest = async (req, res) => {
         };
         await db.prepare('INSERT INTO users (id, username, display_name, email, avatar, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(user.id, user.username, user.displayName, user.email, user.avatar, user.passwordHash, new Date().toISOString());
       }
-      const token = crypto.randomBytes(32).toString('hex');
-      await db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, new Date().toISOString(), sessionExpiry());
-      return send(res, 200, { user: publicUser(user), token });
+      return send(res, 200, await completeFirstFactor(user));
     } catch (error) {
       console.error('Google auth failed:', error);
       return send(res, 502, { message: 'No se pudo verificar la cuenta con Google.' });
     }
+  }
+  if (requestPath === '/api/auth/2fa/login' && req.method === 'POST') {
+    const body = await readBody(req);
+    const challengeId = String(body.challenge || '');
+    const challenge = challengeId && await db.prepare('SELECT * FROM login_challenges WHERE id = ?').get(challengeId);
+    if (!challenge || Date.parse(challenge.expires_at) < Date.now() || Number(challenge.attempts) >= CHALLENGE_MAX_ATTEMPTS) {
+      if (challenge) await db.prepare('DELETE FROM login_challenges WHERE id = ?').run(challengeId);
+      return send(res, 401, { message: 'La verificación expiró. Vuelve a iniciar sesión.', code: 'CHALLENGE_EXPIRED' });
+    }
+    const method = await verifySecondFactor(challenge.user_id, String(body.code || ''));
+    if (!method) {
+      await db.prepare('UPDATE login_challenges SET attempts = attempts + 1 WHERE id = ?').run(challengeId);
+      return send(res, 401, { message: 'Código incorrecto o expirado.', code: 'INVALID_CODE', attemptsLeft: CHALLENGE_MAX_ATTEMPTS - Number(challenge.attempts) - 1 });
+    }
+    await db.prepare('DELETE FROM login_challenges WHERE id = ?').run(challengeId);
+    const user = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(challenge.user_id));
+    const remaining = await db.prepare('SELECT COUNT(*) AS n FROM backup_codes WHERE user_id = ? AND used_at IS NULL').get(user.id);
+    return send(res, 200, { ...(await issueSession(user)), method, backupCodesRemaining: Number(remaining?.n || 0) });
+  }
+  if (requestPath.startsWith('/api/auth/2fa/')) {
+    const authToken = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const row = await db.prepare('SELECT u.* FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = ? AND s.expires_at > ?').get(authToken, new Date().toISOString());
+    if (!row) return send(res, 401, { message: 'Sesión no válida.' });
+    const enabled = Number(row.totp_enabled || 0) === 1;
+    if (requestPath === '/api/auth/2fa/status' && req.method === 'GET') {
+      const remaining = await db.prepare('SELECT COUNT(*) AS n FROM backup_codes WHERE user_id = ? AND used_at IS NULL').get(row.id);
+      return send(res, 200, { enabled, backupCodesRemaining: enabled ? Number(remaining?.n || 0) : 0 });
+    }
+    if (requestPath === '/api/auth/2fa/setup' && req.method === 'POST') {
+      if (enabled) return send(res, 409, { message: 'La verificación en dos pasos ya está activada.' });
+      const secret = generateSecret();
+      await db.prepare('UPDATE users SET totp_pending_secret = ? WHERE id = ?').run(sealSecret(secret), row.id);
+      return send(res, 200, { secret, otpauthUrl: otpauthUrl(secret, row.email || row.username) });
+    }
+    if (requestPath === '/api/auth/2fa/enable' && req.method === 'POST') {
+      if (enabled) return send(res, 409, { message: 'La verificación en dos pasos ya está activada.' });
+      const body = await readBody(req);
+      const secret = openSecret(row.totp_pending_secret);
+      if (!secret) return send(res, 400, { message: 'Primero genera un nuevo código QR.' });
+      const step = verifyTotp(secret, String(body.code || ''));
+      if (step === null) return send(res, 400, { message: 'El código no coincide. Revisa la hora de tu dispositivo e inténtalo de nuevo.', code: 'INVALID_CODE' });
+      await db.prepare('UPDATE users SET totp_secret = ?, totp_pending_secret = NULL, totp_enabled = 1, totp_last_step = ? WHERE id = ?').run(sealSecret(secret), step, row.id);
+      const backupCodes = await replaceBackupCodes(row.id);
+      // Sign out every other device: they authenticated without the second factor.
+      await db.prepare('DELETE FROM sessions WHERE user_id = ? AND token <> ?').run(row.id, authToken);
+      return send(res, 200, { enabled: true, backupCodes });
+    }
+    if (requestPath === '/api/auth/2fa/disable' && req.method === 'POST') {
+      if (!enabled) return send(res, 409, { message: 'La verificación en dos pasos no está activada.' });
+      const body = await readBody(req);
+      if (!await verifySecondFactor(row.id, String(body.code || ''))) return send(res, 400, { message: 'Código incorrecto o expirado.', code: 'INVALID_CODE' });
+      await db.prepare('UPDATE users SET totp_secret = NULL, totp_pending_secret = NULL, totp_enabled = 0, totp_last_step = 0 WHERE id = ?').run(row.id);
+      await db.prepare('DELETE FROM backup_codes WHERE user_id = ?').run(row.id);
+      return send(res, 200, { enabled: false });
+    }
+    if (requestPath === '/api/auth/2fa/backup-codes' && req.method === 'POST') {
+      if (!enabled) return send(res, 409, { message: 'La verificación en dos pasos no está activada.' });
+      const body = await readBody(req);
+      if (await verifySecondFactor(row.id, String(body.code || '')) !== 'totp') return send(res, 400, { message: 'Introduce un código actual de tu aplicación de autenticación.', code: 'INVALID_CODE' });
+      return send(res, 200, { backupCodes: await replaceBackupCodes(row.id) });
+    }
+    return send(res, 404, { message: 'Ruta no implementada', code: 'NOT_IMPLEMENTED' });
   }
   if (requestPath === '/api/auth/me' && req.method === 'GET') {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const row = await db.prepare('SELECT u.* FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = ? AND s.expires_at > ?').get(token, new Date().toISOString()); const user = userFromRow(row);

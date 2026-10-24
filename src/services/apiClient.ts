@@ -21,6 +21,11 @@ export function clearAuthToken(): void {
   } catch {}
 }
 
+/** Login responses either carry a session or, with 2FA enabled, a short-lived challenge. */
+export type AuthResponse =
+  | { user: any; token: string; twoFactorRequired?: false; challenge?: undefined }
+  | { twoFactorRequired: true; challenge: string; methods: string[]; user?: undefined; token?: undefined };
+
 interface RequestOptions extends RequestInit {
   data?: unknown;
 }
@@ -46,7 +51,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
-    throw new Error(errorBody.message || `Request failed with status ${res.status}`);
+    const error = new Error(errorBody.message || `Request failed with status ${res.status}`) as Error & { code?: string; status?: number };
+    error.code = errorBody.code;
+    error.status = res.status;
+    throw error;
   }
 
   const text = await res.text();
@@ -59,10 +67,19 @@ export const api = {
     request<{ user: any; token: string }>('/auth/register', { method: 'POST', data }),
 
   login: (data: { email: string; password: string }) =>
-    request<{ user: any; token: string }>('/auth/login', { method: 'POST', data }),
+    request<AuthResponse>('/auth/login', { method: 'POST', data }),
 
   loginGoogle: (data: { accessToken: string; googleId: string; email: string; displayName: string; avatarUrl?: string }) =>
-    request<{ user: any; token: string }>('/auth/google', { method: 'POST', data }),
+    request<AuthResponse>('/auth/google', { method: 'POST', data }),
+
+  // Two-factor authentication (server-side TOTP)
+  completeTwoFactorLogin: (data: { challenge: string; code: string }) =>
+    request<{ user: any; token: string; method: 'totp' | 'backup_code'; backupCodesRemaining: number }>('/auth/2fa/login', { method: 'POST', data }),
+  getTwoFactorStatus: () => request<{ enabled: boolean; backupCodesRemaining: number }>('/auth/2fa/status', { method: 'GET' }),
+  startTwoFactorSetup: () => request<{ secret: string; otpauthUrl: string }>('/auth/2fa/setup', { method: 'POST' }),
+  enableTwoFactor: (code: string) => request<{ enabled: true; backupCodes: string[] }>('/auth/2fa/enable', { method: 'POST', data: { code } }),
+  disableTwoFactor: (code: string) => request<{ enabled: false }>('/auth/2fa/disable', { method: 'POST', data: { code } }),
+  regenerateBackupCodes: (code: string) => request<{ backupCodes: string[] }>('/auth/2fa/backup-codes', { method: 'POST', data: { code } }),
 
   getMe: () => request<any>('/auth/me', { method: 'GET' }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),

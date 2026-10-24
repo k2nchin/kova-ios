@@ -14,8 +14,9 @@ interface Props {
 }
 
 export const TwoFactorDisableModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const { disableTwoFactor, verifyTwoFactor } = useApp();
+  const { disableTwoFactor } = useApp();
   const [code, setCode] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -26,15 +27,16 @@ export const TwoFactorDisableModal: React.FC<Props> = ({ isOpen, onClose }) => {
       return;
     }
 
-    const valid = verifyTwoFactor(code.trim());
-    if (valid) {
-      disableTwoFactor();
-      soundFx.playReactionAdded();
-      toast.info('Autenticación en dos pasos desactivada');
-      onClose();
-    } else {
-      toast.error('Código incorrecto. No se pudo desactivar el 2FA.');
-    }
+    setIsSubmitting(true);
+    disableTwoFactor(code.trim())
+      .then(() => {
+        soundFx.playReactionAdded();
+        toast.info('Autenticación en dos pasos desactivada');
+        setCode('');
+        onClose();
+      })
+      .catch((error: Error) => toast.error(error.message || 'Código incorrecto. No se pudo desactivar el 2FA.'))
+      .finally(() => setIsSubmitting(false));
   };
 
   return (
@@ -97,6 +99,7 @@ export const TwoFactorDisableModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </button>
             <button
               type="submit"
+              disabled={isSubmitting}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-500/20 cursor-pointer"
             >
               <Check size={14} />

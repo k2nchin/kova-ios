@@ -13,7 +13,7 @@ import {
   Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useApp } from '../../context/AppContext';
+import { useApp, type LoginOutcome } from '../../context/AppContext';
 import { GoogleRealAuthModal } from './GoogleRealAuthModal';
 import { NavigationTabs } from '../Common/NavigationTabs';
 import {
@@ -37,9 +37,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
     loginAsGuest,
     loginWithEmail,
     registerUser,
-    isTwoFactorEnabled,
-    twoFactorSecret,
-    verifyTwoFactor,
+    completeTwoFactorLogin,
+    cancelTwoFactorLogin,
   } = useApp();
   const [isRegister, setIsRegister] = useState(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') === 'register'
@@ -49,7 +48,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
 
   // 2FA Challenge state
   const [authStage, setAuthStage] = useState<'credentials' | '2fa'>('credentials');
-  const [pendingLoginAction, setPendingLoginAction] = useState<(() => Promise<void>) | null>(null);
   const [isBackupMode, setIsBackupMode] = useState(false);
   const [backupCodeInput, setBackupCodeInput] = useState('');
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
@@ -63,8 +61,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   // doesn't re-register on every render (identity changes each render).
   const loginWithGoogleRef = useRef(loginWithGoogle);
   loginWithGoogleRef.current = loginWithGoogle;
-  const isTwoFactorEnabledRef = useRef(isTwoFactorEnabled);
-  isTwoFactorEnabledRef.current = isTwoFactorEnabled;
 
   const runLoginAction = async (loginCallback: () => Promise<void>) => {
     try {
@@ -77,18 +73,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
     }
   };
 
-  const executeOrChallenge2FA = (loginCallback: () => Promise<void>) => {
-    if (isTwoFactorEnabledRef.current) {
-      setPendingLoginAction(() => loginCallback);
+  // Runs the first factor; the server decides whether a 2FA code is required.
+  const executeOrChallenge2FA = (loginCallback: () => Promise<LoginOutcome>, onSuccess: () => void) => {
+    void runLoginAction(async () => {
+      const outcome = await loginCallback();
+      if (!outcome.twoFactorRequired) {
+        onSuccess();
+        return;
+      }
       setAuthStage('2fa');
       setDigits(['', '', '', '', '', '']);
       setBackupCodeInput('');
       setIsBackupMode(false);
       setTimeout(() => inputRefs.current[0]?.focus(), 150);
       toast.info('Se requiere código de autenticación en dos pasos');
-    } else {
-      void runLoginAction(loginCallback);
-    }
+    });
   };
 
   useEffect(() => {
@@ -111,8 +110,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
         if (!response.ok) throw new Error('No se pudo verificar la cuenta de Google.');
         const info = await response.json();
         setIsLoading(false);
-        executeOrChallenge2FA(async () => {
-          await loginWithGoogleRef.current({
+        executeOrChallenge2FA(
+          () => loginWithGoogleRef.current({
             id: info.sub,
             username: info.email ? info.email.split('@')[0] : 'google_user',
             email: info.email,
@@ -120,10 +119,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
             displayName: info.name || 'Usuario de Google',
             avatar: info.picture,
             customStatus: 'Conectado con Google OAuth',
-          });
-          toast.dismiss();
-          toast.success(`¡Bienvenido, ${info.name || 'usuario de Kova'}!`);
-        });
+          }),
+          () => {
+            toast.dismiss();
+            toast.success(`¡Bienvenido, ${info.name || 'usuario de Kova'}!`);
+          }
+        );
       } catch (error) {
         toast.dismiss();
         toast.error(error instanceof Error ? error.message : 'No se pudo completar el acceso con Google.');
@@ -152,7 +153,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   }, [isNativeApp]);
 
   useEffect(() => {
-    if (authStage === '2fa' && twoFactorSecret) {
+    if (authStage === '2fa') {
       const update = () => {
         setSecondsRemaining(getTwoFactorSecondsRemaining());
       };
@@ -160,7 +161,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
       const interval = setInterval(update, 1000);
       return () => clearInterval(interval);
     }
-  }, [authStage, twoFactorSecret]);
+  }, [authStage]);
 
   // Form states
   const [email, setEmail] = useState('');
@@ -186,8 +187,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
           .then(async (info) => {
             window.history.replaceState(null, '', window.location.pathname);
             setIsLoading(false);
-            executeOrChallenge2FA(async () => {
-              await loginWithGoogleRef.current({
+            executeOrChallenge2FA(
+              () => loginWithGoogleRef.current({
                 id: info.sub,
                 username: info.email ? info.email.split('@')[0] : 'google_user',
                 email: info.email,
@@ -197,10 +198,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                   info.picture ||
                   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
                 customStatus: 'Verificado con Google OAuth',
-              });
-              toast.dismiss();
-              toast.success(`¡Bienvenido, ${info.name}!`);
-            });
+              }),
+              () => {
+                toast.dismiss();
+                toast.success(`¡Bienvenido, ${info.name}!`);
+              }
+            );
           })
           .catch(() => {
             toast.dismiss();
@@ -268,8 +271,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
       toast.success('Cuenta confirmada. Regresando a Kova...');
       return;
     }
-    executeOrChallenge2FA(async () => {
-      await loginWithGoogle({
+    executeOrChallenge2FA(
+      () => loginWithGoogle({
         id: user.id,
         username: user.email ? user.email.split('@')[0] : 'google_user',
         email: user.email,
@@ -277,9 +280,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
         displayName: user.name,
         avatar: user.picture,
         customStatus: 'Conectado con Google OAuth',
-      });
-      toast.success(`¡Autenticado con Google con éxito! Bienvenido, ${user.name}`);
-    });
+      }),
+      () => toast.success(`¡Autenticado con Google con éxito! Bienvenido, ${user.name}`)
+    );
   };
 
   const handleDigitChange = (index: number, val: string) => {
@@ -319,18 +322,20 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
       return;
     }
 
-    const isValid = verifyTwoFactor(code);
-    if (isValid) {
-      toast.success('¡Identidad verificada con éxito!');
-      if (pendingLoginAction) {
-        void runLoginAction(pendingLoginAction);
-      } else {
-        toast.error('La sesión pendiente expiró. Ingresa tus credenciales nuevamente.');
-        setAuthStage('credentials');
-      }
-    } else {
-      toast.error('Código incorrecto o expirado. Revisa tu aplicación o código de respaldo.');
-    }
+    setIsLoading(true);
+    completeTwoFactorLogin(code)
+      .then(() => toast.success('¡Identidad verificada con éxito!'))
+      .catch((error: Error & { code?: string }) => {
+        if (error.code === 'CHALLENGE_EXPIRED') {
+          toast.error('La verificación expiró. Ingresa tus credenciales nuevamente.');
+          setAuthStage('credentials');
+        } else {
+          toast.error(error.message || 'Código incorrecto o expirado. Revisa tu aplicación o código de respaldo.');
+          setDigits(['', '', '', '', '', '']);
+          setTimeout(() => inputRefs.current[0]?.focus(), 50);
+        }
+      })
+      .finally(() => setIsLoading(false));
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -350,10 +355,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
         toast.success(`¡Cuenta creada con éxito! Bienvenido, ${displayName || username}`);
       });
     } else {
-      executeOrChallenge2FA(async () => {
-        await loginWithEmail(email, password);
-        toast.success('¡Bienvenido de vuelta a Kova!');
-      });
+      executeOrChallenge2FA(
+        () => loginWithEmail(email, password),
+        () => toast.success('¡Bienvenido de vuelta a Kova!')
+      );
     }
   };
 
@@ -487,7 +492,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                 type="button"
                 onClick={() => {
                   setAuthStage('credentials');
-                  setPendingLoginAction(null);
+                  cancelTwoFactorLogin();
                 }}
                 className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
               >

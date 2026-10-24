@@ -18,11 +18,6 @@ import {
 } from '../types';
 import { DEFAULT_BOTS } from '../data/defaultBots';
 import {
-  generateTwoFactorSecret,
-  generateBackupCodes,
-  verifyTwoFactorCode,
-} from '../utils/twoFactorUtils';
-import {
   INITIAL_SERVERS,
   INITIAL_MESSAGES,
   INITIAL_NOTES,
@@ -93,12 +88,15 @@ export interface AppNotification {
   url?: string;
 }
 
+/** `twoFactorRequired` means the password step passed and a 2FA code is now needed. */
+export type LoginOutcome = { twoFactorRequired: boolean };
+
 interface AppContextType {
   // Authentication & User Session
   isAuthenticated: boolean;
   loginAsGuest: () => Promise<void>;
-  loginWithGoogle: (googleUser?: Partial<User> & { email?: string; googleAccessToken?: string }) => Promise<void>;
-  loginWithEmail: (email: string, pass: string) => Promise<void>;
+  loginWithGoogle: (googleUser?: Partial<User> & { email?: string; googleAccessToken?: string }) => Promise<LoginOutcome>;
+  loginWithEmail: (email: string, pass: string) => Promise<LoginOutcome>;
   registerUser: (username: string, email: string, pass: string, displayName?: string) => Promise<void>;
   logout: () => void;
   // Workspace & Servers
@@ -275,18 +273,21 @@ interface AppContextType {
   processBotTriggers: (content: string, channelId: string) => Promise<boolean>;
   // Two-Factor Authentication (2FA)
   isTwoFactorEnabled: boolean;
-  twoFactorSecret: string;
   twoFactorBackupCodes: string[];
+  backupCodesRemaining: number;
+  hasPendingTwoFactorLogin: boolean;
+  completeTwoFactorLogin: (code: string) => Promise<void>;
+  cancelTwoFactorLogin: () => void;
   isTwoFactorSetupOpen: boolean;
   setIsTwoFactorSetupOpen: (open: boolean) => void;
   isTwoFactorBackupOpen: boolean;
   setIsTwoFactorBackupOpen: (open: boolean) => void;
   isTwoFactorDisableOpen: boolean;
   setIsTwoFactorDisableOpen: (open: boolean) => void;
-  enableTwoFactor: (secret: string, backupCodes: string[]) => void;
-  disableTwoFactor: () => void;
-  verifyTwoFactor: (code: string) => boolean;
-  regenerateBackupCodes: () => string[];
+  startTwoFactorSetup: () => Promise<{ secret: string; otpauthUrl: string }>;
+  confirmTwoFactorSetup: (code: string) => Promise<string[]>;
+  disableTwoFactor: (code: string) => Promise<void>;
+  regenerateBackupCodes: (code: string) => Promise<string[]>;
   // Notifications & Live Streams
   notifications: AppNotification[];
   unreadNotificationsCount: number;
@@ -437,82 +438,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser((prev) => ({ ...prev, status }));
   };
 
-  // Two-Factor Authentication (2FA) State
-  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('kova.auth.2fa.enabled');
-      if (saved !== null) return saved === 'true';
-    } catch {}
-    return !!currentUser.twoFactorEnabled;
-  });
-
-  const [twoFactorSecret, setTwoFactorSecret] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('kova.auth.2fa.secret');
-      if (saved) return saved;
-    } catch {}
-    return currentUser.twoFactorSecret || generateTwoFactorSecret();
-  });
-
-  const [twoFactorBackupCodes, setTwoFactorBackupCodes] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('kova.auth.2fa.backupCodes');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return currentUser.backupCodes || generateBackupCodes(8);
-  });
+  // Two-Factor Authentication (2FA): the secret and backup codes live only on the server.
+  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState<boolean>(() => Boolean(currentUser.twoFactorEnabled));
+  // Freshly generated backup codes, kept in memory only so the user can save them once.
+  const [twoFactorBackupCodes, setTwoFactorBackupCodes] = useState<string[]>([]);
+  const [backupCodesRemaining, setBackupCodesRemaining] = useState(0);
+  const [pendingTwoFactor, setPendingTwoFactor] = useState<{ challenge: string; baseUser: User } | null>(null);
 
   const [isTwoFactorSetupOpen, setIsTwoFactorSetupOpen] = useState(false);
   const [isTwoFactorBackupOpen, setIsTwoFactorBackupOpen] = useState(false);
   const [isTwoFactorDisableOpen, setIsTwoFactorDisableOpen] = useState(false);
 
-  const enableTwoFactor = (secret: string, backupCodes: string[]) => {
-    setIsTwoFactorEnabled(true);
-    setTwoFactorSecret(secret);
-    setTwoFactorBackupCodes(backupCodes);
-    setCurrentUser((prev) => ({
-      ...prev,
-      twoFactorEnabled: true,
-      twoFactorSecret: secret,
-      backupCodes,
-    }));
+  // Drop the old client-side 2FA material that earlier versions stored in the browser.
+  useEffect(() => {
     try {
-      localStorage.setItem('kova.auth.2fa.enabled', 'true');
-      localStorage.setItem('kova.auth.2fa.secret', secret);
-      localStorage.setItem('kova.auth.2fa.backupCodes', JSON.stringify(backupCodes));
+      ['kova.auth.2fa.enabled', 'kova.auth.2fa.secret', 'kova.auth.2fa.backupCodes'].forEach((key) => localStorage.removeItem(key));
     } catch {}
-  };
+    setCurrentUser((prev) => {
+      if (!prev.twoFactorSecret && !prev.backupCodes) return prev;
+      const { twoFactorSecret: _secret, backupCodes: _codes, ...rest } = prev;
+      return rest;
+    });
+  }, []);
 
-  const disableTwoFactor = () => {
-    setIsTwoFactorEnabled(false);
-    setCurrentUser((prev) => ({
-      ...prev,
-      twoFactorEnabled: false,
-    }));
+  const refreshTwoFactorStatus = async () => {
+    if (!getAuthToken()) return;
     try {
-      localStorage.setItem('kova.auth.2fa.enabled', 'false');
-    } catch {}
-  };
-
-  const verifyTwoFactor = (code: string): boolean => {
-    const res = verifyTwoFactorCode(twoFactorSecret, code, twoFactorBackupCodes);
-    if (res.success && res.isBackupCode) {
-      setTwoFactorBackupCodes(res.remainingBackupCodes);
-      try {
-        localStorage.setItem('kova.auth.2fa.backupCodes', JSON.stringify(res.remainingBackupCodes));
-      } catch {}
+      const status = await api.getTwoFactorStatus();
+      setIsTwoFactorEnabled(status.enabled);
+      setBackupCodesRemaining(status.backupCodesRemaining);
+      setCurrentUser((prev) => (prev.twoFactorEnabled === status.enabled ? prev : { ...prev, twoFactorEnabled: status.enabled }));
+    } catch (error) {
+      console.warn('[Kova 2FA] No se pudo consultar el estado:', error);
     }
-    return res.success;
   };
 
-  const regenerateBackupCodes = (): string[] => {
-    const newCodes = generateBackupCodes(8);
-    setTwoFactorBackupCodes(newCodes);
-    setCurrentUser((prev) => ({ ...prev, backupCodes: newCodes }));
-    try {
-      localStorage.setItem('kova.auth.2fa.backupCodes', JSON.stringify(newCodes));
-    } catch {}
-    return newCodes;
+  useEffect(() => {
+    if (isAuthenticated) void refreshTwoFactorStatus();
+  }, [isAuthenticated]);
+
+  const startTwoFactorSetup = () => api.startTwoFactorSetup();
+
+  const confirmTwoFactorSetup = async (code: string): Promise<string[]> => {
+    const { backupCodes } = await api.enableTwoFactor(code);
+    setIsTwoFactorEnabled(true);
+    setTwoFactorBackupCodes(backupCodes);
+    setBackupCodesRemaining(backupCodes.length);
+    setCurrentUser((prev) => ({ ...prev, twoFactorEnabled: true }));
+    return backupCodes;
+  };
+
+  const disableTwoFactor = async (code: string) => {
+    await api.disableTwoFactor(code);
+    setIsTwoFactorEnabled(false);
+    setTwoFactorBackupCodes([]);
+    setBackupCodesRemaining(0);
+    setCurrentUser((prev) => ({ ...prev, twoFactorEnabled: false }));
+  };
+
+  const regenerateBackupCodes = async (code: string): Promise<string[]> => {
+    const { backupCodes } = await api.regenerateBackupCodes(code);
+    setTwoFactorBackupCodes(backupCodes);
+    setBackupCodesRemaining(backupCodes.length);
+    return backupCodes;
   };
 
   const loginAsGuest = async () => {
@@ -568,6 +556,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         displayName: user.displayName,
         avatarUrl: user.avatar,
       });
+      if (res?.twoFactorRequired) {
+        setPendingTwoFactor({ challenge: res.challenge, baseUser: user });
+        return { twoFactorRequired: true };
+      }
       if (res?.token && res?.user) {
         setAuthToken(res.token);
         user = {
@@ -609,6 +601,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('kova.auth.user', JSON.stringify(user));
     } catch {}
     soundFx.playAISparkle();
+    return { twoFactorRequired: false };
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
@@ -624,6 +617,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       const res = await api.login({ email, password: pass });
+      if (res?.twoFactorRequired) {
+        setPendingTwoFactor({ challenge: res.challenge, baseUser: { ...user, email } });
+        return { twoFactorRequired: true };
+      }
       if (res?.token && res?.user) {
         setAuthToken(res.token);
         user = {
@@ -670,7 +667,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('kova.auth.user', JSON.stringify(user));
     } catch {}
     soundFx.playAISparkle();
+    return { twoFactorRequired: false };
   };
+
+  const completeTwoFactorLogin = async (code: string) => {
+    if (!pendingTwoFactor) throw Object.assign(new Error('La verificación expiró. Vuelve a iniciar sesión.'), { code: 'CHALLENGE_EXPIRED' });
+    let res;
+    try {
+      res = await api.completeTwoFactorLogin({ challenge: pendingTwoFactor.challenge, code });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'CHALLENGE_EXPIRED') setPendingTwoFactor(null);
+      throw error;
+    }
+    setAuthToken(res.token);
+    const user: User = {
+      ...pendingTwoFactor.baseUser,
+      id: res.user.id,
+      userId: res.user.userId || res.user.id,
+      username: res.user.username || pendingTwoFactor.baseUser.username,
+      displayName: res.user.displayName || pendingTwoFactor.baseUser.displayName,
+      tag: res.user.tag || pendingTwoFactor.baseUser.tag,
+      avatar: res.user.avatar || pendingTwoFactor.baseUser.avatar,
+      email: res.user.email || pendingTwoFactor.baseUser.email,
+      verified: Boolean(res.user.verified),
+      twoFactorEnabled: true,
+    };
+    setPendingTwoFactor(null);
+    setBackupCodesRemaining(res.backupCodesRemaining);
+    if (res.method === 'backup_code') {
+      toast.warning(`Usaste un código de respaldo. Te quedan ${res.backupCodesRemaining}.`);
+    }
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    connectSocket();
+    try {
+      localStorage.setItem('kova.auth.session', 'true');
+      localStorage.setItem('kova.auth.user', JSON.stringify(user));
+    } catch {}
+    soundFx.playAISparkle();
+  };
+
+  const cancelTwoFactorLogin = () => setPendingTwoFactor(null);
 
   const registerUser = async (username: string, email: string, pass: string, displayName?: string) => {
     let user: User = {
@@ -3007,17 +3044,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteCustomBot,
         processBotTriggers,
         isTwoFactorEnabled,
-        twoFactorSecret,
         twoFactorBackupCodes,
+        backupCodesRemaining,
+        hasPendingTwoFactorLogin: pendingTwoFactor !== null,
+        completeTwoFactorLogin,
+        cancelTwoFactorLogin,
         isTwoFactorSetupOpen,
         setIsTwoFactorSetupOpen,
         isTwoFactorBackupOpen,
         setIsTwoFactorBackupOpen,
         isTwoFactorDisableOpen,
         setIsTwoFactorDisableOpen,
-        enableTwoFactor,
+        startTwoFactorSetup,
+        confirmTwoFactorSetup,
         disableTwoFactor,
-        verifyTwoFactor,
         regenerateBackupCodes,
         notifications,
         unreadNotificationsCount,

@@ -18,12 +18,6 @@ import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import QRCode from 'qrcode';
 import { useApp } from '../../context/AppContext';
-import {
-  generateTwoFactorSecret,
-  generateBackupCodes,
-  getTwoFactorOtpAuthUri,
-  verifyTwoFactorCode,
-} from '../../utils/twoFactorUtils';
 import { soundFx } from '../../utils/soundEffects';
 
 interface Props {
@@ -32,7 +26,7 @@ interface Props {
 }
 
 export const TwoFactorSetupModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const { currentUser, enableTwoFactor } = useApp();
+  const { currentUser, startTwoFactorSetup, confirmTwoFactorSetup } = useApp();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [secret, setSecret] = useState('');
@@ -42,29 +36,41 @@ export const TwoFactorSetupModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [hasConfirmedSaved, setHasConfirmedSaved] = useState(false);
+  const [otpauthUrl, setOtpauthUrl] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Initialize on open
   useEffect(() => {
     if (isOpen) {
-      const newSecret = generateTwoFactorSecret();
-      const newCodes = generateBackupCodes(8);
-      setSecret(newSecret);
-      setBackupCodes(newCodes);
+      // The server generates the secret; backup codes arrive only after the code is confirmed.
+      setSecret('');
+      setOtpauthUrl('');
+      setQrDataUrl('');
+      setBackupCodes([]);
+      startTwoFactorSetup()
+        .then((setup) => {
+          setSecret(setup.secret);
+          setOtpauthUrl(setup.otpauthUrl);
+        })
+        .catch((error: Error) => {
+          toast.error(error.message || 'No se pudo iniciar la configuración de 2FA.');
+          onClose();
+        });
       setStep(1);
       setDigits(['', '', '', '', '', '']);
       setHasConfirmedSaved(false);
       setCopiedSecret(false);
       setCopiedCodes(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   useEffect(() => {
-    if (!secret || !isOpen) return;
+    if (!otpauthUrl || !isOpen) return;
     let cancelled = false;
-    const accountName = currentUser.username || currentUser.displayName;
-    QRCode.toDataURL(getTwoFactorOtpAuthUri(secret, accountName), {
+    QRCode.toDataURL(otpauthUrl, {
       width: 384,
       margin: 2,
       color: { dark: '#111827', light: '#ffffff' },
@@ -79,7 +85,7 @@ export const TwoFactorSetupModal: React.FC<Props> = ({ isOpen, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [secret, isOpen, currentUser.username, currentUser.displayName]);
+  }, [otpauthUrl, isOpen]);
 
   if (!isOpen) return null;
 
@@ -127,22 +133,28 @@ export const TwoFactorSetupModal: React.FC<Props> = ({ isOpen, onClose }) => {
       return;
     }
 
-    const result = verifyTwoFactorCode(secret, code, backupCodes);
-    if (result.success) {
-      soundFx.playAISparkle();
-      toast.success('¡Código de verificación correcto!');
-      setStep(3);
-    } else {
-      soundFx.playReactionAdded();
-      toast.error('Código incorrecto. Revisa el autenticador o el código de prueba.');
-    }
+    setIsVerifying(true);
+    confirmTwoFactorSetup(code)
+      .then((codes) => {
+        setBackupCodes(codes);
+        soundFx.playAISparkle();
+        toast.success('¡Código de verificación correcto!');
+        setStep(3);
+      })
+      .catch((error: Error) => {
+        soundFx.playReactionAdded();
+        toast.error(error.message || 'Código incorrecto. Revisa el autenticador.');
+        setDigits(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+      })
+      .finally(() => setIsVerifying(false));
   };
 
   const handleCopyAllCodes = () => {
     const text = backupCodes.join('\n');
     navigator.clipboard.writeText(text);
     setCopiedCodes(true);
-    toast.success('8 códigos de respaldo copiados al portapapeles');
+    toast.success(`${backupCodes.length} códigos de respaldo copiados al portapapeles`);
     setTimeout(() => setCopiedCodes(false), 2500);
   };
 
@@ -171,7 +183,7 @@ ${backupCodes.map((c, i) => `[${i + 1}]  ${c}`).join('\n')}
   };
 
   const handleFinish = () => {
-    enableTwoFactor(secret, backupCodes);
+    // 2FA was already enabled on the server when the code was confirmed.
     soundFx.playAISparkle();
     try {
       confetti({ particleCount: 60, spread: 80, origin: { y: 0.6 } });
@@ -388,6 +400,7 @@ ${backupCodes.map((c, i) => `[${i + 1}]  ${c}`).join('\n')}
           {step === 1 && (
             <button
               type="button"
+              disabled={!secret}
               onClick={() => {
                 setStep(2);
                 setTimeout(() => inputRefs.current[0]?.focus(), 150);

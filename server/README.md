@@ -15,6 +15,8 @@ as appropriate:
 - `PUBLIC_APP_URL`: optional public base URL used to build server-invite links.
 - `VITE_KOVA_API_URL`: optional API base for desktop/mobile builds; the production site is the default.
 - `VITE_KOVA_SOCKET_URL`: optional external Socket.IO gateway. Without it, the client uses REST polling.
+- `KOVA_ENCRYPTION_KEY`: long random string used to encrypt TOTP (2FA) secrets at rest. Set it in production; changing it later invalidates existing 2FA enrollments.
+- `KOVA_SOCKET_ORIGINS`: comma-separated origins allowed to open the realtime socket (defaults to any origin).
 
 Keep credentials in Vercel environment settings or a local ignored `.env.local`; never
 put them in source code, `vercel.json`, screenshots, or a committed `.env` file.

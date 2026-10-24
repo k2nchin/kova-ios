@@ -18,8 +18,10 @@ interface Props {
 }
 
 export const TwoFactorBackupCodesModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const { currentUser, twoFactorBackupCodes, regenerateBackupCodes } = useApp();
+  const { currentUser, twoFactorBackupCodes, backupCodesRemaining, regenerateBackupCodes } = useApp();
   const [copied, setCopied] = useState(false);
+  const [authCode, setAuthCode] = useState('');
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   if (!isOpen) return null;
 
@@ -54,16 +56,21 @@ IMPORTANTE: Guarda estos códigos en un lugar seguro.
     toast.success('Códigos descargados');
   };
 
+  // Regenerating needs a current authenticator code; the old codes stop working immediately.
   const handleRegenerate = () => {
-    if (
-      window.confirm(
-        '¿Deseas regenerar tus códigos de respaldo? Los códigos anteriores dejarán de funcionar de inmediato.'
-      )
-    ) {
-      regenerateBackupCodes();
-      soundFx.playReactionAdded();
-      toast.success('Se han generado 8 nuevos códigos de respaldo');
+    if (!/^\d{6}$/.test(authCode.trim())) {
+      toast.error('Introduce el código de 6 dígitos de tu aplicación de autenticación.');
+      return;
     }
+    setIsRegenerating(true);
+    regenerateBackupCodes(authCode.trim())
+      .then((fresh) => {
+        setAuthCode('');
+        soundFx.playReactionAdded();
+        toast.success(`Se generaron ${fresh.length} nuevos códigos. Los anteriores ya no funcionan.`);
+      })
+      .catch((error: Error) => toast.error(error.message || 'No se pudieron regenerar los códigos.'))
+      .finally(() => setIsRegenerating(false));
   };
 
   return (
@@ -84,7 +91,7 @@ IMPORTANTE: Guarda estos códigos en un lugar seguro.
               <h2 className="text-sm font-bold text-white font-['Outfit']">
                 Códigos de Respaldo (2FA)
               </h2>
-              <p className="text-[11px] text-slate-400">8 códigos disponibles</p>
+              <p className="text-[11px] text-slate-400">{backupCodesRemaining} códigos sin usar</p>
             </div>
           </div>
           <button
@@ -116,15 +123,40 @@ IMPORTANTE: Guarda estos códigos en un lugar seguro.
                 </div>
               ))
             ) : (
-              <p className="col-span-2 text-center text-xs text-slate-500 py-3">
-                No hay códigos disponibles. Haz clic en regenerar.
+              <p className="col-span-2 text-center text-xs text-slate-500 py-3 leading-relaxed">
+                Por seguridad, Kova solo muestra los códigos una vez. Si los perdiste, genera unos
+                nuevos con un código de tu aplicación.
               </p>
             )}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={authCode}
+              onChange={(e) => setAuthCode(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="Código de 6 dígitos"
+              className="flex-1 px-3 py-2 rounded-xl bg-[#141824] border border-white/[0.08] text-xs font-mono text-white placeholder:text-slate-500 focus:outline-none focus:border-white/25"
+            />
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              disabled={isRegenerating}
+              title="Regenerar nuevos códigos"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={isRegenerating ? 'animate-spin' : ''} />
+              <span>Regenerar</span>
+            </button>
           </div>
 
           <div className="flex gap-2 pt-1">
             <button
               type="button"
+              disabled={codes.length === 0}
               onClick={handleCopy}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
             >
@@ -133,19 +165,12 @@ IMPORTANTE: Guarda estos códigos en un lugar seguro.
             </button>
             <button
               type="button"
+              disabled={codes.length === 0}
               onClick={handleDownload}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
             >
               <Download size={14} />
               <span>Descargar</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleRegenerate}
-              title="Regenerar nuevos códigos"
-              className="flex items-center justify-center p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 hover:text-white transition-colors cursor-pointer"
-            >
-              <RefreshCw size={14} />
             </button>
           </div>
         </div>
