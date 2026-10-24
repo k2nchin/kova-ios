@@ -7,14 +7,11 @@ import {
   Search,
   Users,
   ChevronDown,
-  Palette,
-  Settings,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
-import { toast } from 'sonner';
 
 const QUICK_THEMES: { id: BackgroundTheme; name: string; dot: string }[] = [
   { id: 'amethyst', name: 'Violet Neon (Default)', dot: 'bg-purple-500 shadow-sm shadow-purple-500/50' },

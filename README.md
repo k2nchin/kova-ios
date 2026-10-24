@@ -1,32 +1,26 @@
 # Kova Desktop & Mobile Client
 
 <div align="center">
-  <h3>Next-Generation Voice, Chat & AI Collaboration Platform</h3>
+  <h3>Plataforma de comunidades con chat, voz e IA</h3>
 	<p>Construido con Tauri v2, Rust, React 19, TypeScript y Tailwind CSS para escritorio, Android e iOS.</p>
 
   [![Version](https://img.shields.io/badge/version-1.0.13-6366f1.svg)](https://kova-k2nchin.vercel.app/downloads)
-  [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d7.svg)](https://github.com/)
+  [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078d7.svg)](https://kova-k2nchin.vercel.app/downloads)
   [![Tauri](https://img.shields.io/badge/tauri-v2.11-brightgreen.svg)](https://tauri.app/)
-  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 </div>
 
 ---
 
 ## ✨ Características Principales
 
-- 🎙️ **Canales de Voz & Texto de Alta Fidelidad**: Engine de audio en Rust de ultra baja latencia con procesamiento DSP.
-- 🤖 **Kova AI Assistant & Bots de Discord**:
-  - Integración nativa con **Gemini 2.5 & Flash** para respuestas inteligentes en tiempo real.
-  - Directorio de aplicaciones con bots precargados (*Midjourney, MEE6, Carl-bot, FredBoat, Kova AI*).
-  - **Creador de Bots Personalizados**: Crea tus propios bots con prefijos personalizados, roles, avatares y respuestas con IA.
-- 🔐 **Autenticación en Dos Pasos (2FA)**:
-  - Compatible con Google Authenticator, Authy y 1Password.
-  - Códigos de respaldo de emergencia con descarga segura.
-  - Verificación estricta en el inicio de sesión.
-- 🎨 **Temas Ultra Profundos & Personalización Visual**:
-  - Presets neutrales Kova: *OLED, Grafito, Acero, Plata, Carbón y Eclipse*.
-  - Todos los temas usan la identidad monocromática oficial de Kova.
-- ⚡ **Ligero y Veloz**: Menos de 10 MB de consumo de binario, inicio instantáneo gracias a la arquitectura Tauri v2.
+- 💬 **Espacios, canales y mensajes en tiempo real**: mensajes, ediciones, reacciones, presencia y "escribiendo…" en vivo mediante Socket.IO, con mensajes directos entre amigos.
+- 🎙️ **Salas de voz**: audio real entre usuarios a través de [LiveKit](https://livekit.io/), con silencio, ensordecer y push-to-talk.
+- 🤖 **Kova IA**: asistente integrado (Gemini) para preguntas, resúmenes de canal, traducciones y minutas. La clave del proveedor vive solo en el servidor.
+- 🧩 **Bots personalizados**: crea bots con prefijo, comandos y respuestas automáticas para tus espacios.
+- 📎 **Archivos**: adjuntos, avatares, banners, historias de 24 h y sonidos propios del soundboard, guardados en Supabase Storage.
+- 🔐 **Verificación en dos pasos (2FA)**: TOTP compatible con Google Authenticator, Authy y 1Password, con códigos de respaldo de un solo uso. Todo se valida en el servidor.
+- 🎨 **Temas**: presets neutrales Kova (*OLED, Grafito, Acero, Plata, Carbón y Eclipse*) con la identidad monocromática oficial.
+- ⚡ **Ligero**: instalador de ~10 MB gracias a Tauri v2.
 
 ---
 
@@ -36,14 +30,13 @@
 | :--- | :--- | :--- | :--- |
 | **Instalador Oficial** | [⬇️ Descargar Setup](https://kova-k2nchin.vercel.app/updates/Kova_1.0.13_x64-setup.exe) | **~9.6 MB** | Instalador guiado con acceso directo en Inicio y Escritorio. |
 | **Página de descargas** | [Ver todas las plataformas](https://kova-k2nchin.vercel.app/downloads) | — | Versión actual, notas de la versión y suma SHA-256 del instalador. |
-| **Portable (ZIP)** | Próximamente | — | Paquete comprimido listo para descomprimir y usar sin instalación. |
 
 ---
 
 ## 🚀 Desarrollo Local
 
 ### Requisitos
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) 22
 - [Rust](https://www.rust-lang.org/) (toolchain estable)
 
 ### Instalación
@@ -52,8 +45,9 @@
 git clone https://github.com/tu-usuario/kova.git
 cd kova
 
-# 2. Instalar dependencias
+# 2. Instalar dependencias de la app y de la API
 npm install
+npm install --prefix server
 
 # 3. Configurar variables de entorno
 cp .env.example .env
@@ -62,6 +56,9 @@ cp .env.example .env
 
 ### Ejecutar en desarrollo
 ```bash
+# API de Kova (http://localhost:4000)
+npm run api:dev
+
 # Servidor web local
 npm run dev
 
@@ -69,10 +66,17 @@ npm run dev
 npm run tauri dev
 ```
 
+### Pruebas
+```bash
+# Pruebas de integración de la API (levantan un servidor temporal)
+npm test --prefix server
+```
+
 ### Compilar para producción
 ```bash
 # Compilar instalador y ejecutable
 npm run tauri build
+```
 
 ### Desarrollo y compilación móvil
 
@@ -95,7 +99,24 @@ npm run mobile:ios:build
 
 El esquema `kova://auth` queda reservado para devolver el resultado del OAuth
 móvil. Debe registrarse como URI autorizada en la configuración móvil de Google.
-```
+
+---
+
+## 🖥️ Backend (API)
+
+La API vive en [`server/`](server/README.md) y funciona en Vercel (funciones en `api/`) o como
+proceso continuo (Railway, Render, Fly…). El tiempo real por Socket.IO necesita el proceso
+continuo; en Vercel el cliente recurre a consultas periódicas.
+
+Variables principales (detalle en [`server/README.md`](server/README.md)):
+
+| Variable | Para qué sirve |
+| :--- | :--- |
+| `DATABASE_URL` | PostgreSQL (obligatoria en Vercel; sin ella se usa SQLite local). |
+| `KOVA_ENCRYPTION_KEY` | Cifra los secretos del 2FA. |
+| `GEMINI_API_KEY` | Activa Kova IA. |
+| `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Activan las salas de voz. |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Activan la subida de archivos (bucket público `kova-uploads`). |
 
 ---
 
@@ -103,11 +124,11 @@ móvil. Debe registrarse como URI autorizada en la configuración móvil de Goog
 
 Para vincular Kova a tu dominio `.com` (por ejemplo `kovachat.com` o `getkova.com`):
 
-1. **GitHub Pages / Vercel**: Despliega la carpeta `dist/` o la Landing Page en Vercel o Cloudflare Pages.
+1. **Vercel / Cloudflare Pages**: Despliega la carpeta `dist/` o la Landing Page.
 2. **DNS Records**:
-   - `CNAME` -> `cname.vercel-dns.com` o tu subdominio de GitHub Pages (`tu-usuario.github.io`).
+   - `CNAME` -> `cname.vercel-dns.com` o el subdominio de tu proveedor.
    - `A Record` -> IP del proveedor de hosting.
-3. Configura el archivo `CNAME` en la raíz de tu hosting con tu dominio `.com`.
+3. Configura tu dominio `.com` en el panel del proveedor.
 
 ---
 

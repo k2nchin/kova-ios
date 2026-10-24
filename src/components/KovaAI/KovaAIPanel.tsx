@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Send, X, Bot, Zap, Code, RefreshCw, Copy, Check } from 'lucide-react';
+import { Sparkles, Send, X, Bot, RefreshCw, Copy, Check } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const KovaAIPanel: React.FC = () => {

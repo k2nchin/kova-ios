@@ -3,18 +3,14 @@ import {
   X,
   Sparkles,
   Volume2,
-  Info,
-  MoreHorizontal,
   Pencil,
   Plus,
   Rocket,
   Store,
-  MessageSquare,
   UserPlus,
   Crown,
   Check,
   Smile,
-  Shield,
   Gamepad2,
   Code2,
   Gift,
@@ -29,7 +25,7 @@ import {
   Flag,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Role, User } from '../../types';
+import { Role } from '../../types';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { api } from '../../services/apiClient';

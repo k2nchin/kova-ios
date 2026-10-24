@@ -18,9 +18,6 @@ import {
   Upload,
   Camera,
   Lock,
-  Smartphone,
-  KeyRound,
-  ShieldAlert,
   RefreshCw,
   Mic,
 } from 'lucide-react';

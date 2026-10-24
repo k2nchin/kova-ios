@@ -72,7 +72,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
     }, 150);
   };
 
-  const isBotMessage = message.author.tag === 'BOT' || message.aiGenerated || /kova\s*bot|kova\s*ia|juanpi\s*ia/i.test(message.author.displayName || '');
+  const isBotMessage = message.author.tag === 'BOT' || message.aiGenerated || /kova\s*bot|kova\s*ia/i.test(message.author.displayName || '');
   // Automated replies always stay on the incoming side, even if a legacy
   // local message was persisted with the current user's id.
   const isAuthorMe = message.author.id === currentUser.id && !isBotMessage;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Hash, Volume2, Palette, FileText, Sparkles, Server as ServerIcon, X } from 'lucide-react';
+import { Search, Hash, Server as ServerIcon } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const CommandPalette: React.FC = () => {

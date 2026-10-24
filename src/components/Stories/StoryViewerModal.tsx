@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, Heart, Send, Sparkles, Eye } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Send, Eye } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';

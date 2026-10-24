@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send, MessageSquare, Sparkles } from 'lucide-react';
+import { X, Send, MessageSquare } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { MessageItem } from './MessageItem';
 

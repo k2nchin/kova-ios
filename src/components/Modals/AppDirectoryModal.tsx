@@ -7,15 +7,12 @@ import {
   Music,
   Shield,
   Smile,
-  Flame,
   Gamepad2,
   Check,
   Search,
   Trash2,
   Cpu,
   ChevronRight,
-  Send,
-  Zap,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { KovaBot } from '../../types';

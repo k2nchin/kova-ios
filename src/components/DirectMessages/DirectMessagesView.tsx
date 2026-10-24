@@ -6,10 +6,7 @@ import {
   Video,
   Search,
   UserPlus,
-  Circle,
-  MoreVertical,
   Send,
-  Sparkles,
   PhoneOff,
   X,
   Check,
@@ -17,7 +14,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
-import { User, DMConversation } from '../../types';
 import { StoriesBar } from '../Stories/StoriesBar';
 
 export const DirectMessagesView: React.FC = () => {

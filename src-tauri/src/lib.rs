@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 #[cfg(desktop)]
 use tauri::Manager;
 #[cfg(desktop)]
@@ -18,54 +17,6 @@ static CLOSE_TO_TRAY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicB
 #[tauri::command]
 fn set_close_to_tray(enabled: bool) {
     CLOSE_TO_TRAY.store(enabled, std::sync::atomic::Ordering::Relaxed);
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SystemStats {
-    pub os: String,
-    pub arch: String,
-    pub memory_allocated_mb: f32,
-    pub audio_latency_ms: f32,
-    pub engine_status: String,
-}
-
-#[tauri::command]
-fn get_system_stats() -> SystemStats {
-    SystemStats {
-        os: std::env::consts::OS.to_string(),
-        arch: std::env::consts::ARCH.to_string(),
-        memory_allocated_mb: 68.4,
-        audio_latency_ms: 1.2,
-        engine_status: "Kova Rust Engine Active - Low Latency Audio Enabled".to_string(),
-    }
-}
-
-#[tauri::command]
-fn test_audio_pipeline(sample_rate: u32) -> Result<String, String> {
-    Ok(format!(
-        "Kova DSP Audio Pipeline iniciado a {}Hz con latencia de 1.1ms",
-        sample_rate
-    ))
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AudioDeviceInfo {
-    pub default_input: String,
-    pub default_output: String,
-    pub sample_rate: u32,
-    pub driver: String,
-    pub noise_suppression: bool,
-}
-
-#[tauri::command]
-fn get_audio_info() -> AudioDeviceInfo {
-    AudioDeviceInfo {
-        default_input: "Microphone Array (Realtek(R) Audio / WebRTC WASAPI)".to_string(),
-        default_output: "Speakers / Headphones (Realtek(R) Audio)".to_string(),
-        sample_rate: 96000,
-        driver: "WASAPI Exclusive Low-Latency (1.1ms)".to_string(),
-        noise_suppression: true,
-    }
 }
 
 #[tauri::command]
@@ -179,9 +130,6 @@ pub fn run() {
 
     #[cfg(desktop)]
     let builder = builder.invoke_handler(tauri::generate_handler![
-        get_system_stats,
-        test_audio_pipeline,
-        get_audio_info,
         open_external_url,
         capture_primary_screen_frame,
         set_close_to_tray
@@ -189,9 +137,6 @@ pub fn run() {
 
     #[cfg(mobile)]
     let builder = builder.invoke_handler(tauri::generate_handler![
-        get_system_stats,
-        test_audio_pipeline,
-        get_audio_info,
         open_external_url
     ]);
 

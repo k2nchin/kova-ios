@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import {
   FileText,
   Plus,
-  Tag,
   Clock,
-  Sparkles,
-  Save,
   Check,
   Eye,
   Edit3,

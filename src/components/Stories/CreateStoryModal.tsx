@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Image as ImageIcon, Sparkles, Send, Palette, Type, Upload } from 'lucide-react';
+import { X, Sparkles, Send, Palette, Type, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { uploadFile } from '../../services/apiClient';

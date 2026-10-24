@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ExternalLink, ShieldCheck, KeyRound, Sparkles, Check, AlertCircle } from 'lucide-react';
+import { X, ExternalLink, ShieldCheck, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getStoredGoogleClientId,

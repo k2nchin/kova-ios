@@ -7,7 +7,6 @@ import {
   Briefcase,
   Sparkles,
   ArrowLeft,
-  Compass,
   Link,
   Check,
   Upload,

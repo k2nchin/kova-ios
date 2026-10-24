@@ -7,9 +7,6 @@ import {
   QrCode,
   Share2,
   RefreshCw,
-  Clock,
-  Users,
-  Shield,
   Send,
   MessageCircle,
 } from 'lucide-react';

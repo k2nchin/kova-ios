@@ -1,16 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Sparkles,
   Lock,
   Mail,
   User,
   ArrowRight,
   ShieldCheck,
-  Globe,
   Smartphone,
   KeyRound,
   ArrowLeft,
-  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp, type LoginOutcome } from '../../context/AppContext';
@@ -586,7 +583,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                         required
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        placeholder="juanpi1x"
+                        placeholder="tu_usuario"
                         className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                       />
                     </div>

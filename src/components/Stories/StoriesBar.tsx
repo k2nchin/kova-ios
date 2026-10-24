@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Sparkles } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const StoriesBar: React.FC = () => {

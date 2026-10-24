@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bookmark, X, Trash2, ArrowUpRight, Copy, Search, Sparkles } from 'lucide-react';
+import { Bookmark, X, Trash2, ArrowUpRight, Copy, Search } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { toast } from 'sonner';
 

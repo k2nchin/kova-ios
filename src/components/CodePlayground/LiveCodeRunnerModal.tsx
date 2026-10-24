@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Terminal, X, Check, Copy, Sparkles, RefreshCw } from 'lucide-react';
+import { Play, Terminal, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { soundFx } from '../../utils/soundEffects';
 

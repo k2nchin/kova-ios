@@ -9,16 +9,9 @@ import {
   Check,
   Search,
   Upload,
-  ChevronRight,
-  AlertTriangle,
-  Lock,
   Crown,
-  Bot,
-  Zap,
-  CheckCircle2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Role, User } from '../../types';
 
 const DISCORD_ROLE_COLORS = [
   { name: 'Predeterminado', value: '#99AAB5' },

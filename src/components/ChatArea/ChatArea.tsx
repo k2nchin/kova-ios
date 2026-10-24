@@ -9,21 +9,14 @@ import {
   X,
   Pin,
   Bell,
-  Download,
-  Printer,
   CircleHelp,
   Paperclip,
   Mic,
   Send,
-  LoaderCircle,
   MessageSquareText,
-  Music2,
-  Square,
   Check,
   Share2,
-  Copy,
   Smile,
-  Clock,
   AtSign,
   MoreHorizontal,
   Image as ImageIcon,
@@ -56,10 +49,8 @@ const fileToAttachment = async (file: File, index: number): Promise<Attachment> 
 };
 
 const KOVA_QUICK_ACTIONS = [
-  { command: '/stream', desc: 'Muestra el estado en vivo del directo de JuanPi1x', example: '/stream' },
-  { command: '/redes', desc: 'Enlaces oficiales de redes sociales de JuanPi1x', example: '/redes' },
   { command: '/roles', desc: 'Menú interactivo de selección de auto-roles', example: '/roles' },
-  { command: '/bot', desc: 'Diagnóstico de latencia y estado de JuanPi IA & Discord MCP', example: '/bot' },
+  { command: '/bot', desc: 'Diagnóstico y estado de Kova Bot', example: '/bot' },
   { command: '/partida', desc: 'Convoca una escuadra para jugar (Apex, Overwatch, etc.)', example: '/partida apex' },
   { command: '/vip', desc: 'Ventajas del rango VIP Pass en la comunidad', example: '/vip' },
   { command: '/ticket', desc: 'Abre un ticket de soporte privado con administración', example: '/ticket' },
@@ -271,7 +262,7 @@ export const ChatArea: React.FC = () => {
     : messages.filter((message) => {
         const content = String(message.content || '').toLowerCase();
         const isBotAuthor = message.aiGenerated || /bot|ia/i.test(`${message.author?.username || ''} ${message.author?.displayName || ''}`) || /^🤖\s*\*\*kova bot/i.test(content);
-        return !(isBotAuthor && (content.includes('redes sociales oficiales') || content.includes('redes oficiales de juanpi1x')));
+        return !(isBotAuthor && (content.includes('redes sociales oficiales')));
       });
 
   // Discord slowmode countdown timer
@@ -323,18 +314,7 @@ export const ChatArea: React.FC = () => {
         if (messages.length === 0) {
           sendMessage('🤖 **Kova Bot**: ¡Hola! Soporte técnico y tickets. Crea tu ticket con /ticket o describe tu problema aquí.');
           setTimeout(() => {
-            sendMessage('🎫 **Cómo abrir un ticket**:\n1. Escribe `/ticket` o haz clic en el botón de soporte.\n2. Elige la categoría: Técnico, Cuenta, Moderación.\n3. Espera respuesta del equipo de JuanPi1x.');
-          }, 600);
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-    if (name.includes('redes') || name.includes('social')) {
-      const timer = setTimeout(() => {
-        if (messages.length === 0) {
-          sendMessage('🤖 **Kova Bot**: ¡Hola! Aquí están las redes oficiales de JuanPi1x.');
-          setTimeout(() => {
-            sendMessage('🌐 **Redes Oficiales**:\n• 🟣 Twitch: https://twitch.tv/juanpi1x\n• 🔴 YouTube: https://youtube.com/@juanpi1x\n• 🐦 X: https://x.com/juanpi1x\n• 📸 Instagram: https://instagram.com/juanpi1x\n• 🎵 TikTok: https://tiktok.com/@juanpi1x');
+            sendMessage(`🎫 **Cómo abrir un ticket**:\n1. Escribe \`/ticket\` o haz clic en el botón de soporte.\n2. Elige la categoría: Técnico, Cuenta, Moderación.\n3. Espera respuesta del equipo de moderación de ${activeServer?.name || 'el servidor'}.`);
           }, 600);
         }
       }, 500);
@@ -444,11 +424,7 @@ export const ChatArea: React.FC = () => {
     let fullText = text;
 
     // Slash commands parsing
-    if (text.startsWith('/stream')) {
-      fullText = '!stream';
-    } else if (text.startsWith('/redes')) {
-      fullText = '!redes';
-    } else if (text.startsWith('/roles')) {
+    if (text.startsWith('/roles')) {
       fullText = '!roles';
     } else if (text.startsWith('/bot')) {
       fullText = '!bot';

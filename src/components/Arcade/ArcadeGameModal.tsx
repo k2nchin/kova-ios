@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Gamepad2, X, RotateCcw, Trophy, Sparkles } from 'lucide-react';
+import { Gamepad2, X, RotateCcw, Trophy } from 'lucide-react';
 import { soundFx } from '../../utils/soundEffects';
 
 interface ArcadeGameModalProps {

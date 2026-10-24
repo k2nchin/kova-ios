@@ -3,13 +3,6 @@ import {
   Users,
   Search,
   Crown,
-  Bot,
-  Shield,
-  Radio,
-  Sparkles,
-  ExternalLink,
-  ChevronRight,
-  Info,
   CheckCircle2,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -22,15 +15,22 @@ export const RightWidgetsSidebar: React.FC = () => {
     openUserProfile,
     activeChannel,
     servers,
+    realtimeConnected,
+    presenceByUser,
   } = useApp();
 
   const [searchMember, setSearchMember] = useState('');
 
-  // 1. Build members list
+  // 1. Build members list; live presence from the realtime gateway overrides the stored status.
   const serverMembers = activeServer?.members || [];
+  const withLivePresence = (member: User): User => {
+    const live = realtimeConnected ? presenceByUser[member.id] : undefined;
+    if (!live) return member;
+    return { ...member, status: live === 'offline' ? 'offline' : member.status === 'offline' ? 'online' : member.status };
+  };
   const memberList: User[] = [
     currentUser,
-    ...serverMembers.filter((m) => m.id !== currentUser.id && m.displayName !== 'JuanPi1x'),
+    ...serverMembers.filter((m) => m.id !== currentUser.id).map(withLivePresence),
   ];
 
   const filteredMembers = memberList.filter(

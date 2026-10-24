@@ -4,9 +4,7 @@ import {
   X,
   CheckCheck,
   Trash2,
-  Tv,
   Bot,
-  ShieldAlert,
   Sparkles,
   ArrowUpRight,
   Radio,
@@ -99,7 +97,7 @@ export const NotificationsDrawer: React.FC = () => {
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-purple-400/60">Interacciones en JuanPi1x Community</p>
+              <p className="text-[11px] text-purple-400/60">Interacciones en tus comunidades</p>
             </div>
           </div>
 

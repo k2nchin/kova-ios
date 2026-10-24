@@ -11,8 +11,6 @@ import {
   X,
   Smartphone,
   AlertTriangle,
-  Lock,
-  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';

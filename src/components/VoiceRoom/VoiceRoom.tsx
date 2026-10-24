@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
-import { soundFx } from '../../utils/soundEffects';
 import type { User } from '../../types';
 import { isDesktopApp as detectDesktopApp, isMobileApp, isTauriApp } from '../../utils/platform';
 import { api } from '../../services/apiClient';
@@ -70,7 +69,7 @@ export const VoiceRoom: React.FC = () => {
   const voiceDisplayName = (member: typeof otherVoiceMembers[number], index: number) => {
     const raw = String(member.displayName || '').trim();
     if (raw && !/^\d{8,}$/.test(raw)) return raw;
-    return member.id === 'juanpi-ia' || /ia|bot/i.test(String(member.username || '')) ? 'Kova IA' : `Invitado ${index + 1}`;
+    return /ia|bot/i.test(String(member.username || '')) ? 'Kova IA' : `Invitado ${index + 1}`;
   };
   const voiceRoleLabel = (member: typeof otherVoiceMembers[number]) => {
     const roleId = member.roles?.[0];
@@ -726,7 +725,7 @@ export const VoiceRoom: React.FC = () => {
       },
     ];
     const targetUserId = member.userId || member.id;
-    if (targetUserId && !/bot|juanpi-ia/i.test(member.id)) {
+    if (targetUserId && !/bot/i.test(member.id)) {
       actions.push({
         key: 'report',
         label: 'Reportar',

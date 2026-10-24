@@ -17,15 +17,7 @@ import {
   WorkspaceLayoutMode,
 } from '../types';
 import { DEFAULT_BOTS } from '../data/defaultBots';
-import {
-  INITIAL_SERVERS,
-  INITIAL_MESSAGES,
-  INITIAL_NOTES,
-  INITIAL_STORIES,
-  INITIAL_DM_CONVERSATIONS,
-  CURRENT_USER,
-  BOT_JUANPI_IA,
-} from '../data/mockData';
+import { INITIAL_NOTES, CURRENT_USER } from '../data/defaults';
 import { soundFx } from '../utils/soundEffects';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
 import confetti from 'canvas-confetti';
@@ -921,10 +913,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => { cancelled = true; };
   }, [isAuthenticated, currentUser.id]);
 
-  const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || '783512978086821928');
+  const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || '');
   const [activeChannelId, setActiveChannelId] = useState<string>(() => {
-    const general = servers[0]?.channels.find((c) => c.id === '1546044315950911550' || c.name.includes('chat-general'));
-    return general?.id || servers[0]?.channels[0]?.id || '1546044315950911550';
+    const general = servers[0]?.channels.find((c) => c.name.includes('general'));
+    return general?.id || servers[0]?.channels[0]?.id || '';
   });
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>({});
 
@@ -2241,42 +2233,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       let reply = '';
 
-      if (bot.id === 'bot_juanpi_ia') {
+      if (bot.id === 'bot_kova') {
         const lower = content.toLowerCase();
-        if (lower.includes('!stream')) {
-          reply = '🔴 **¡DIRECTO EN VIVO DE JUANPI1X!**\n🎮 **Juego Actual**: *Just Chatting & Gaming Squad*\n📺 **Transmisión**: https://twitch.tv/juanpi1x | https://youtube.com/@juanpi1x\n⚡ ¡Entra al directo, deja tu like y únete al escuadrón!';
-        } else if (lower.includes('!redes')) {
-          reply = '🌐 **Redes Sociales Oficiales de JuanPi1x**:\n• 🟣 **Twitch**: https://twitch.tv/juanpi1x\n• 🔴 **YouTube**: https://youtube.com/@juanpi1x\n• 🐦 **X (Twitter)**: https://x.com/juanpi1x\n• 📸 **Instagram**: https://instagram.com/juanpi1x\n• 🎵 **TikTok**: https://tiktok.com/@juanpi1x\n• 💬 **Discord**: https://discord.gg/juanpi1x';
-        } else if (lower.includes('!roles')) {
-          reply = '🎭 **Auto-Roles de JuanPi1x Community**:\n• 🎮🕹 **STREAMERS**: Notificaciones de directos y creadores\n• 👑 **OWNER & FUNDADOR**: JuanPi1x\n• 🤖 **JUANPI IA (BOT OFICIAL)**: Automatización y avisos de la comunidad\n• 🛡️ **MODERADOR SUPREMO**: Gestión del servidor\n• 💎 **VIP PASS**: Lounge exclusivo y salas privadas\n• 🔔 **AVISOS DIRECTOS**: Alerta cuando JuanPi1x prende directo\n• 🎮 **GAMER SQUAD**: Ping para buscar partida';
+        if (lower.includes('!roles')) {
+          const rolesList = (activeServer?.roles || []).map((r) => `• ${r.name}`).join('\n');
+          reply = rolesList
+            ? `🎭 **Roles de ${activeServer.name}**:\n${rolesList}`
+            : `🎭 **${activeServer.name}** todavía no tiene roles configurados.`;
         } else if (lower.includes('!tickets')) {
-          reply = '🎫 **Sistema de Tickets de Soporte**:\nTu solicitud ha sido enviada al canal `#🎫│soporte-tickets`. JuanPi1x y el equipo de moderadores te atenderán a la brevedad.';
+          reply = `🎫 **Sistema de Tickets de Soporte**:\nTu solicitud ha sido registrada. El equipo de moderación de ${activeServer.name} te atenderá a la brevedad.`;
         } else if (lower.includes('!partida')) {
           const juego = content.replace(/!partida/i, '').trim() || 'juegos competitivos';
-          reply = `🎯 **Gamer Squad Convocatoria**:\n¡Se buscan compañeros para jugar **${juego}**! Únete a la sala de voz \`🎮 │ Gaming Squad\` o responde en \`#🎯│buscar-partida\`.`;
+          reply = `🎯 **Gamer Squad Convocatoria**:\n¡Se buscan compañeros para jugar **${juego}**! Únete a una sala de voz o responde en este canal.`;
         } else if (lower.includes('!vip')) {
-          reply = '💎 **Ventajas de VIP PASS**:\n1. Acceso ilimitado al canal `#💎│chat-vip` y `#👑 │ Lounge VIP`.\n2. Insignia dorada exclusiva en tu perfil.\n3. Prioridad para unirse a partidas y llamadas durante los directos de JuanPi1x.';
-        } else if (lower.includes('!bot') || lower.includes('!discord')) {
-          reply = '🤖 **Estado de JuanPi IA (Bot Oficial)**:\n• 🟢 **Estado**: En línea y operativo\n• ⚡ **Respuesta**: En tiempo real\n• 👥 **Comunidad**: Listo para ayudarte';
+          reply = '💎 **Ventajas de VIP PASS**:\n1. Acceso a canales privados para miembros VIP.\n2. Insignia dorada exclusiva en tu perfil.\n3. Prioridad en salas de voz y llamadas.';
+        } else if (lower.includes('!bot')) {
+          reply = '🤖 **Estado de Kova Bot**:\n• 🟢 **Estado**: En línea y operativo\n• ⚡ **Respuesta**: En tiempo real\n• 👥 **Comunidad**: Listo para ayudarte';
         } else if (lower.includes('!ayuda') || lower.includes('!help')) {
-          reply = '📜 **Comandos de JuanPi IA**:\n• `!stream` - Estado y enlace del directo\n• `!redes` - Redes oficiales\n• `!roles` - Guía de auto-roles\n• `!tickets` - Abrir ticket de soporte\n• `!partida <juego>` - Convocar escuadra\n• `!vip` - Beneficios VIP Pass\n• `!bot` - Estado del bot\n• `@JuanPi IA [pregunta]` - Asistente IA en el chat';
+          reply = '📜 **Comandos de Kova Bot**:\n• `!roles` - Roles del servidor\n• `!tickets` - Abrir ticket de soporte\n• `!partida <juego>` - Convocar escuadra\n• `!vip` - Beneficios VIP Pass\n• `!bot` - Estado del bot\n• `@Kova Bot [pregunta]` - Asistente IA en el chat';
         } else if (isMentioned) {
-          const query = content.replace(`@${bot.name}`, '').replace(/@JuanPi IA/gi, '').trim();
+          const query = content.replace(new RegExp(`@${bot.name}`, 'gi'), '').trim();
           if (!query) {
-            reply = '⚡ **JuanPi IA**: ¡Hola! Soy el bot oficial de JuanPi1x Community. Usa `!ayuda` para ver mis comandos o pregúntame lo que necesites.';
+            reply = `⚡ **Kova Bot**: ¡Hola! Soy el asistente de ${activeServer.name}. Usa \`!ayuda\` para ver mis comandos o pregúntame lo que necesites.`;
           } else {
             try {
-              const prompt = `Eres JuanPi IA, un agente nativo de Kova. Responde con personalidad cercana, útil y directa. Organiza la respuesta en bloques breves, ofrece un siguiente paso práctico y evita mencionar Discord. Usa Markdown limpio.\n\nPregunta: ${query}`;
+              const prompt = `Eres Kova Bot, un agente nativo de Kova. Responde con personalidad cercana, útil y directa. Organiza la respuesta en bloques breves, ofrece un siguiente paso práctico y evita mencionar Discord. Usa Markdown limpio.\n\nPregunta: ${query}`;
               const aiResponse = await askGemini(prompt);
               reply = aiResponse;
             } catch {
-              reply = `⚡ **JuanPi IA**: ¡Recibido! Procesando tu consulta: "${query}". Sistemas de JuanPi1x Community operativos.`;
+              reply = `⚡ **Kova Bot**: No pude procesar tu consulta ahora mismo. Inténtalo de nuevo en unos segundos.`;
             }
           }
         } else if (matchedAuto) {
           reply = matchedAuto.response;
         } else {
-          reply = `🤖 **JuanPi IA**: Comando no reconocido. Escribe \`!ayuda\` para ver la lista completa de comandos.`;
+          reply = `🤖 **Kova Bot**: Comando no reconocido. Escribe \`!ayuda\` para ver la lista completa de comandos.`;
         }
       } else if (matchedAuto) {
         reply = matchedAuto.response;
@@ -2350,24 +2341,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             id: `msg_bot_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             channelId,
             author: {
-              id: bot.id === 'bot_juanpi_ia' ? 'bot_juanpi_ia' : `user_${bot.id}`,
+              id: bot.id === 'bot_kova' ? 'bot_kova' : `user_${bot.id}`,
               username: bot.username || bot.name,
               displayName: bot.name,
               avatar: bot.avatar,
               tag: 'BOT',
               status: 'online',
-              roles: bot.id === 'bot_juanpi_ia' ? ['1546059730059788412'] : [],
+              roles: ['role_bot'],
             },
             content: reply,
             timestamp: 'Ahora',
             reactions: [],
             aiGenerated: true,
             botCard: {
-              eyebrow: bot.id === 'bot_juanpi_ia' ? 'AGENTE OFICIAL DE KOVA' : 'AUTOMATIZACIÓN DEL ESPACIO',
+              eyebrow: bot.id === 'bot_kova' ? 'AGENTE OFICIAL DE KOVA' : 'AUTOMATIZACIÓN DEL ESPACIO',
               title: bot.name,
               description: reply,
               tone: /error|advertencia|no reconocido/i.test(reply) ? 'warning' : /éxito|activo|conectado|completado/i.test(reply) ? 'success' : 'ai',
-              suggestions: bot.id === 'bot_juanpi_ia' ? ['!ayuda', '!stream', '!redes'] : [bot.prefix ? `${bot.prefix}help` : '!ayuda'],
+              suggestions: bot.id === 'bot_kova' ? ['!ayuda', '!roles', '!bot'] : [bot.prefix ? `${bot.prefix}help` : '!ayuda'],
               footer: 'Puedes tocar una sugerencia para continuar.',
             },
           };
