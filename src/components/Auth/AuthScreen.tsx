@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp, type LoginOutcome } from '../../context/AppContext';
+import { ChromeRoom } from '../Brand/ChromeRoom';
 import { GoogleRealAuthModal } from './GoogleRealAuthModal';
 import { NavigationTabs } from '../Common/NavigationTabs';
 import {
@@ -360,24 +361,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   };
 
   return (
-    <div className={`kova-auth-screen absolute inset-x-0 bottom-0 ${isDesktop ? 'top-[52px]' : 'top-0'} z-10 flex items-center justify-center bg-[#050607] overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif]`}>
-      {/* Background Animated Gradient Aura */}
-      <div className="kova-auth-orb-a absolute -top-40 -left-40 w-96 h-96 bg-white/[0.06] rounded-full blur-3xl pointer-events-none" />
-      <div className="kova-auth-orb-b absolute -bottom-40 -right-40 w-96 h-96 bg-slate-400/[0.08] rounded-full blur-3xl pointer-events-none" />
-      <div className="kova-auth-orb-c absolute top-1/2 left-1/2 w-[600px] h-[600px] bg-white/[0.025] rounded-full blur-3xl pointer-events-none" />
-
-      {/* Cyber Grid Lines Effect (drifting) */}
-      <div
-        className="kova-auth-grid absolute inset-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage:
-            'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }}
-      />
+    <div className={`kova-auth-screen kl-root absolute inset-x-0 bottom-0 ${isDesktop ? 'top-[52px]' : 'top-0'} z-10 flex items-center justify-center overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif]`}>
+      <ChromeRoom />
 
       {/* Auth Card Container */}
-      <div className="kova-auth-card relative w-full max-w-md mx-4 p-8 rounded-[30px] bg-white/[0.07] border border-white/20 shadow-2xl backdrop-blur-2xl">
+      <div className="kova-auth-card kl-glass relative w-full max-w-md mx-4 p-8 rounded-[28px]">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center space-y-2 mb-6">
           <div className="kova-auth-logo-wrap relative w-14 h-14 flex items-center justify-center">
@@ -390,13 +378,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
             />
           </div>
           <div className="kova-auth-rise d-1">
-            <h1 className="text-2xl font-black text-white font-['Outfit'] tracking-wider">
-              KOVA <span className="text-[#c9d1da]">OS</span>
+            <h1 className="kl-chrome-text text-3xl font-semibold font-['Outfit'] tracking-[-.03em]">
+              {isRegister ? 'Crea tu cuenta' : 'Bienvenido de vuelta'}
             </h1>
             <p className="text-xs text-slate-400 mt-1">
               {isRegister
-                ? 'Crea tu identidad en el ecosistema colaborativo'
-                : 'Accede a tus espacios de audio, código y canvas'}
+                ? 'Tu comunidad te espera en Kova.'
+                : 'Entra para volver a tus espacios.'}
             </p>
           </div>
         </div>
@@ -406,7 +394,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
             {/* Header */}
             <div className="flex flex-col items-center text-center space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#858b93] to-[#edf1f5] p-0.5 shadow-lg shadow-black/30 flex items-center justify-center">
-                <div className="w-full h-full bg-[#0b0d14] rounded-2xl flex items-center justify-center">
+                <div className="w-full h-full bg-[#0A0A0B] rounded-2xl flex items-center justify-center">
                   <ShieldCheck className="w-6 h-6 text-[#c9d1da]" />
                 </div>
               </div>
@@ -437,7 +425,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                         onChange={(e) => handleDigitChange(idx, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(idx, e)}
                         style={{ animationDelay: `${idx * 0.05}s` }}
-                        className="kova-auth-2fa-input w-11 h-13 rounded-2xl bg-[#141824] border border-white/[0.12] focus:border-[#c9d1da] focus:bg-[#1a2030] text-center text-xl font-bold font-mono text-white outline-none transition-all shadow-md focus:scale-105"
+                        className="kova-auth-2fa-input w-11 h-13 rounded-2xl bg-[#0A0A0B]/70 border border-white/[0.12] focus:border-[#c9d1da] focus:bg-[#1E1F20] text-center text-xl font-bold font-mono text-white outline-none transition-all shadow-md focus:scale-105"
                       />
                     ))}
                   </div>
@@ -460,7 +448,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                       value={backupCodeInput}
                       onChange={(e) => setBackupCodeInput(e.target.value.toUpperCase())}
                       placeholder="XXXX-XXXX"
-                      className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2.5 pl-9 pr-3 text-xs font-mono font-bold text-white placeholder-slate-500 outline-none transition-all tracking-wider"
+                      className="kova-auth-input w-full bg-[#0A0A0B]/70 border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2.5 pl-9 pr-3 text-xs font-mono font-bold text-white placeholder-slate-500 outline-none transition-all tracking-wider"
                     />
                   </div>
                 </div>
@@ -468,7 +456,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
 
               <button
                 type="submit"
-                className="kova-auth-cta w-full py-2.5 rounded-2xl bg-gradient-to-r from-[#858b93] via-[#c9d1da] to-[#edf1f5] hover:from-[#aeb5bd] hover:to-white text-[#111214] font-bold text-xs shadow-lg shadow-black/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                className="kova-auth-cta w-full py-2.5 rounded-full kl-chrome-button font-semibold text-sm transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 <span>Verificar e Iniciar Sesión</span>
                 <ArrowRight className="w-4 h-4" />
@@ -562,7 +550,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
 
             <div className="kova-auth-rise d-3 relative flex items-center justify-center my-4">
               <div className="border-t border-white/[0.08] w-full" />
-              <span className="bg-[#0e111a] px-3 text-[10px] text-slate-500 uppercase tracking-widest font-mono">
+              <span className="bg-[#111214] px-3 text-[10px] text-slate-500 uppercase tracking-widest font-mono">
                 o con correo
               </span>
               <div className="border-t border-white/[0.08] w-full" />
@@ -584,7 +572,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         placeholder="tu_usuario"
-                        className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                        className="kova-auth-input w-full bg-[#0A0A0B]/70 border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                       />
                     </div>
                   </div>
@@ -599,8 +587,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                         type="text"
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="Juan Jesús Enrique"
-                        className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                        placeholder="Tu nombre"
+                        className="kova-auth-input w-full bg-[#0A0A0B]/70 border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                       />
                     </div>
                   </div>
@@ -619,7 +607,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="tu@correo.com"
-                    className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                    className="kova-auth-input w-full bg-[#0A0A0B]/70 border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -634,7 +622,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="kova-auth-input w-full bg-[#141824] border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                    className="kova-auth-input w-full bg-[#0A0A0B]/70 border border-white/[0.08] focus:border-[#c9d1da] rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -642,7 +630,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="kova-auth-cta kova-auth-rise d-6 w-full py-2.5 rounded-2xl bg-gradient-to-r from-[#858b93] via-[#c9d1da] to-[#edf1f5] hover:from-[#aeb5bd] hover:to-white text-[#111214] font-bold text-xs shadow-lg shadow-black/20 transition-all flex items-center justify-center gap-2 mt-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                className="kova-auth-cta kova-auth-rise d-6 w-full py-2.5 rounded-full kl-chrome-button font-semibold text-sm transition-all flex items-center justify-center gap-2 mt-2 hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
                 <span>{isRegister ? 'Crear Cuenta Kova' : 'Entrar a Kova'}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -652,11 +640,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
         )}
 
         {/* Security Badge */}
-        <div className="mt-5 pt-4 border-t border-white/[0.06] flex items-center justify-center">
-          <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Autenticación Segura E2EE
-          </span>
-        </div>
       </div>
 
       {/* Real Google OAuth Modal */}

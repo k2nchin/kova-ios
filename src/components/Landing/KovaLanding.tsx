@@ -1,27 +1,269 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, Headphones, MessageCircle, Monitor, Play, ShieldCheck, Sparkles, Users } from 'lucide-react';
-import { WINDOWS_INSTALLER_URL } from '../../data/downloads';
+import React, { useRef } from 'react';
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { Bot, Headphones, Lock, Mic, MicOff, Monitor, Sparkles, Volume2 } from 'lucide-react';
+import { WINDOWS_INSTALLER_URL, WINDOWS_INSTALLER_SIZE_MB } from '../../data/downloads';
+import '../Brand/chrome.css';
+import { ChromeRoom } from '../Brand/ChromeRoom';
 
 interface KovaLandingProps { onEnterApp: (mode?: 'login' | 'register') => void; inviteCode?: string | null; }
+
 const ease = [0.22, 1, 0.36, 1] as const;
-const reveal = { hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0 } };
-const navItems = [{ label: 'Producto', href: '#producto' }, { label: 'Sistema', href: '#sistema' }, { label: 'Descargas', href: '#descargas' }];
+const navItems = [{ label: 'Cómo funciona', href: '#como-funciona' }, { label: 'Funciones', href: '#funciones' }, { label: 'Descargas', href: '#descargas' }];
+const marqueeWords = ['Texto', 'Voz', 'Kova IA', 'Historias', 'Bots', 'Espacios'];
 
-function SignalMark({ small = false }: { small?: boolean }) {
-  return <span className={`relative block ${small ? 'h-8 w-8' : 'h-10 w-10'}`} aria-hidden="true"><img src="/kova-chrome-cube.png" alt="" className="landing-logo-pulse h-full w-full object-contain drop-shadow-[0_0_16px_rgba(194,196,200,.25)]" /></span>;
+function Cube({ className = '' }: { className?: string }) {
+  return <img src="/kova-chrome-cube.png" alt="" aria-hidden="true" className={`object-contain ${className}`} />;
 }
 
-function ProductPreview() {
-  return <div className="relative mx-auto w-full max-w-[720px]"><div className="absolute -inset-8 rounded-[34px] bg-[#C2C4C8]/[.07] blur-3xl" /><div className="relative overflow-hidden rounded-[22px] border border-[#797B7E]/35 bg-[#1E1F20] shadow-[0_35px_100px_rgba(0,0,0,.55)]"><div className="flex h-12 items-center justify-between border-b border-[#454749]/70 bg-[#111214] px-5"><div className="flex items-center gap-3"><SignalMark small /><span className="text-[11px] font-semibold tracking-[.16em] text-[#C2C4C8]">KOVA / STUDIO</span></div><div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-[#C2C4C8]" /><span className="text-[10px] uppercase tracking-[.16em] text-[#797B7E]">Live space</span></div></div><div className="grid min-h-[380px] grid-cols-[150px_1fr] md:grid-cols-[190px_1fr]"><aside className="border-r border-[#454749]/65 bg-[#111214] p-4"><div className="mb-8 flex items-center gap-2 border-b border-[#454749]/60 pb-4"><div className="h-7 w-7 rounded-lg bg-[#C2C4C8] p-1.5"><img src="/kova-chrome-cube.png" alt="" className="h-full w-full object-contain invert" /></div><span className="truncate text-[11px] font-bold text-[#C2C4C8]">Mi espacio</span></div><p className="mb-3 text-[9px] font-bold uppercase tracking-[.2em] text-[#797B7E]">Señales</p>{['general', 'ideas', 'after-hours'].map((channel, index) => <div key={channel} className={`mb-1 flex items-center gap-2 rounded-lg px-2.5 py-2.5 text-[11px] ${index === 1 ? 'bg-[#454749]/55 text-[#C2C4C8]' : 'text-[#797B7E]'}`}><MessageCircle className="h-3.5 w-3.5" />{channel}</div>)}<div className="mt-8 border-t border-[#454749]/60 pt-4"><p className="mb-3 text-[9px] font-bold uppercase tracking-[.2em] text-[#797B7E]">Presencia</p><div className="flex items-center gap-2 text-[10px] text-[#C2C4C8]"><span className="h-2 w-2 rounded-full bg-[#C2C4C8]" /> 24 conectados</div></div></aside><div className="flex flex-col bg-[#1E1F20]"><div className="flex items-center justify-between border-b border-[#454749]/60 px-5 py-4"><div className="flex items-center gap-2"><span className="text-[#797B7E]">#</span><span className="text-xs font-bold text-[#C2C4C8]">ideas</span></div><span className="text-[10px] uppercase tracking-[.16em] text-[#797B7E]">Conversación abierta</span></div><div className="flex-1 space-y-5 p-5 md:p-7"><div className="flex gap-3"><div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#454749] text-[10px] font-bold text-[#C2C4C8]">K</div><div><p className="text-[11px] font-bold text-[#C2C4C8]">Kova Core <span className="ml-1 font-normal text-[#797B7E]">20:14</span></p><p className="mt-1 text-[11px] leading-5 text-[#797B7E]">Todo listo para comenzar. Tu espacio ya está vivo.</p></div></div><div className="flex gap-3"><div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#797B7E] text-[10px] font-bold text-[#111214]">A</div><div><p className="text-[11px] font-bold text-[#C2C4C8]">Alex <span className="ml-1 font-normal text-[#797B7E]">20:16</span></p><p className="mt-1 text-[11px] leading-5 text-[#C2C4C8]">La sesión empieza en diez. ¿Quién se suma?</p></div></div><div className="rounded-xl border border-[#797B7E]/30 bg-[#454749]/25 p-4"><div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.14em] text-[#C2C4C8]"><Headphones className="h-3.5 w-3.5" /> Sala de voz activa</div><div className="flex -space-x-2"><span className="grid h-7 w-7 place-items-center rounded-full border-2 border-[#1E1F20] bg-[#797B7E] text-[9px] font-bold text-[#111214]">M</span><span className="grid h-7 w-7 place-items-center rounded-full border-2 border-[#1E1F20] bg-[#C2C4C8] text-[9px] font-bold text-[#111214]">J</span><span className="grid h-7 w-7 place-items-center rounded-full border-2 border-[#1E1F20] bg-[#454749] text-[9px] font-bold text-[#C2C4C8]">+4</span></div></div></div><div className="m-4 rounded-xl border border-[#454749]/60 bg-[#111214] px-4 py-3 text-[11px] text-[#797B7E]">Escribe en #ideas…</div></div></div></div></div>;
+function VoiceCard() {
+  const people = [
+    { name: 'Lucía', speaking: true, muted: false },
+    { name: 'Mateo', speaking: false, muted: false },
+    { name: 'Sofía', speaking: false, muted: true },
+  ];
+  return (
+    <div className="kl-glass w-[min(340px,86vw)] rounded-[22px] p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[#F4F5F7]"><Headphones className="h-4 w-4 text-[#C2C4C8]" /> Sala de estudio</div>
+        <span className="flex items-center gap-1.5 text-xs text-[#797B7E]"><span className="h-1.5 w-1.5 rounded-full bg-[#C2C4C8]" /> En vivo</span>
+      </div>
+      <ul className="mt-5 space-y-3">
+        {people.map((person) => (
+          <li key={person.name} className="flex items-center gap-3">
+            <span className={`grid h-9 w-9 place-items-center rounded-full bg-[#454749] text-xs font-bold text-[#F4F5F7] ${person.speaking ? 'kl-speaking' : ''}`}>{person.name[0]}</span>
+            <span className="flex-1 text-sm text-[#C2C4C8]">{person.name}</span>
+            {person.muted ? <MicOff className="h-4 w-4 text-[#797B7E]" aria-label="Silenciada" /> : <Mic className="h-4 w-4 text-[#797B7E]" aria-label="Micrófono activo" />}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
-export const KovaLanding: React.FC<KovaLandingProps> = ({ onEnterApp, inviteCode }) => (
-  <div className="kova-landing-modern min-h-screen overflow-x-hidden bg-[#0B0B0C] text-[#C2C4C8] selection:bg-[#C2C4C8]/20">
-    <a href="#contenido-kova" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-[#C2C4C8] focus:px-4 focus:py-2 focus:text-xs focus:font-bold focus:text-[#0B0B0C]">Saltar al contenido</a>
-    <header className="sticky top-0 z-40 border-b border-[#454749]/30 bg-[#0B0B0C]/85 backdrop-blur-xl"><div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-10"><button type="button" aria-label="Volver al inicio de Kova" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C2C4C8]"><SignalMark /><span className="text-sm font-bold tracking-[.3em] text-[#C2C4C8]">KOVA</span></button><nav className="hidden items-center gap-8 text-[11px] font-semibold uppercase tracking-[.16em] text-[#797B7E] md:flex">{navItems.map((item) => <a key={item.href} href={item.href} className="transition-colors hover:text-[#C2C4C8]">{item.label}</a>)}</nav><div className="flex items-center gap-2"><button type="button" onClick={() => onEnterApp('login')} className="hidden rounded-lg px-4 py-2.5 text-xs font-semibold text-[#797B7E] transition hover:text-[#C2C4C8] sm:block">Iniciar sesión</button><button type="button" onClick={() => onEnterApp('register')} className="rounded-lg bg-[#C2C4C8] px-4 py-2.5 text-xs font-bold text-[#0B0B0C] transition hover:bg-white">Crear cuenta</button></div></div></header>
-    {inviteCode && <div className="mx-auto max-w-7xl px-5 pt-6 sm:px-8 lg:px-10"><div className="flex flex-col gap-4 rounded-xl border border-[#797B7E]/35 bg-[#1E1F20] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-[#C2C4C8]">Te invitaron a un espacio de Kova</p><p className="mt-1 text-xs text-[#797B7E]">Únete desde la app o continúa en la web.</p></div><div className="flex gap-2"><a href={`kova://invite/${encodeURIComponent(inviteCode)}`} className="rounded-lg bg-[#C2C4C8] px-4 py-2 text-xs font-bold text-[#0B0B0C]">Abrir Kova</a><button onClick={() => onEnterApp('login')} className="rounded-lg border border-[#797B7E]/40 px-4 py-2 text-xs font-semibold text-[#C2C4C8]">Continuar</button></div></div></div>}
-    <main id="contenido-kova"><section className="relative overflow-hidden"><div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(194,196,200,.09),transparent_33%),linear-gradient(180deg,#0B0B0C_0%,#111214_100%)]" /><div className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 pb-28 pt-24 sm:px-8 lg:grid-cols-[.82fr_1.18fr] lg:px-10 lg:pb-36 lg:pt-32"><motion.div initial="hidden" animate="visible" variants={reveal} transition={{ duration: .8, ease }}><div className="mb-7 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.28em] text-[#797B7E]"><span className="h-px w-8 bg-[#797B7E]" /> Señal & estructura</div><h1 className="max-w-2xl text-[clamp(3.5rem,7vw,7.5rem)] font-semibold leading-[.9] tracking-[-.075em] text-[#C2C4C8]">Tu mundo.<br /><span className="text-[#797B7E]">Tu gente.</span></h1><p className="mt-8 max-w-lg text-base leading-7 text-[#797B7E] sm:text-lg">Kova reúne conversación, presencia y comunidad en un espacio que se siente tuyo desde el primer momento.</p><div className="mt-10 flex flex-wrap items-center gap-3"><button type="button" onClick={() => onEnterApp('register')} className="group flex items-center gap-3 rounded-lg bg-[#C2C4C8] px-5 py-3.5 text-sm font-bold text-[#0B0B0C] transition hover:bg-white">Empezar gratis<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></button><a href="#producto" className="flex items-center gap-2 rounded-lg border border-[#797B7E]/45 px-5 py-3.5 text-sm font-semibold text-[#C2C4C8] transition hover:border-[#C2C4C8] hover:bg-[#1E1F20]"><Play className="h-3.5 w-3.5 fill-current" /> Ver el espacio</a></div><div className="mt-9 flex flex-wrap gap-5 text-[10px] font-semibold uppercase tracking-[.14em] text-[#797B7E]"><span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#C2C4C8]" /> Sesiones protegidas</span><span className="flex items-center gap-2"><Users className="h-3.5 w-3.5 text-[#C2C4C8]" /> Gratis para empezar</span></div></motion.div><motion.div id="producto" initial={{ opacity: 0, scale: .97, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 1, delay: .15, ease }}><ProductPreview /></motion.div></div></section><section id="sistema" className="border-y border-[#454749]/45 bg-[#111214] py-24"><div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10"><div className="grid gap-12 lg:grid-cols-[.7fr_1.3fr] lg:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[.28em] text-[#797B7E]">Un sistema para estar cerca</p><h2 className="mt-5 max-w-xl text-4xl font-semibold leading-[.98] tracking-[-.05em] text-[#C2C4C8] sm:text-6xl">Menos ruido.<br />Más señal.</h2></div><p className="max-w-md text-sm leading-7 text-[#797B7E] lg:justify-self-end">Cada conversación tiene un lugar. Cada persona puede aparecer como quiere. Kova está diseñado para que tu comunidad encuentre su propio ritmo.</p></div><div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-[#454749]/50 bg-[#454749]/50 md:grid-cols-3">{[[MessageCircle, 'Conversaciones claras', 'Canales organizados para que las ideas no se pierdan.'], [Headphones, 'Presencia real', 'Salas de voz para hablar, crear o simplemente estar.'], [Sparkles, 'Tu identidad', 'Un espacio con personalidad, reglas y energía propia.']].map(([Icon, title, body], index) => { const FeatureIcon = Icon as typeof MessageCircle; return <motion.div key={title as string} initial="hidden" whileInView="visible" viewport={{ once: true, amount: .3 }} variants={reveal} transition={{ duration: .6, delay: index * .08, ease }} className="bg-[#1E1F20] p-7 transition hover:bg-[#454749]/55"><FeatureIcon className="h-5 w-5 text-[#C2C4C8]" /><h3 className="mt-14 text-lg font-semibold text-[#C2C4C8]">{title as string}</h3><p className="mt-3 text-sm leading-6 text-[#797B7E]">{body as string}</p></motion.div>; })}</div></div></section><section id="descargas" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:px-10"><div className="relative overflow-hidden rounded-2xl border border-[#797B7E]/35 bg-[#1E1F20] p-8 sm:p-12"><div className="relative flex flex-col justify-between gap-10 md:flex-row md:items-end"><div><p className="text-[10px] font-bold uppercase tracking-[.28em] text-[#797B7E]">Donde estés</p><h2 className="mt-5 max-w-xl text-4xl font-semibold leading-none tracking-[-.05em] text-[#C2C4C8] sm:text-5xl">La señal viaja contigo.</h2><p className="mt-5 max-w-lg text-sm leading-6 text-[#797B7E]">Empieza en la web. Continúa en Windows. Tu comunidad permanece contigo.</p></div><div className="flex flex-wrap gap-3"><a href={WINDOWS_INSTALLER_URL} className="flex items-center gap-2 rounded-lg bg-[#C2C4C8] px-4 py-3 text-sm font-bold text-[#0B0B0C] transition hover:bg-white"><Monitor className="h-4 w-4" /> Windows</a><button type="button" onClick={() => onEnterApp('register')} className="flex items-center gap-2 rounded-lg border border-[#797B7E]/45 px-4 py-3 text-sm font-semibold text-[#C2C4C8] transition hover:border-[#C2C4C8]"><ArrowRight className="h-4 w-4" /> Abrir en la web</button></div></div></div></section></main>
-    <footer className="border-t border-[#454749]/45 bg-[#0B0B0C]"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-[11px] uppercase tracking-[.14em] text-[#797B7E] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10"><div className="flex items-center gap-3"><SignalMark small /><span>Kova, tu señal.</span></div><div className="flex gap-5"><button onClick={() => onEnterApp('login')} className="transition hover:text-[#C2C4C8]">Iniciar sesión</button><button onClick={() => onEnterApp('register')} className="transition hover:text-[#C2C4C8]">Crear cuenta</button><a href="#descargas" className="transition hover:text-[#C2C4C8]">Descargas</a></div></div></footer>
-  </div>
-);
+function InviteStack() {
+  return (
+    <div className="relative h-[220px] w-[min(320px,80vw)]" aria-hidden="true">
+      {[2, 1, 0].map((depth) => (
+        <div key={depth} className="kl-glass absolute inset-x-0 rounded-[18px] p-5" style={{ top: depth * 18, transform: `translateX(${depth * 16}px) scale(${1 - depth * 0.05})`, opacity: 1 - depth * 0.28 }}>
+          <div className="flex items-center gap-3">
+            <Cube className="h-10 w-10" />
+            <div>
+              <p className="text-sm font-semibold text-[#F4F5F7]">Club de diseño</p>
+              <p className="text-xs text-[#797B7E]">Te invitaron a unirte</p>
+            </div>
+          </div>
+          <div className="mt-5 rounded-xl bg-[#C2C4C8] py-2.5 text-center text-xs font-bold text-[#0A0A0B]">Aceptar invitación</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const steps = [
+  { title: 'Crea tu espacio', body: 'Ponle nombre, icono y los canales que tu grupo necesita: anuncios, charla, voz.' },
+  { title: 'Invita con un enlace', body: 'Comparte el enlace. Quien lo abra entra a tu espacio desde la web o la app.' },
+  { title: 'Habla y crea', body: 'Escribe, entra a una sala de voz, publica historias o pide ayuda a Kova IA.' },
+];
+
+const features = [
+  { Icon: Sparkles, title: 'Kova IA en cada canal', body: 'Resume lo que te perdiste, traduce mensajes y prepara minutas sin salir de la conversación.', wide: true },
+  { Icon: Lock, title: 'Cuenta protegida', body: 'Verificación en dos pasos con tu app de autenticación y códigos de respaldo.', wide: false },
+  { Icon: Volume2, title: 'Historias de 24 horas', body: 'Comparte una imagen o una idea con tu gente. Desaparece al día siguiente.', wide: false },
+  { Icon: Bot, title: 'Bots a tu medida', body: 'Crea un bot con su prefijo, sus comandos y respuestas automáticas para tu espacio.', wide: true },
+];
+
+const platforms = [
+  { name: 'Web', status: 'Disponible' },
+  { name: 'Windows', status: 'Disponible' },
+  { name: 'Android', status: 'Próximamente' },
+  { name: 'macOS', status: 'Próximamente' },
+  { name: 'iOS', status: 'Próximamente' },
+];
+
+export const KovaLanding: React.FC<KovaLandingProps> = ({ onEnterApp, inviteCode }) => {
+  const reduceMotion = useReducedMotion();
+  const wordsRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: wordsRef, offset: ['start end', 'end start'] });
+  const leftWord = useTransform(scrollYProgress, [0, 1], reduceMotion ? ['0%', '0%'] : ['-18%', '6%']);
+  const rightWord = useTransform(scrollYProgress, [0, 1], reduceMotion ? ['0%', '0%'] : ['18%', '-6%']);
+
+  return (
+    <div className="kl-root min-h-screen overflow-x-hidden bg-[#0A0A0B] text-[#C2C4C8] selection:bg-[#C2C4C8]/25">
+      <a href="#contenido-kova" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-[#C2C4C8] focus:px-4 focus:py-2 focus:text-xs focus:font-bold focus:text-[#0A0A0B]">Saltar al contenido</a>
+
+      <header className="fixed inset-x-0 top-0 z-40">
+        <div className="mx-auto mt-4 flex max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
+          <button type="button" aria-label="Volver al inicio de Kova" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="kl-pill flex items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-4">
+            <Cube className="h-8 w-8" />
+            <span className="font-['Outfit'] text-sm font-bold tracking-[.18em] text-[#F4F5F7]">KOVA</span>
+          </button>
+          <nav className="kl-pill hidden items-center gap-1 rounded-full p-1 md:flex" aria-label="Secciones">
+            {navItems.map((item) => <a key={item.href} href={item.href} className="rounded-full px-4 py-2 text-[13px] text-[#C2C4C8] transition-colors hover:bg-white/[.06] hover:text-[#F4F5F7]">{item.label}</a>)}
+          </nav>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => onEnterApp('login')} className="kl-pill hidden rounded-full px-4 py-2.5 text-[13px] text-[#C2C4C8] transition-colors hover:text-[#F4F5F7] sm:block">Iniciar sesión</button>
+            <button type="button" onClick={() => onEnterApp('register')} className="kl-chrome-button rounded-full px-4 py-2.5 text-[13px] font-semibold">Crear cuenta</button>
+          </div>
+        </div>
+      </header>
+
+      {inviteCode && (
+        <div className="fixed inset-x-0 top-20 z-30 mx-auto max-w-xl px-4">
+          <div className="kl-glass flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-sm font-semibold text-[#F4F5F7]">Te invitaron a un espacio de Kova</p><p className="mt-1 text-xs text-[#797B7E]">Únete desde la app o continúa en la web.</p></div>
+            <div className="flex gap-2">
+              <a href={`kova://invite/${encodeURIComponent(inviteCode)}`} className="kl-chrome-button rounded-full px-4 py-2 text-xs font-semibold">Abrir la app</a>
+              <button type="button" onClick={() => onEnterApp('register')} className="kl-pill rounded-full px-4 py-2 text-xs text-[#C2C4C8]">Seguir en la web</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <main id="contenido-kova">
+        {/* Hero: the one orchestrated moment of the page */}
+        <section className="relative flex min-h-[100svh] items-center justify-center overflow-hidden px-5">
+          <ChromeRoom />
+          <div className="relative z-10 mx-auto max-w-4xl text-center">
+            <motion.div initial={reduceMotion ? false : { opacity: 0, scale: 0.6, rotate: -18 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ duration: 1.1, ease }} className="mx-auto mb-8 w-fit">
+              <Cube className="kl-float h-20 w-20 sm:h-24 sm:w-24" />
+            </motion.div>
+            <h1 className="font-['Outfit'] text-[clamp(3rem,9vw,7.25rem)] font-semibold leading-[.92] tracking-[-.055em]">
+              {['Tu comunidad,', 'en una señal.'].map((line, index) => (
+                <motion.span key={line} className="kl-chrome-text block" initial={reduceMotion ? false : { opacity: 0, y: 40, filter: 'blur(12px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 1, delay: 0.25 + index * 0.18, ease }}>{line}</motion.span>
+              ))}
+            </h1>
+            <motion.p initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.75 }} className="mx-auto mt-7 max-w-xl text-base leading-7 text-[#9A9CA0] sm:text-lg">
+              Canales de texto, salas de voz e IA en un mismo lugar. Crea un espacio para tu grupo y empieza a hablar en un minuto.
+            </motion.p>
+            <motion.div initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.9, ease }} className="mt-10 flex flex-wrap items-center justify-center gap-3">
+              <button type="button" onClick={() => onEnterApp('register')} className="kl-chrome-button rounded-full px-6 py-3.5 text-sm font-semibold">Crear cuenta gratis</button>
+              <a href={WINDOWS_INSTALLER_URL} className="kl-pill flex items-center gap-2 rounded-full px-6 py-3.5 text-sm text-[#F4F5F7]"><Monitor className="h-4 w-4" /> Descargar para Windows</a>
+            </motion.div>
+          </div>
+          <a href="#marquesina" className="absolute bottom-7 right-6 z-10 hidden text-xs text-[#797B7E] transition-colors hover:text-[#C2C4C8] sm:block">Desliza para explorar</a>
+        </section>
+
+        {/* Giant marquee + statement */}
+        <section id="marquesina" className="relative overflow-hidden border-t border-[#1E1F20] pb-24 pt-14">
+          <div className="kl-marquee" aria-hidden="true">
+            <div className="kl-marquee-track">
+              {[...marqueeWords, ...marqueeWords].map((word, index) => (
+                <span key={`${word}${index}`} className={`font-['Outfit'] text-[clamp(4rem,12vw,10rem)] font-semibold leading-none tracking-[-.05em] ${index % 2 ? 'kl-outline-text' : 'kl-chrome-text'}`}>{word}</span>
+              ))}
+            </div>
+          </div>
+          <div className="mx-auto mt-20 grid max-w-6xl items-center gap-14 px-5 sm:px-8 md:grid-cols-2">
+            <div className="flex items-center gap-6">
+              <div className="kl-halo shrink-0"><Cube className="h-24 w-24 sm:h-28 sm:w-28" /></div>
+              <h2 className="font-['Outfit'] text-[clamp(2.2rem,4.6vw,3.6rem)] font-medium leading-[1] tracking-[-.04em] text-[#F4F5F7]">Tu espacio.<br /><span className="text-[#797B7E]">Tu ritmo.</span></h2>
+            </div>
+            <div className="max-w-md">
+              <p className="text-xl leading-8 text-[#F4F5F7]">Todo lo que tu grupo hace en un solo sitio.</p>
+              <p className="mt-4 text-[15px] leading-7 text-[#797B7E]">Mensajes que llegan al instante, salas de voz para quedarse a hablar y un asistente que te pone al día. Sin saltar entre apps.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* How it works: a real sequence, so numbered */}
+        <section id="como-funciona" className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+          <h2 className="text-center font-['Outfit'] text-[clamp(2.4rem,5vw,4rem)] font-medium tracking-[-.045em] text-[#F4F5F7]">¿Cómo funciona?</h2>
+          <p className="mt-3 text-center text-[15px] text-[#797B7E]">De cero a tu comunidad en tres pasos.</p>
+          <div className="kl-stage relative mt-14 flex min-h-[340px] items-center justify-center overflow-hidden rounded-[28px] border border-[#1E1F20]">
+            <svg className="kl-wave absolute inset-0 h-full w-full" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="kl-wave-gradient" x1="0" x2="1">
+                  <stop offset="0" stopColor="#454749" stopOpacity="0" />
+                  <stop offset=".5" stopColor="#F4F5F7" stopOpacity=".55" />
+                  <stop offset="1" stopColor="#454749" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <path key={i} d={`M0 ${230 + i * 9} C 300 ${120 + i * 14}, 520 ${360 - i * 10}, 760 ${210 + i * 6} S 1100 ${120 + i * 12}, 1200 ${190 + i * 8}`} fill="none" stroke="url(#kl-wave-gradient)" strokeWidth={1.2} opacity={1 - i * 0.13} />
+              ))}
+            </svg>
+            <InviteStack />
+          </div>
+          <ol className="mt-12 grid gap-10 md:grid-cols-3">
+            {steps.map((step, index) => (
+              <li key={step.title} className="border-t border-[#454749]/60 pt-6">
+                <span className="font-['Outfit'] text-sm text-[#797B7E]">Paso {index + 1}</span>
+                <h3 className="mt-3 text-lg font-semibold text-[#F4F5F7]">{step.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#797B7E]">{step.body}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* Giant words with a floating voice room */}
+        <section ref={wordsRef} className="relative flex min-h-[80svh] items-center justify-center overflow-hidden py-24" aria-label="Voz y texto">
+          <motion.span style={{ x: leftWord }} className="kl-chrome-text pointer-events-none absolute left-0 top-[22%] font-['Outfit'] text-[clamp(5rem,17vw,15rem)] font-semibold leading-none tracking-[-.06em]" aria-hidden="true">Voz</motion.span>
+          <motion.span style={{ x: rightWord }} className="kl-outline-text pointer-events-none absolute bottom-[4%] right-0 font-['Outfit'] text-[clamp(5rem,17vw,15rem)] font-semibold leading-none tracking-[-.06em]" aria-hidden="true">Texto</motion.span>
+          <div className="relative z-10 flex flex-col items-center px-5">
+            <div className="kl-halo-soft"><VoiceCard /></div>
+            <p className="mt-8 max-w-sm text-center text-sm leading-6 text-[#797B7E]">Entra a una sala con un clic. Silencia, ensordece o usa pulsar para hablar cuando lo necesites.</p>
+          </div>
+        </section>
+
+        {/* Bento */}
+        <section id="funciones" className="mx-auto max-w-6xl px-5 py-24 sm:px-8">
+          <h2 className="max-w-xl font-['Outfit'] text-[clamp(2.4rem,5vw,4rem)] font-medium leading-[1.02] tracking-[-.045em] text-[#F4F5F7]">Hecho para grupos que hablan todos los días.</h2>
+          <div className="mt-14 grid gap-4 md:grid-cols-5">
+            {features.map(({ Icon, title, body, wide }) => (
+              <article key={title} className={`kl-tile relative overflow-hidden rounded-[24px] p-7 ${wide ? 'md:col-span-3' : 'md:col-span-2'}`}>
+                <div className="kl-tile-orb" aria-hidden="true" />
+                <span className="kl-icon-chip grid h-12 w-12 place-items-center rounded-2xl"><Icon className="h-5 w-5 text-[#F4F5F7]" /></span>
+                <h3 className="mt-16 text-xl font-semibold text-[#F4F5F7]">{title}</h3>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-[#797B7E]">{body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* Horizon + platforms */}
+        <section id="descargas" className="relative overflow-hidden pt-24">
+          <div className="mx-auto max-w-6xl px-5 text-center sm:px-8">
+            <h2 className="kl-chrome-text font-['Outfit'] text-[clamp(2.4rem,5.4vw,4.4rem)] font-medium leading-[1.02] tracking-[-.045em]">Donde estés, tu gente sigue ahí.</h2>
+            <p className="mx-auto mt-4 max-w-md text-[15px] leading-7 text-[#797B7E]">Empieza en el navegador y sigue en el escritorio con la misma cuenta.</p>
+            <ul className="mx-auto mt-10 flex max-w-2xl flex-wrap justify-center gap-2">
+              {platforms.map((platform) => (
+                <li key={platform.name} className={`rounded-full border px-4 py-2 text-sm ${platform.status === 'Disponible' ? 'border-[#C2C4C8]/40 text-[#F4F5F7]' : 'border-[#454749]/60 text-[#797B7E]'}`}>
+                  {platform.name} <span className="ml-1 text-xs text-[#797B7E]">{platform.status}</span>
+                </li>
+              ))}
+            </ul>
+            <a href={WINDOWS_INSTALLER_URL} className="kl-chrome-button mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold"><Monitor className="h-4 w-4" /> Descargar para Windows <span className="font-normal opacity-60">{WINDOWS_INSTALLER_SIZE_MB}</span></a>
+          </div>
+          <div className="kl-horizon" aria-hidden="true" />
+        </section>
+
+        {/* Finale */}
+        <section className="relative overflow-hidden pb-16 pt-28">
+          <div className="kl-discs" aria-hidden="true">
+            <span className="kl-disc" style={{ left: '10%', top: '0%', width: '24vw' }} />
+            <span className="kl-disc" style={{ left: '38%', top: '-6%', width: '22vw', animationDelay: '-4s' }} />
+            <span className="kl-disc" style={{ left: '64%', top: '4%', width: '24vw', animationDelay: '-8s' }} />
+          </div>
+          <h2 className="kl-mega relative z-10 whitespace-nowrap text-center font-['Outfit'] font-semibold leading-[.85] tracking-[-.07em]">Hablemos.</h2>
+          <div className="relative z-10 mx-auto mt-10 flex max-w-md flex-col items-center px-5 text-center">
+            <p className="text-[15px] leading-7 text-[#9A9CA0]">Crea tu cuenta, abre tu primer espacio e invita a quien quieras. Es gratis.</p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <button type="button" onClick={() => onEnterApp('register')} className="kl-chrome-button rounded-full px-6 py-3.5 text-sm font-semibold">Crear cuenta gratis</button>
+              <button type="button" onClick={() => onEnterApp('login')} className="kl-pill rounded-full px-6 py-3.5 text-sm text-[#F4F5F7]">Ya tengo cuenta</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-[#1E1F20]">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 text-xs text-[#797B7E] sm:flex-row sm:px-8">
+          <div className="flex items-center gap-2"><Cube className="h-6 w-6" /> © 2026 Kova</div>
+          <nav className="flex gap-6" aria-label="Pie de página">
+            <a href="#como-funciona" className="hover:text-[#C2C4C8]">Cómo funciona</a>
+            <a href="#funciones" className="hover:text-[#C2C4C8]">Funciones</a>
+            <a href="/downloads" className="hover:text-[#C2C4C8]">Descargas</a>
+          </nav>
+        </div>
+      </footer>
+    </div>
+  );
+};
