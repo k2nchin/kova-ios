@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { attachRealtime, emitToChannel, emitToUsers } from './realtime.mjs';
 import { askKovaAI, AiError } from './ai.mjs';
+import { createVoiceToken, VoiceError } from './voice.mjs';
 import { twoFactorSchema, twoFactorUserColumns, sealSecret, openSecret, generateSecret, otpauthUrl, verifyTotp, hashBackupCode, generateBackupCodes, looksLikeBackupCode, loginLockedFor, recordLoginFailure, clearLoginFailures, CHALLENGE_TTL_MS, CHALLENGE_MAX_ATTEMPTS } from './twoFactor.mjs';
 
 const port = Number(process.env.KOVA_API_PORT || 4000);
@@ -313,6 +314,21 @@ const handleRequest = async (req, res) => {
   }
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = await db.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').get(token, new Date().toISOString());
+  if (requestPath === '/api/voice/token' && req.method === 'POST') {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const body = await readBody(req);
+    const channelId = String(body.channelId || '');
+    const channel = channelId && await db.prepare('SELECT id, space_id, type FROM signals WHERE id = ?').get(channelId);
+    if (!channel || !(await canAccessSpace(channel.space_id, session.user_id))) return send(res, 404, { message: 'No encontramos ese canal o no tienes acceso.' });
+    if (channel.type !== 'voice') return send(res, 400, { message: 'Ese canal no es de voz.', code: 'NOT_VOICE_CHANNEL' });
+    try {
+      const user = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
+      return send(res, 200, createVoiceToken({ user, channelId }));
+    } catch (error) {
+      if (error instanceof VoiceError) return send(res, error.status, { message: error.message, code: error.code });
+      throw error;
+    }
+  }
   if (requestPath === '/api/ai/chat' && req.method === 'POST') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const body = await readBody(req);

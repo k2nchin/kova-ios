@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { soundFx } from '../../utils/soundEffects';
+import type { User } from '../../types';
 import { isDesktopApp as detectDesktopApp, isMobileApp, isTauriApp } from '../../utils/platform';
 import { api } from '../../services/apiClient';
 import { VoiceRadar } from './VoiceRadar';
@@ -27,6 +28,8 @@ export const VoiceRoom: React.FC = () => {
     toggleCamera,
     toggleScreenShare,
     joinVoiceChannel,
+    voicePeers,
+    isVoiceConnecting,
     leaveVoiceChannel,
     openUserProfile,
     messages,
@@ -51,13 +54,19 @@ export const VoiceRoom: React.FC = () => {
     outputDevice: null,
   });
 
-  // Only render members that are actually connected to this voice channel.
-  // The server member roster can contain demo/ghost accounts and must not be
-  // treated as the live presence list.
-  const connectedVoiceIds = new Set(activeChannel?.connectedUsers || []);
-  const otherVoiceMembers = (activeServer?.members || []).filter(
-    (m) => m.id !== currentUser.id && connectedVoiceIds.has(m.id)
-  );
+  // Only render people actually present in the LiveKit room for this channel;
+  // speaking and mute state come live from LiveKit, profile data from the roster.
+  const livePeers = activeVoiceChannelId === activeChannel?.id ? voicePeers.filter((peer) => !peer.isLocal) : [];
+  const otherVoiceMembers: User[] = livePeers.map((peer) => {
+    const member = activeServer?.members?.find((m) => m.id === peer.id);
+    return {
+      ...(member || { id: peer.id, username: peer.name, tag: '0000', status: 'online' as const, roles: [] }),
+      displayName: member?.displayName || peer.name,
+      avatar: member?.avatar || peer.avatar || '',
+      isSpeaking: peer.isSpeaking,
+      isMuted: peer.isMuted,
+    };
+  });
   const voiceDisplayName = (member: typeof otherVoiceMembers[number], index: number) => {
     const raw = String(member.displayName || '').trim();
     if (raw && !/^\d{8,}$/.test(raw)) return raw;
@@ -637,7 +646,7 @@ export const VoiceRoom: React.FC = () => {
 
   // Derive the visual connection state from the real pipeline lifecycle.
   const connectionState: VoiceConnectionState = !isConnected
-    ? 'disconnected'
+    ? (isVoiceConnecting ? 'connecting' : 'disconnected')
     : pipelineReady
       ? 'connected'
       : 'connecting';
@@ -688,8 +697,8 @@ export const VoiceRoom: React.FC = () => {
     if (isConnected) {
       handleDisconnect();
     } else {
-      joinVoiceChannel(activeChannel.id);
-      soundFx.playJoinVoice();
+      // The join sound plays once LiveKit actually connects.
+      void joinVoiceChannel(activeChannel.id);
     }
   };
 

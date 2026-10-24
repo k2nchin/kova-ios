@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   Server,
   Channel,
@@ -39,6 +39,7 @@ import {
 import { api, getAuthToken, setAuthToken, clearAuthToken } from '../services/apiClient';
 import { isDesktopApp, isMobileApp } from '../utils/platform';
 import { connectSocket, disconnectSocket, getSocket } from '../services/socketClient';
+import { connectVoice, type VoicePeer, type VoiceSession } from '../services/voiceClient';
 import { showNotification } from '../services/notificationService';
 
 // Stable local fallback for development/offline mode. The real server is the
@@ -131,7 +132,9 @@ interface AppContextType {
   // Voice Call
   activeVoiceChannelId: string | null;
   isInVoice: boolean;
-  joinVoiceChannel: (channelId: string) => void;
+  joinVoiceChannel: (channelId: string) => Promise<void>;
+  voicePeers: VoicePeer[];
+  isVoiceConnecting: boolean;
   leaveVoiceChannel: () => void;
   toggleMute: () => void;
   toggleDeafen: () => void;
@@ -1132,6 +1135,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Voice call state
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   const isInVoice = activeVoiceChannelId !== null;
+  const voiceSessionRef = useRef<VoiceSession | null>(null);
+  const [voicePeers, setVoicePeers] = useState<VoicePeer[]>([]);
+  const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
 
   // Activities, Soundboard & Arcades
   const [isArcadeOpen, setIsArcadeOpen] = useState(false);
@@ -1726,18 +1732,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Voice Controls
-  const joinVoiceChannel = (channelId: string) => {
-    // Do not claim a user is connected until Kova has a real WebRTC/SFU transport.
-    // The former implementation only added the current user to local state, which
-    // made the voice room look connected without transmitting audio to anyone.
+  const joinVoiceChannel = async (channelId: string) => {
     setActiveChannelId(channelId);
     setIsDMViewActive(false);
-    setActiveVoiceChannelId(null);
-    toast.error('La voz entre usuarios todavía no está disponible. Kova necesita configurar un servidor WebRTC para conectar audio real.');
+    if (activeVoiceChannelId === channelId || isVoiceConnecting) return;
+    setIsVoiceConnecting(true);
+    try {
+      await voiceSessionRef.current?.disconnect();
+      voiceSessionRef.current = null;
+      const { token, url } = await api.getVoiceToken(channelId);
+      const muted = Boolean(currentUser.isMuted || currentUser.isDeafened);
+      voiceSessionRef.current = await connectVoice({
+        url,
+        token,
+        micEnabled: !muted,
+        deafened: Boolean(currentUser.isDeafened),
+        onPeers: setVoicePeers,
+        onUnexpectedDisconnect: () => {
+          voiceSessionRef.current = null;
+          setActiveVoiceChannelId(null);
+          toast.error('Se perdió la conexión de voz.');
+        },
+      });
+      setActiveVoiceChannelId(channelId);
+      soundFx.playJoinVoice();
+    } catch (error) {
+      voiceSessionRef.current = null;
+      setVoicePeers([]);
+      toast.error(error instanceof Error ? error.message : 'No se pudo conectar al canal de voz.');
+    } finally {
+      setIsVoiceConnecting(false);
+    }
   };
+
+  // Keep the published microphone and remote audio in sync with mute/deafen.
+  useEffect(() => {
+    const session = voiceSessionRef.current;
+    if (!session) return;
+    session.setDeafened(Boolean(currentUser.isDeafened));
+    void session.setMicrophoneEnabled(!(currentUser.isMuted || currentUser.isDeafened)).catch((error) => {
+      console.warn('[Kova voice] No se pudo cambiar el micrófono:', error);
+    });
+  }, [currentUser.isMuted, currentUser.isDeafened, activeVoiceChannelId]);
+
+  // Leave the LiveKit room when the app unmounts (logout, window close).
+  useEffect(() => () => { void voiceSessionRef.current?.disconnect(); }, []);
 
   const leaveVoiceChannel = () => {
     soundFx.playLeaveVoice();
+    void voiceSessionRef.current?.disconnect();
+    voiceSessionRef.current = null;
+    setVoicePeers([]);
     setActiveVoiceChannelId(null);
 
     // Reset voice media states immediately
@@ -2922,6 +2967,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeVoiceChannelId,
         isInVoice,
         joinVoiceChannel,
+        voicePeers,
+        isVoiceConnecting,
         leaveVoiceChannel,
         toggleMute,
         toggleDeafen,
