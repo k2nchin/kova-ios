@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { attachRealtime, emitToChannel, emitToUsers } from './realtime.mjs';
+import { askKovaAI, AiError } from './ai.mjs';
 import { twoFactorSchema, twoFactorUserColumns, sealSecret, openSecret, generateSecret, otpauthUrl, verifyTotp, hashBackupCode, generateBackupCodes, looksLikeBackupCode, loginLockedFor, recordLoginFailure, clearLoginFailures, CHALLENGE_TTL_MS, CHALLENGE_MAX_ATTEMPTS } from './twoFactor.mjs';
 
 const port = Number(process.env.KOVA_API_PORT || 4000);
@@ -312,6 +313,16 @@ const handleRequest = async (req, res) => {
   }
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = await db.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').get(token, new Date().toISOString());
+  if (requestPath === '/api/ai/chat' && req.method === 'POST') {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const body = await readBody(req);
+    try {
+      return send(res, 200, await askKovaAI(session.user_id, { prompt: body.prompt, context: body.context }));
+    } catch (error) {
+      if (error instanceof AiError) return send(res, error.status, { message: error.message, code: error.code });
+      throw error;
+    }
+  }
   if (requestPath === '/api/dms' && req.method === 'GET') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const left = await db.prepare('SELECT u.* FROM friendships f JOIN users u ON u.id = f.user_b WHERE f.user_a = ?').all(session.user_id);

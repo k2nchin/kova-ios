@@ -2,14 +2,7 @@
 // shipped in the browser or stored in localStorage.
 import { api } from './apiClient';
 
-const KOVA_SYSTEM_INSTRUCTION = `Eres Kova IA, el asistente inteligente oficial de Kova (plataforma de comunicación, chat y voz online al estilo Discord).
-
-Instrucciones de comportamiento:
-1. Tu nombre oficial es Kova IA. Si te preguntan quién eres o cómo te llamas, responde siempre que eres Kova IA.
-2. Responde de forma concisa, útil, profesional y enérgica en español.
-3. Si te piden código, proporciona código limpio, moderno y comentado en bloques con su lenguaje (ej. \`\`\`typescript o \`\`\`rust).
-4. Conoce las características de Kova: canales de texto, salas de voz HD de baja latencia con WebRTC, Soundboard para reproducir y subir sonidos en vivo, notas colaborativas Markdown, historias de 24h, roles de servidor personalizables y temas oscuros.
-5. Sé directo, evita introducciones largas innecesarias y usa formato Markdown claro con viñetas y negritas cuando aporte claridad.`;
+// Kova IA's system instructions live on the server (server/ai.mjs).
 
 /**
  * Ask Kova IA through the authenticated backend proxy.
@@ -21,7 +14,6 @@ export async function askGemini(
   const response = await api.askAI(prompt, {
     ...context,
     recentMessages: context?.recentMessages?.slice(-6),
-    assistantInstruction: KOVA_SYSTEM_INSTRUCTION,
   });
   if (!response.text?.trim()) throw new Error('El servidor de IA devolvió una respuesta vacía.');
   return response.text.trim();

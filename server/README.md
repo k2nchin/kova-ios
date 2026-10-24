@@ -17,6 +17,8 @@ as appropriate:
 - `VITE_KOVA_SOCKET_URL`: optional external Socket.IO gateway. Without it, the client uses REST polling.
 - `KOVA_ENCRYPTION_KEY`: long random string used to encrypt TOTP (2FA) secrets at rest. Set it in production; changing it later invalidates existing 2FA enrollments.
 - `KOVA_SOCKET_ORIGINS`: comma-separated origins allowed to open the realtime socket (defaults to any origin).
+- `GEMINI_API_KEY`: Google AI Studio key for Kova IA (`/api/ai/chat`). Without it the endpoint answers 503 `AI_NOT_CONFIGURED`.
+- `GEMINI_MODEL`: optional model id (default `gemini-2.5-flash`).
 
 Keep credentials in Vercel environment settings or a local ignored `.env.local`; never
 put them in source code, `vercel.json`, screenshots, or a committed `.env` file.
