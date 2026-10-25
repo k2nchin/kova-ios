@@ -1,12 +1,12 @@
 {
-  "version": "1.0.18",
-  "notes": "Kova 1.0.18: mensajes fijados para todos, respuestas con cita, /ai privado, acciones de mensaje en móvil y presencia real de amigos.",
-  "pub_date": "2026-10-25T16:43:15Z",
+  "version": "1.0.19",
+  "notes": "Kova 1.0.19: apareces al instante al entrar en una sala de voz.",
+  "pub_date": "2026-10-25T17:20:14Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.18_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFJvTmdFVnYyd3FUTXJDbFlLcG03L1d5NC85dlZOZ1dYN3pMNVBiVHB6YmN0ZTEvQVpnYkQyTS80bE9Yd1hPSGZHaTM1RVZ4WDY4SEVyRlhEVVYvTmdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ2NDc5CWZpbGU6S292YV8xLjAuMThfeDY0LXNldHVwLmV4ZQo5T1ppMGZnOUFOR0NCbFFjcUl5Z3ZCUGR5Zk5kTXluaU95YlJ1bGxUSjUyMWd3WUVUUTVnOXBEN09qUFFJWUhpZkEyOXQ1dnY4cGh3TnJ4S0dteEZBUT09Cg==",
-      "sha256": "CFFFB8282ECD97A6A108439AB89F4D0181F2C32236EA5FEFEA35A8443B5DB10F"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.19_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGI0UTAyZnJFQ1pybkpTNmRMZDZYWkJBdER5cGhCdHdWQVdUaCtwenhGd0p6enc0SGhDQlM4S1JodGx0K3doN0hEYUdmTzBGOTdoZWJzaVJzN0JuR3djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ4MDE0CWZpbGU6S292YV8xLjAuMTlfeDY0LXNldHVwLmV4ZQpDSDY5ZHRBOXh1YXZ4STE2ZVpISldpSVhFZ0RiRnVBSDRmbWhORWcrMUZZb21VNjluelRidyt4VHZxdU1MM2RhbXBHN1B2cjJEWERUTks2azM3SE5Bdz09Cg==",
+      "sha256": "C9F6EC77E2759D006EC67B3C537E01B11E8A8F10CDB71564006C2692656BDC8E"
     }
   }
 }
