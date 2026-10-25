@@ -29,7 +29,7 @@ class SoundEngine {
     if (!this.masterGain || this.masterGain.context !== ctx) {
       this.masterGain = ctx.createGain();
       this.masterGain.gain.value = this.masterVolume;
-      this.masterGain.connect(this.getOutput(ctx));
+      this.masterGain.connect(ctx.destination);
     }
     return this.masterGain;
   }
@@ -125,29 +125,56 @@ class SoundEngine {
   }
 
   // 4. Mute / Unmute Toggle Beep
+  // Two short notes: falling when you mute, rising when you unmute.
+  // The style is chosen per device in Ajustes → Voz.
   public playMuteToggle(muted: boolean) {
     if (!this.soundEnabled) return;
+    let style = 'clic';
+    try { style = localStorage.getItem('kova.voice.muteSound') || 'clic'; } catch {}
+    if (style === 'ninguno') return;
     const ctx = this.getContext();
     if (!ctx) return;
+    const soft = style === 'suave';
+    const notes = muted ? [660, 440] : [440, 660];
+    notes.forEach((freq, index) => {
+      const at = ctx.currentTime + index * 0.075;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = soft ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, at);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(soft ? 0.09 : 0.16, at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.09);
+      osc.connect(gain);
+      gain.connect(this.getOutput(ctx));
+      osc.start(at);
+      osc.stop(at + 0.1);
+    });
+  }
 
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.type = 'sine';
-    const startFreq = muted ? 500 : 350;
-    const endFreq = muted ? 300 : 600;
-
-    osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + 0.07);
-
-    gain.gain.setValueAtTime(0.06, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
-
-    osc.connect(gain);
-    gain.connect(this.getOutput(ctx));
-
-    osc.start();
-    osc.stop(ctx.currentTime + 0.07);
+  // Deafen uses a lower pair so it's distinguishable from mute.
+  public playDeafenToggle(deafened: boolean) {
+    if (!this.soundEnabled) return;
+    let style = 'clic';
+    try { style = localStorage.getItem('kova.voice.muteSound') || 'clic'; } catch {}
+    if (style === 'ninguno') return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const notes = deafened ? [392, 262] : [262, 392];
+    notes.forEach((freq, index) => {
+      const at = ctx.currentTime + index * 0.09;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, at);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.14, at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+      osc.connect(gain);
+      gain.connect(this.getOutput(ctx));
+      osc.start(at);
+      osc.stop(at + 0.13);
+    });
   }
 
   // 5. AI Sparkle Chime

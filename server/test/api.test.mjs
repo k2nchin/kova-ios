@@ -211,3 +211,44 @@ test('Kova IA: exige sesión y usa las instrucciones del servidor', async () => 
   const res = await call('POST', '/ai/chat', { prompt: 'hola' }, user.token);
   assert.equal(res.body.text, 'system=true');
 });
+
+test('perfiles: apodo por espacio, color, sonido de entrada e invitaciones de miembros', async () => {
+  const owner = await register('dueno');
+  const guest = await register('apodo');
+  const outsider = await register('fuera');
+  const space = await createSpace(owner, guest);
+
+  // Any member can invite; strangers can't.
+  assert.equal((await call('POST', `/servers/${space.id}/invites`, {}, guest.token)).status, 201);
+  assert.equal((await call('POST', `/servers/${space.id}/invites`, {}, outsider.token)).status, 403);
+
+  assert.equal((await call('PUT', `/servers/${space.id}/nickname`, { nickname: 'Capi' }, outsider.token)).status, 403);
+  const set = await call('PUT', `/servers/${space.id}/nickname`, { nickname: '  Capi   del grupo ' }, guest.token);
+  assert.equal(set.body.nickname, 'Capi del grupo');
+  const listed = (await call('GET', '/servers', undefined, owner.token)).body.find((s) => s.id === space.id);
+  assert.equal(listed.members.find((m) => m.id === guest.id).nickname, 'Capi del grupo');
+  await call('PUT', `/servers/${space.id}/nickname`, { nickname: '' }, guest.token);
+  const cleared = (await call('GET', '/servers', undefined, owner.token)).body.find((s) => s.id === space.id);
+  assert.equal(cleared.members.find((m) => m.id === guest.id).nickname, '');
+
+  assert.equal((await call('PATCH', '/users/me', { accentColor: 'rojo' }, guest.token)).status, 400);
+  assert.equal((await call('PATCH', '/users/me', { joinSound: 'data:audio/mp3;base64,AAAA' }, guest.token)).status, 400);
+  const profile = await call('PATCH', '/users/me', { accentColor: '#C0FFEE', joinSound: 'https://cdn.example.com/hola.mp3' }, guest.token);
+  assert.equal(profile.body.accentColor, '#c0ffee');
+  assert.equal(profile.body.joinSound, 'https://cdn.example.com/hola.mp3');
+});
+
+test('verificado: solo la cuenta configurada y sus espacios', async () => {
+  const normal = await register('normal');
+  const listed = (await call('GET', '/auth/me', undefined, normal.token)).body;
+  assert.equal(listed.verified, false);
+  const vip = await call('POST', '/auth/register', { username: 'vip', email: 'InfoKenchinVFX@gmail.com', password: 'password123', displayName: 'Vip' });
+  assert.equal(vip.body.user.verified, true);
+  const space = await createSpace({ token: vip.body.token }, normal);
+  const seen = (await call('GET', '/servers', undefined, normal.token)).body.find((s) => s.id === space.id);
+  assert.equal(seen.verified, true);
+  assert.equal(seen.members.find((m) => m.id === vip.body.user.id).verified, true);
+  const loner = await register('solo');
+  const other = await createSpace(loner);
+  assert.equal(other.verified, false);
+});

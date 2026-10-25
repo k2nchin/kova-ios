@@ -1,6 +1,8 @@
 import React from 'react';
 import { MicOff, HeadphoneOff } from 'lucide-react';
+import type { Track } from 'livekit-client';
 import { Avatar } from '../Common/Avatar';
+import { VideoTrackView } from './VideoTrackView';
 
 export interface VoiceParticipant {
   id: string;
@@ -17,8 +19,9 @@ interface VoiceParticipantCardProps {
   member: VoiceParticipant;
   /** Card root ref: the audio loop writes --card-audio here (rAF, no React renders). */
   cardRef?: React.RefObject<HTMLElement | null>;
-  cameraVideoRef?: React.RefObject<HTMLVideoElement | null>;
-  showCamera?: boolean;
+  /** Live camera track (LiveKit), local or remote. */
+  cameraTrack?: Track;
+  mirrorCamera?: boolean;
   onOpenProfile?: () => void;
   onContextMenu?: (event: React.MouseEvent) => void;
 }
@@ -27,8 +30,8 @@ interface VoiceParticipantCardProps {
 export const VoiceParticipantCard: React.FC<VoiceParticipantCardProps> = ({
   member,
   cardRef,
-  cameraVideoRef,
-  showCamera,
+  cameraTrack,
+  mirrorCamera,
   onOpenProfile,
   onContextMenu,
 }) => {
@@ -38,15 +41,15 @@ export const VoiceParticipantCard: React.FC<VoiceParticipantCardProps> = ({
   return (
     <article
       ref={cardRef as React.RefObject<HTMLElement>}
-      className="kvr-tile"
+      className={`kvr-tile ${cameraTrack ? 'has-video' : ''}`}
       data-speaking={isSpeaking ? '1' : '0'}
       onClick={onOpenProfile}
       onContextMenu={onContextMenu}
       title={`Ver perfil de ${member.name}`}
       aria-label={`${member.name}${status}`}
     >
-      {showCamera ? (
-        <video ref={cameraVideoRef} autoPlay playsInline muted />
+      {cameraTrack ? (
+        <VideoTrackView track={cameraTrack} mirror={mirrorCamera} />
       ) : (
         <span className="kvr-tile-avatar">
           <Avatar src={member.avatar} name={member.name} size={84} />

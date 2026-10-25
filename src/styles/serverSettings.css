@@ -1,0 +1,88 @@
+/* Space settings — chrome console layout + palette remap of the inner views. */
+.kss-overlay {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px;
+  background: rgba(5, 5, 6, 0.75); font-family: "Plus Jakarta Sans", sans-serif;
+}
+.kova-app-shell .kss-overlay > .kss,
+.kss {
+  display: flex; flex-direction: column; width: min(1080px, 100%); height: min(88vh, 780px); overflow: hidden;
+  border-radius: 20px !important; border: 1px solid rgba(194, 196, 200, 0.16) !important;
+  background: #0f1011 !important; box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6) !important; color: #c2c4c8;
+}
+.kss-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 18px; border-bottom: 1px solid rgba(194, 196, 200, 0.1); }
+.kss-head .kova-avatar { border-radius: 11px !important; }
+.kss-head-text { flex: 1; min-width: 0; }
+.kss-head-text h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 18px/1.2 "Outfit", sans-serif; color: #f4f5f7; }
+.kss-head-text p { margin: 2px 0 0; font-size: 12px; color: #8b8d91; }
+.kss-close { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px !important; color: #8b8d91; background: none; cursor: pointer; }
+.kss-close:hover { color: #f4f5f7; background: rgba(194, 196, 200, 0.08); }
+
+.kss-body { flex: 1; min-height: 0; display: flex; }
+.kss-nav { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; border-right: 1px solid rgba(194, 196, 200, 0.1); background: #0b0c0d; }
+.kss-tab {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 10px !important;
+  background: none; cursor: pointer; text-align: left; font-size: 14px; font-weight: 500; color: #a7a9ad;
+}
+.kss-tab svg { color: #6d6f73; flex-shrink: 0; }
+.kss-tab span { flex: 1; }
+.kss-tab em { font-style: normal; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #232427; color: #b4b6ba; }
+.kss-tab:hover { color: #f4f5f7; background: rgba(194, 196, 200, 0.06); }
+.kss-tab.is-active { color: #f4f5f7; background: #1d1e20; box-shadow: inset 0 0 0 1px rgba(194, 196, 200, 0.16); }
+.kss-tab.is-active svg { color: #f4f5f7; }
+.kss-danger { margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(194, 196, 200, 0.1); }
+.kss-tab-danger, .kss-tab-danger svg { color: #e07a7a !important; }
+.kss-tab-danger:hover { background: rgba(239, 111, 111, 0.08) !important; }
+.kss-danger form { display: grid; gap: 8px; font-size: 12px; color: #b4b6ba; }
+.kss-danger strong { color: #f4f5f7; }
+.kss-danger input { padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(239, 111, 111, 0.35); background: #0a0a0b; color: #f4f5f7; font: inherit; }
+.kss-danger form > div { display: flex; gap: 6px; justify-content: flex-end; }
+.kss-btn-ghost, .kss-btn-danger { padding: 7px 12px; border-radius: 999px !important; font-size: 12px; font-weight: 600; cursor: pointer; }
+.kss-btn-ghost { border: 1px solid rgba(194, 196, 200, 0.2); background: none; color: #d8d9dc; }
+.kss-btn-danger { border: 0; background: #c94a4a; color: #fff; }
+.kss-btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.kss-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.kss-content { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 26px; background: #0f1011; }
+
+/* Inner views were written with the old purple palette — remap to chrome. */
+.kss [class*="bg-purple-6"], .kss [class*="from-purple-6"] {
+  background: linear-gradient(180deg, #ffffff 0%, #c9cbcf 55%, #a7aaae 100%) !important; color: #0a0a0b !important; box-shadow: none !important;
+}
+.kss [class*="bg-purple-6"] svg, .kss [class*="from-purple-6"] svg { color: #0a0a0b !important; }
+.kss [class*="bg-purple-6"][class*="/"], .kss [class*="bg-purple-5"][class*="/"], .kss [class*="bg-purple-9"] {
+  background: rgba(194, 196, 200, 0.08) !important; color: #e4e5e7 !important;
+}
+.kss [class*="text-purple-"], .kss [class*="text-indigo-"], .kss [class*="text-cyan-"] { color: #b4b6ba !important; }
+.kss [class*="border-purple-"], .kss [class*="border-indigo-"] { border-color: rgba(194, 196, 200, 0.16) !important; }
+.kss [class*="focus:border-purple"]:focus { border-color: rgba(244, 245, 247, 0.5) !important; }
+.kss [class*="bg-[#0d071c]"], .kss [class*="bg-[#080312]"], .kss [class*="bg-[#121520]"], .kss [class*="bg-[#090414]"] { background: #141516 !important; }
+.kss input, .kss textarea, .kss select { border-radius: 10px !important; }
+.kss [class*="ring-purple"] { --tw-ring-color: rgba(244, 245, 247, 0.6) !important; }
+
+@media (max-width: 767px) {
+  .kss-overlay { padding: 0; }
+  .kova-app-shell .kss-overlay > .kss, .kss { width: 100%; height: 100dvh; border-radius: 0 !important; border: 0 !important; }
+  .kss-body { flex-direction: column; }
+  .kss-nav {
+    width: auto; flex: 0 0 auto; flex-direction: row; align-items: center; gap: 6px; overflow-x: auto;
+    padding: 10px 12px; border-right: 0; border-bottom: 1px solid rgba(194, 196, 200, 0.1); scrollbar-width: none;
+  }
+  .kss-tab { width: auto; flex-shrink: 0; white-space: nowrap; padding: 8px 12px; border-radius: 999px !important; border: 1px solid rgba(194, 196, 200, 0.12); font-size: 13px; min-height: 0 !important; }
+  .kss-tab.is-active { color: #0a0a0b; background: linear-gradient(180deg, #ffffff, #b8babe); box-shadow: none; }
+  .kss-tab.is-active svg, .kss-tab.is-active em { color: #0a0a0b; }
+  .kss-danger { margin: 0; padding: 0; border: 0; }
+  .kss-danger form { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 5; padding: 14px; border-radius: 14px; background: #161718; border: 1px solid rgba(239, 111, 111, 0.35); }
+  .kss-content { padding: 14px 12px 24px; }
+  /* Roles: list above the editor; headers wrap. */
+  .kss-roles-split { flex-direction: column; overflow-y: auto !important; }
+  .kss-roles-list { width: auto !important; border-right: 0 !important; padding-right: 0 !important; max-height: 180px; }
+  .kss-section-head { flex-wrap: wrap; gap: 10px; }
+  .kss-search { width: 100% !important; }
+  .kss [class*="grid-cols-2"], .kss [class*="md:grid-cols-2"] { grid-template-columns: 1fr !important; }
+}
+
+.kss-tab.is-active em { background: rgba(10, 10, 11, 0.12); color: #0a0a0b; }
+@media (max-width: 767px) {
+  .kss-content button { white-space: nowrap; }
+  .kss-content [role="tablist"], .kss-content .kss-subtabs { overflow-x: auto; }
+}

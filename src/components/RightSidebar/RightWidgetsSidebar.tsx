@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { User } from '../../types';
 import { Avatar } from '../Common/Avatar';
 
@@ -24,12 +25,12 @@ export const RightWidgetsSidebar: React.FC = () => {
     return { ...member, status: live === 'offline' ? 'offline' : member.status === 'offline' ? 'online' : member.status };
   };
   const members: User[] = [
-    { ...currentUser, status: currentUser.status === 'offline' ? 'online' : currentUser.status },
+    { ...currentUser, nickname: activeServer?.members?.find((m) => m.id === currentUser.id)?.nickname, status: currentUser.status === 'offline' ? 'online' : currentUser.status },
     ...(activeServer?.members || []).filter((member) => member.id !== currentUser.id).map(withLivePresence),
   ];
   const needle = query.trim().toLowerCase();
   const visible = members.filter((member) =>
-    !needle || `${member.displayName} ${member.username}`.toLowerCase().includes(needle)
+    !needle || `${member.nickname || ''} ${member.displayName} ${member.username}`.toLowerCase().includes(needle)
   );
   const online = visible.filter((member) => member.status !== 'offline');
   const offline = visible.filter((member) => member.status === 'offline');
@@ -38,12 +39,13 @@ export const RightWidgetsSidebar: React.FC = () => {
     <li key={member.id}>
       <button type="button" className={`kova-member ${isOnline ? '' : 'is-offline'}`} onClick={() => openUserProfile(member)}>
         <span className="kova-member-avatar">
-          <Avatar src={member.avatar} name={member.displayName || member.username} size={32} />
+          <Avatar src={member.avatar} name={member.nickname || member.displayName || member.username} size={32} />
           <i className={isOnline ? 'is-online' : ''} />
         </span>
         <span className="kova-member-text">
           <strong>
-            {member.displayName || member.username}
+            {member.nickname || member.displayName || member.username}
+            {member.verified && <VerifiedBadge size={13} />}
             {member.id === currentUser.id && <em>tú</em>}
           </strong>
           <small>

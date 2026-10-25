@@ -377,3 +377,12 @@
     display: block; position: absolute; inset: 0; z-index: 64; border: 0; background: rgba(0, 0, 0, 0.55);
   }
 }
+
+.kova-channel-peers li { padding: 0; }
+.kova-channel-peer {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; border-radius: 8px;
+  text-align: left; min-height: 0 !important;
+}
+.kova-channel-peer:hover { background: rgba(194, 196, 200, 0.08); color: #f4f5f7; }
+.kova-channel-peer > span:not(.kova-avatar) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kova-channel-peers li.is-speaking .kova-channel-peer .kova-avatar { box-shadow: 0 0 0 2px var(--c-obsidian), 0 0 0 3px var(--c-mirror); }

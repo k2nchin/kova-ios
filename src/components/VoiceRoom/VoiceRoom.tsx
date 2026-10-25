@@ -8,6 +8,7 @@ import { api } from '../../services/apiClient';
 import { VoiceRadar } from './VoiceRadar';
 import { VoiceHeader, type VoiceConnectionState } from './VoiceHeader';
 import '../../styles/voiceRoom.css';
+import { VideoTrackView } from './VideoTrackView';
 import { VoiceParticipantCard, type VoiceParticipant } from './VoiceParticipantCard';
 import { VoiceControlDock } from './VoiceControlDock';
 import { VoiceEmptyState } from './VoiceEmptyState';
@@ -60,7 +61,7 @@ export const VoiceRoom: React.FC = () => {
     const member = activeServer?.members?.find((m) => m.id === peer.id);
     return {
       ...(member || { id: peer.id, username: peer.name, tag: '0000', status: 'online' as const, roles: [] }),
-      displayName: member?.displayName || peer.name,
+      displayName: member?.nickname || member?.displayName || peer.name,
       avatar: member?.avatar || peer.avatar || '',
       isSpeaking: peer.isSpeaking,
       isMuted: peer.isMuted,
@@ -78,19 +79,6 @@ export const VoiceRoom: React.FC = () => {
     return label && label !== 'Miembro' ? label : undefined;
   };
 
-  // Real Screen Sharing
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
-  const [isSimulatedScreen, setIsSimulatedScreen] = useState(false);
-  const isDesktopApp = detectDesktopApp();
-
-  // Real Camera Stream
-  const cameraVideoRef = useRef<HTMLVideoElement>(null);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const cameraStreamRef = useRef<MediaStream | null>(null);
-  const [cameraFallback, setCameraFallback] = useState(false);
-
   // Audio Context & Real DSP Nodes
   const audioCtxRef = useRef<AudioContext | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -107,286 +95,12 @@ export const VoiceRoom: React.FC = () => {
 
   const isConnected = isInVoice && activeVoiceChannelId === activeChannel.id;
 
-  // ============================================================================
-  // 1. SCREEN SHARING ENGINE (NATIVE + 60FPS CANVAS WORKSPACE STREAM FALLBACK)
-  // ============================================================================
-
-  const createLiveDesktopStream = useCallback((): MediaStream => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1920;
-    canvas.height = 1080;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas 2D context not available');
-
-    let frameCount = 0;
-    let active = true;
-
-    const renderFrame = () => {
-      if (!active) return;
-      frameCount++;
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString();
-
-      // Cyber obsidian background
-      const grad = ctx.createLinearGradient(0, 0, 1920, 1080);
-      grad.addColorStop(0, '#0a0d16');
-      grad.addColorStop(0.5, '#0e1526');
-      grad.addColorStop(1, '#070a12');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 1920, 1080);
-
-      // Subtle grid lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < 1920; x += 60) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, 1080);
-        ctx.stroke();
-      }
-      for (let y = 0; y < 1080; y += 60) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(1920, y);
-        ctx.stroke();
-      }
-
-      // Top OS Titlebar
-      ctx.fillStyle = '#141a2b';
-      ctx.fillRect(0, 0, 1920, 52);
-      ctx.fillStyle = '#f4f7fb';
-      ctx.font = 'bold 20px "Plus Jakarta Sans", sans-serif';
-      ctx.fillText('⚡ KOVA DESKTOP LIVE STREAM · 60 FPS ULTRA HD · RUST WEBRTC', 32, 33);
-      ctx.fillStyle = '#10b981';
-      ctx.beginPath();
-      ctx.arc(1780, 26, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#a7f3d0';
-      ctx.font = 'bold 15px monospace';
-      ctx.fillText(`TRANSMITIENDO EN VIVO ${timeStr}`, 1800, 31);
-
-      // Main Code & Terminal IDE Mockup
-      ctx.fillStyle = '#0e1322';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(80, 90, 1060, 640, 16);
-      ctx.fill();
-      ctx.stroke();
-
-      // Window top bar
-      ctx.fillStyle = '#181f33';
-      ctx.beginPath();
-      ctx.roundRect(80, 90, 1060, 48, [16, 16, 0, 0]);
-      ctx.fill();
-      ctx.fillStyle = '#ff5f56';
-      ctx.beginPath();
-      ctx.arc(110, 114, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffbd2e';
-      ctx.beginPath();
-      ctx.arc(130, 114, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#27c93f';
-      ctx.beginPath();
-      ctx.arc(150, 114, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = 'bold 14px monospace';
-      ctx.fillText('src/audio/dsp_engine.rs — Tauri v2 + WebRTC Mesh Core (0.8ms)', 180, 119);
-
-      // Code lines
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = '16px "Fira Code", monospace';
-      ctx.fillText('pub fn start_ultra_low_latency_dsp() -> Result<AudioStream, KovaError> {', 110, 180);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText('    let noise_filter = RNNoiseSuppression::new(Model::HighPrecisionV2);', 110, 215);
-      ctx.fillText('    let webrtc_pipeline = WebRTCStream::new("opus-96khz-e2ee");', 110, 250);
-      ctx.fillStyle = '#34d399';
-      ctx.fillText('    // [Kova Audio DSP] Antirruido Activo: -38dB Compuerta | Latencia: 1.1ms', 110, 285);
-      ctx.fillStyle = '#a78bfa';
-      ctx.fillText('    noise_filter.enable_highpass(85.0); // Elimina zumbidos graves', 110, 320);
-      ctx.fillText('    noise_filter.enable_compressor(-24.0, 12.0); // Normaliza volumen de voz', 110, 355);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText('    Ok(webrtc_pipeline.connect(noise_filter))', 110, 390);
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText('}', 110, 425);
-
-      // Live terminal console
-      ctx.fillStyle = '#090d16';
-      ctx.beginPath();
-      ctx.roundRect(110, 470, 1000, 230, 10);
-      ctx.fill();
-      ctx.fillStyle = '#10b981';
-      ctx.font = '14px monospace';
-      ctx.fillText(`✓ Pipeline WebRTC WASAPI conectado | Cuadros transmitidos: #${frameCount}`, 135, 505);
-      ctx.fillStyle = '#38bdf8';
-      ctx.fillText(`[${timeStr}] Transmitiendo pantalla a 60.0 FPS · 4,800 kbps (AV1 / H.264)`, 135, 535);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText(`[${timeStr}] Audio de sistema capturado · Cancelación de eco acústico OK`, 135, 565);
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`[${timeStr}] Rendimiento: 68.4 MB RAM · Uso de CPU: 0.8%`, 135, 595);
-
-      // Right Side DSP Oscilloscope Monitor
-      ctx.fillStyle = '#0e1322';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(1180, 90, 660, 640, 16);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 17px "Plus Jakarta Sans", sans-serif';
-      ctx.fillText('📊 Monitor de Frecuencias & Antirruido DSP', 1210, 140);
-
-      // Oscilloscope wave animation
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      for (let i = 0; i < 600; i++) {
-        const wave = Math.sin((i + frameCount * 5) * 0.04) * 40 + Math.cos((i + frameCount * 2) * 0.03) * 20;
-        const py = 360 + wave;
-        if (i === 0) ctx.moveTo(1210 + i, py);
-        else ctx.lineTo(1210 + i, py);
-      }
-      ctx.stroke();
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '13px monospace';
-      ctx.fillText('Frecuencia de Muestreo: 96,000 Hz (Opus HD)', 1210, 480);
-      ctx.fillText('Supresión de Ruido RNNoise: -38dB Activo', 1210, 510);
-      ctx.fillText(`Latencia de Extremo a Extremo: 11ms WebRTC`, 1210, 540);
-      ctx.fillText(`Resolución de Transmisión: 1920x1080 a 60 FPS`, 1210, 570);
-
-      requestAnimationFrame(renderFrame);
-    };
-
-    renderFrame();
-
-    const stream = canvas.captureStream(60);
-    const track = stream.getVideoTracks()[0];
-    const origStop = track.stop.bind(track);
-    track.stop = () => {
-      active = false;
-      origStop();
-    };
-
-    return stream;
-  }, []);
-
-  const createNativeWindowsStream = useCallback(async (): Promise<MediaStream> => {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const canvas = document.createElement('canvas');
-    canvas.width = 1280;
-    canvas.height = 720;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('No se pudo iniciar el motor de captura');
-
-    let active = true;
-    const drawFrame = async () => {
-      const encodedFrame = await invoke<string>('capture_primary_screen_frame');
-      const image = new Image();
-      image.src = `data:image/jpeg;base64,${encodedFrame}`;
-      await image.decode();
-      if (active) ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    };
-
-    await drawFrame();
-    void (async () => {
-      while (active) {
-        try {
-          await drawFrame();
-        } catch (error) {
-          active = false;
-          console.warn('[Kova Native Capture]', error);
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 16));
-      }
-    })();
-    const stream = canvas.captureStream(30);
-    const track = stream.getVideoTracks()[0];
-    const originalStop = track.stop.bind(track);
-    track.stop = () => {
-      active = false;
-      originalStop();
-    };
-    return stream;
-  }, []);
-
-  const handleScreenShareToggle = async () => {
-    if (screenStream) {
-      screenStream.getTracks().forEach((track) => track.stop());
-      setScreenStream(null);
-      setIsSimulatedScreen(false);
-      if (currentUser.isScreenSharing) toggleScreenShare();
-      toast.info('Transmisión de pantalla finalizada');
-      return;
-    }
-
-    // Android/iOS must use a native MediaProjection / ReplayKit integration.
-    // Do not open the browser chooser there: it exposes the WebView origin and
-    // looks like a website instead of a Kova feature.
-    if (isMobileApp()) {
-      toast.info('Kova móvil está preparando la transmisión nativa de pantalla. Esta función llegará mediante una actualización de la app.');
-      return;
-    }
-
-    let stream: MediaStream | null = null;
-
-    if (isDesktopApp) {
-      try {
-        stream = await createNativeWindowsStream();
-      } catch (error) {
-        console.warn('[Kova Native Capture] No disponible:', error);
-      }
-    }
-
-    // 1. Try native getDisplayMedia with fallback for audio constraint
-    if (!isDesktopApp && navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === 'function') {
-      try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: 60 },
-          audio: true,
-        });
-      } catch {
-        try {
-          stream = await navigator.mediaDevices.getDisplayMedia({
-            video: { frameRate: 60 },
-          });
-        } catch (videoErr) {
-          console.warn('[ScreenShare] getDisplayMedia falló o fue cancelado:', videoErr);
-        }
-      }
-    }
-
-    // 2. If native capture succeeded
-    if (stream) {
-      setScreenStream(stream);
-      setIsSimulatedScreen(false);
-      if (!currentUser.isScreenSharing) toggleScreenShare();
-      toast.success(isDesktopApp ? 'Compartiendo con Kova Capture' : 'Transmitiendo pantalla en vivo');
-
-      stream.getVideoTracks()[0].onended = () => {
-        setScreenStream(null);
-        setIsSimulatedScreen(false);
-        if (isScreenSharingRef.current) toggleScreenShare();
-        toast.info('Transmisión de pantalla finalizada');
-      };
-      return;
-    }
-
-    // 3. Fallback to 60 FPS Canvas Workspace Stream (guarantees screen share works in any isolated .exe or portable build)
-    try {
-      const fallbackStream = createLiveDesktopStream();
-      setScreenStream(fallbackStream);
-      setIsSimulatedScreen(true);
-      if (!currentUser.isScreenSharing) toggleScreenShare();
-      toast.success('Transmitiendo pantalla (Modo Kova Desktop Stream 60 FPS)');
-    } catch {
-      toast.error('No se pudo inicializar la transmisión de pantalla');
-    }
-  };
+  // Camera and screen are LiveKit tracks carried on each peer.
+  const roomPeers = isConnected ? voicePeers : [];
+  const localPeer = roomPeers.find((peer) => peer.isLocal);
+  const screens = roomPeers.filter((peer) => peer.screenTrack);
+  const [focusedScreenId, setFocusedScreenId] = useState<string | null>(null);
+  const focusedScreen = screens.find((peer) => peer.id === focusedScreenId) || screens[0];
 
   // ============================================================================
   // 2. REAL MICROPHONE, WEBRTC AUDIO & ANTIRRUIDO DSP ENGINE
@@ -569,77 +283,6 @@ export const VoiceRoom: React.FC = () => {
   }, [antirruido]);
 
   // ============================================================================
-  // 3. CAMERA & WEBCAM STREAM ENGINE
-  // ============================================================================
-
-  const handleCameraToggle = async () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((t) => t.stop());
-      setCameraStream(null);
-      setCameraFallback(false);
-      if (currentUser.isCameraOn) toggleCamera();
-      toast.info('Cámara desactivada');
-      return;
-    }
-
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        toast.error('No se encontró una cámara disponible');
-        return;
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-      setCameraStream(stream);
-      setCameraFallback(false);
-      if (!currentUser.isCameraOn) toggleCamera();
-      toast.success('Cámara web activada con éxito');
-    } catch (err: any) {
-      console.warn('[Camera] No se pudo acceder a la cámara:', err);
-      if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setCameraFallback(false);
-        toast.error('Windows bloqueó la cámara. Actívala en Privacidad y seguridad > Cámara.');
-      } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
-        setCameraFallback(false);
-        toast.error('No se encontró una cámara conectada');
-      } else {
-        setCameraFallback(false);
-        toast.error('No se pudo iniciar la cámara');
-      }
-    }
-  };
-
-  // Attach camera stream to video tag
-  useEffect(() => {
-    cameraStreamRef.current = cameraStream;
-    if (cameraVideoRef.current && cameraStream) {
-      cameraVideoRef.current.srcObject = cameraStream;
-    }
-  }, [cameraStream]);
-
-  // Attach screen share stream to video tag
-  useEffect(() => {
-    screenStreamRef.current = screenStream;
-    if (videoRef.current && screenStream) {
-      videoRef.current.srcObject = screenStream;
-    }
-  }, [screenStream]);
-
-  // Stop camera/screen tracks when the VoiceRoom unmounts (e.g. switching away
-  // from the voice view) so streams and the "sharing/camera on" flags never leak.
-  useEffect(() => {
-    return () => {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
-      if (cameraStreamRef.current) {
-        cameraStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
-    };
-  }, []);
-
-  // ============================================================================
   // 4. CONNECTION STATE & REAL LATENCY MEASUREMENT
   // ============================================================================
 
@@ -679,14 +322,6 @@ export const VoiceRoom: React.FC = () => {
 
   // Immediate, Clean Voice Disconnect
   const handleDisconnect = () => {
-    if (screenStream) {
-      screenStream.getTracks().forEach((track) => track.stop());
-      setScreenStream(null);
-    }
-    if (cameraStream) {
-      cameraStream.getTracks().forEach((track) => track.stop());
-      setCameraStream(null);
-    }
     stopAudioPipeline();
     leaveVoiceChannel();
   };
@@ -748,7 +383,7 @@ export const VoiceRoom: React.FC = () => {
 
   const meParticipant: VoiceParticipant = {
     id: currentUser.id,
-    name: currentUser.displayName || 'Tú',
+    name: activeServer?.members?.find((m) => m.id === currentUser.id)?.nickname || currentUser.displayName || 'Tú',
     avatar: currentUser.avatar,
     isSpeaking: Boolean(currentUser.isSpeaking),
     isMuted: Boolean(currentUser.isMuted),
@@ -796,44 +431,55 @@ export const VoiceRoom: React.FC = () => {
           className="kvr-stage"
           style={{ paddingRight: isChatOpen ? 'min(360px, 62vw)' : undefined }}
         >
-          {screenStream ? (
+          {focusedScreen?.screenTrack && (
             <div className="kvr-screen">
-              <video ref={videoRef} autoPlay playsInline muted />
+              <VideoTrackView track={focusedScreen.screenTrack} fit="contain" />
               <div className="kvr-screen-bar">
-                <span>{isSimulatedScreen ? 'Compartiendo la ventana de Kova' : 'Compartiendo tu pantalla'}</span>
-                <button type="button" className="kvr-btn-ghost" onClick={handleScreenShareToggle}>
-                  <X size={13} /> Dejar de compartir
-                </button>
+                <span>{focusedScreen.isLocal ? 'Estás compartiendo tu pantalla' : `Pantalla de ${otherParticipants.find((p) => p.id === focusedScreen.id)?.name || focusedScreen.name}`}</span>
+                {screens.length > 1 && (
+                  <span className="kvr-screen-tabs">
+                    {screens.map((peer) => (
+                      <button key={peer.id} type="button" className={peer.id === focusedScreen.id ? 'is-on' : ''} onClick={() => setFocusedScreenId(peer.id)}>
+                        {peer.isLocal ? 'Tú' : peer.name}
+                      </button>
+                    ))}
+                  </span>
+                )}
+                {focusedScreen.isLocal && (
+                  <button type="button" className="kvr-btn-ghost" onClick={() => void toggleScreenShare()}>
+                    <X size={13} /> Dejar de compartir
+                  </button>
+                )}
               </div>
             </div>
-          ) : (
-            <div className="kvr-grid" data-count={Math.min(totalParticipants + (totalParticipants === 1 ? 1 : 0), 3)}>
-              <VoiceParticipantCard
-                member={meParticipant}
-                cardRef={myCardRef}
-                cameraVideoRef={cameraVideoRef}
-                showCamera={Boolean(cameraStream)}
-                onOpenProfile={() => openUserProfile(currentUser)}
-              />
-
-              {otherParticipants.map((participant, index) => (
-                <VoiceParticipantCard
-                  key={participant.id}
-                  member={participant}
-                  onOpenProfile={() => openUserProfile(otherVoiceMembers[index])}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    setContextMenu({ x: event.clientX, y: event.clientY, memberIndex: index });
-                  }}
-                />
-              ))}
-
-              {totalParticipants === 1 && <VoiceEmptyState serverId={activeServer.id} />}
-            </div>
           )}
+          <div className={`kvr-grid ${screens.length ? 'is-strip' : ''}`} data-count={Math.min(totalParticipants + (totalParticipants === 1 ? 1 : 0), 3)}>
+            <VoiceParticipantCard
+              member={meParticipant}
+              cardRef={myCardRef}
+              cameraTrack={localPeer?.cameraTrack}
+              mirrorCamera
+              onOpenProfile={() => openUserProfile(currentUser)}
+            />
+
+            {otherParticipants.map((participant, index) => (
+              <VoiceParticipantCard
+                key={participant.id}
+                member={participant}
+                cameraTrack={livePeers[index]?.cameraTrack}
+                onOpenProfile={() => openUserProfile(otherVoiceMembers[index])}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setContextMenu({ x: event.clientX, y: event.clientY, memberIndex: index });
+                }}
+              />
+            ))}
+
+            {totalParticipants === 1 && !screens.length && <VoiceEmptyState serverId={activeServer.id} />}
+          </div>
 
           {/* Compact spatial radar — optional, out of the way */}
-          {radarVisible && !screenStream && (
+          {radarVisible && !screens.length && (
             <div className="absolute bottom-[96px] left-5 z-20 hidden md:block">
               <VoiceRadar
                 compact
@@ -861,14 +507,14 @@ export const VoiceRoom: React.FC = () => {
         <VoiceControlDock
           isMuted={Boolean(currentUser.isMuted)}
           isDeafened={Boolean(currentUser.isDeafened)}
-          isCameraOn={Boolean(cameraStream)}
-          isScreenSharing={Boolean(screenStream)}
+          isCameraOn={Boolean(currentUser.isCameraOn)}
+          isScreenSharing={Boolean(currentUser.isScreenSharing)}
           isChatOpen={isChatOpen}
           hasUnreadChat={messages.length > 0}
           onToggleMute={toggleMute}
           onToggleDeafen={toggleDeafen}
-          onToggleCamera={handleCameraToggle}
-          onToggleScreenShare={handleScreenShareToggle}
+          onToggleCamera={() => void toggleCamera()}
+          onToggleScreenShare={() => void toggleScreenShare()}
           onToggleChat={() => setIsChatOpen((v) => !v)}
           onLeave={handleVoiceToggle}
           dockRef={dockRef}

@@ -20,6 +20,7 @@ import { DEFAULT_BOTS } from '../data/defaultBots';
 import { INITIAL_NOTES, CURRENT_USER } from '../data/defaults';
 import { buildSpaceStructure, type SpaceTemplateId } from '../data/spaceTemplates';
 import { soundFx } from '../utils/soundEffects';
+import { playJoinSound } from '../utils/voiceSounds';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
@@ -131,8 +132,8 @@ interface AppContextType {
   leaveVoiceChannel: () => void;
   toggleMute: () => void;
   toggleDeafen: () => void;
-  toggleCamera: () => void;
-  toggleScreenShare: () => void;
+  toggleCamera: () => Promise<void>;
+  toggleScreenShare: () => Promise<void>;
   // Push-to-talk (desktop)
   pushToTalkEnabled: boolean;
   pushToTalkKey: string;
@@ -226,6 +227,7 @@ interface AppContextType {
     template?: SpaceTemplateId,
     visibility?: 'public' | 'private'
   ) => Promise<Server | null>;
+  setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
   joinServerByInvite: (inviteCodeOrId: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   createChannel: (name: string, type: ChannelType, categoryId?: string) => void;
   updateChannel: (channelId: string, updates: Partial<Channel>) => void;
@@ -806,10 +808,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch { return []; }
   });
 
+  // Live voice session (LiveKit) and who was already in the room.
+  const voiceSessionRef = useRef<VoiceSession | null>(null);
+  const knownPeerIdsRef = useRef<Set<string>>(new Set());
+
   const logout = () => {
     void api.logout().catch(() => undefined);
     clearAuthToken();
     disconnectSocket();
+    void voiceSessionRef.current?.disconnect();
+    voiceSessionRef.current = null;
+    knownPeerIdsRef.current = new Set();
+    setVoicePeers([]);
     setIsAuthenticated(false);
     setActiveVoiceChannelId(null);
     setCurrentUser(CURRENT_USER);
@@ -995,12 +1005,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTypingByChannel({});
     };
 
+    const handleNickname = ({ serverId, userId, nickname }: { serverId: string; userId: string; nickname: string }) => {
+      setServers((prev) => prev.map((server) => server.id !== serverId ? server : {
+        ...server,
+        members: (server.members || []).map((member) => member.id === userId ? { ...member, nickname } : member),
+      }));
+    };
     socket.on('message:created', handleMessageCreated);
     socket.on('message:updated', handleMessageUpdated);
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('message:reactions', handleReactions);
     socket.on('channel:typing', handleTyping);
     socket.on('presence:changed', handlePresence);
+    socket.on('space:nickname', handleNickname);
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     if (socket.connected) setRealtimeConnected(true);
@@ -1012,6 +1029,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       socket.off('message:reactions', handleReactions);
       socket.off('channel:typing', handleTyping);
       socket.off('presence:changed', handlePresence);
+    socket.off('space:nickname', handleNickname);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
     };
@@ -1167,12 +1185,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateUserProfile = async (updates: Partial<User>) => {
     const previous = currentUser;
     setCurrentUser((prev) => ({ ...prev, ...updates }));
-    const serverFields = (['displayName', 'avatar', 'banner', 'bio', 'customStatus', 'thoughtBubble'] as const).filter((key) => key in updates);
+    const serverFields = (['displayName', 'avatar', 'banner', 'bio', 'customStatus', 'thoughtBubble', 'accentColor', 'joinSound'] as const).filter((key) => key in updates);
     if (serverFields.length === 0 || !getAuthToken()) return true;
     try {
       const saved = await api.updateProfile(Object.fromEntries(serverFields.map((key) => [key, updates[key] ?? ''])));
-      setCurrentUser((prev) => ({ ...prev, displayName: saved.displayName, avatar: saved.avatar || prev.avatar, banner: saved.banner || undefined, bio: saved.bio, customStatus: saved.customStatus, thoughtBubble: saved.thoughtBubble || prev.thoughtBubble }));
-      soundFx.playJoinVoice();
+      setCurrentUser((prev) => ({ ...prev, displayName: saved.displayName, avatar: saved.avatar || prev.avatar, banner: saved.banner || undefined, bio: saved.bio, customStatus: saved.customStatus, thoughtBubble: saved.thoughtBubble || prev.thoughtBubble, accentColor: saved.accentColor || '', joinSound: saved.joinSound || '' }));
       return true;
     } catch (error) {
       setCurrentUser(previous);
@@ -1184,8 +1201,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Voice call state
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   const isInVoice = activeVoiceChannelId !== null;
-  const voiceSessionRef = useRef<VoiceSession | null>(null);
   const [voicePeers, setVoicePeers] = useState<VoicePeer[]>([]);
+  const serversRef = useRef(servers);
+  serversRef.current = servers;
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
 
   // Activities, Soundboard & Arcades
@@ -1365,6 +1383,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((error) => { if (!cancelled) toast.error(error instanceof Error ? error.message : 'No se pudo cargar la conversación.'); });
     return () => { cancelled = true; };
   }, [isAuthenticated, activeDMUserId]);
+
+  // Incoming direct messages arrive live; the open conversation updates at
+  // once and others get an unread badge.
+  const activeDMUserIdRef = useRef(activeDMUserId);
+  activeDMUserIdRef.current = activeDMUserId;
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    const onDirectMessage = (payload: { id: string; authorId: string; content: string; createdAt: string; peerIds?: string[] }) => {
+      if (payload.authorId === currentUser.id) return; // our own sends are already shown
+      const peerId = payload.authorId;
+      const isOpen = activeDMUserIdRef.current === peerId;
+      const time = new Date(payload.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setDmConversations((previous) => {
+        const existing = previous.find((item) => item.user.id === peerId);
+        if (!existing) return previous; // the 6 s list refresh will add it
+        if (existing.messages.some((message) => message.id === payload.id)) return previous;
+        return previous.map((item) => item.user.id !== peerId ? item : {
+          ...item,
+          lastMessage: payload.content,
+          lastMessageTime: time,
+          unreadCount: isOpen ? 0 : (item.unreadCount || 0) + 1,
+          messages: [...item.messages, { id: payload.id, authorId: payload.authorId, content: payload.content, timestamp: `Hoy a las ${time}` }],
+        });
+      });
+      if (!isOpen) soundFx.playMessageSent();
+    };
+    socket.on('dm:created', onDirectMessage);
+    return () => { socket.off('dm:created', onDirectMessage); };
+  }, [isAuthenticated, currentUser.id]);
+
+  // Opening a conversation clears its badge.
+  useEffect(() => {
+    if (!activeDMUserId) return;
+    setDmConversations((previous) => previous.some((item) => item.user.id === activeDMUserId && item.unreadCount)
+      ? previous.map((item) => item.user.id === activeDMUserId ? { ...item, unreadCount: 0 } : item)
+      : previous);
+  }, [activeDMUserId]);
 
   const sendDirectMessage = (receiverId: string, content: string) => {
     if (!content.trim()) return;
@@ -1778,6 +1834,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await voiceSessionRef.current?.disconnect();
       voiceSessionRef.current = null;
+      knownPeerIdsRef.current = new Set();
+      setCurrentUser((prev) => ({ ...prev, isCameraOn: false, isScreenSharing: false }));
       const { token, url } = await api.getVoiceToken(channelId);
       const muted = Boolean(currentUser.isMuted || currentUser.isDeafened);
       voiceSessionRef.current = await connectVoice({
@@ -1785,15 +1843,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         token,
         micEnabled: !muted,
         deafened: Boolean(currentUser.isDeafened),
-        onPeers: setVoicePeers,
+        onPeers: (peers) => {
+          // Someone new arrived: play their own join sound (or the default chime).
+          const known = knownPeerIdsRef.current;
+          const arrivals = peers.filter((peer) => !peer.isLocal && !known.has(peer.id));
+          knownPeerIdsRef.current = new Set(peers.map((peer) => peer.id));
+          if (known.size > 0 || peers.length > 1) {
+            arrivals.slice(0, 2).forEach((peer) => {
+              const member = serversRef.current.flatMap((server) => server.members || []).find((m) => m.id === peer.id);
+              playJoinSound(member?.joinSound);
+            });
+          }
+          setVoicePeers(peers);
+        },
+        onLocalVideoChange: ({ camera, screen }) => {
+          setCurrentUser((prev) => (prev.isCameraOn === camera && prev.isScreenSharing === screen ? prev : { ...prev, isCameraOn: camera, isScreenSharing: screen }));
+        },
         onUnexpectedDisconnect: () => {
           voiceSessionRef.current = null;
+          knownPeerIdsRef.current = new Set();
+          setCurrentUser((prev) => ({ ...prev, isCameraOn: false, isScreenSharing: false }));
           setActiveVoiceChannelId(null);
           toast.error('Se perdió la conexión de voz.');
         },
       });
       setActiveVoiceChannelId(channelId);
-      soundFx.playJoinVoice();
+      playJoinSound(currentUser.joinSound);
     } catch (error) {
       voiceSessionRef.current = null;
       setVoicePeers([]);
@@ -1820,6 +1895,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundFx.playLeaveVoice();
     void voiceSessionRef.current?.disconnect();
     voiceSessionRef.current = null;
+    knownPeerIdsRef.current = new Set();
     setVoicePeers([]);
     setActiveVoiceChannelId(null);
 
@@ -1930,15 +2006,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleDeafen = () => {
+    soundFx.playDeafenToggle(!currentUser.isDeafened);
     setCurrentUser((prev) => ({ ...prev, isDeafened: !prev.isDeafened }));
   };
 
-  const toggleCamera = () => {
-    setCurrentUser((prev) => ({ ...prev, isCameraOn: !prev.isCameraOn }));
+  // Camera and screen go through LiveKit so everyone in the room sees them.
+  const toggleCamera = async () => {
+    const session = voiceSessionRef.current;
+    if (!session) { toast.error('Entra a una sala de voz para encender la cámara.'); return; }
+    try {
+      const on = await session.setCameraEnabled(!currentUser.isCameraOn);
+      setCurrentUser((prev) => ({ ...prev, isCameraOn: on }));
+    } catch (error) {
+      setCurrentUser((prev) => ({ ...prev, isCameraOn: false }));
+      toast.error(/denied|NotAllowed/i.test(String(error)) ? 'Kova no tiene permiso para usar la cámara.' : 'No se pudo encender la cámara.');
+    }
   };
 
-  const toggleScreenShare = () => {
-    setCurrentUser((prev) => ({ ...prev, isScreenSharing: !prev.isScreenSharing }));
+  const toggleScreenShare = async () => {
+    const session = voiceSessionRef.current;
+    if (!session) { toast.error('Entra a una sala de voz para compartir pantalla.'); return; }
+    if (!currentUser.isScreenSharing && !navigator.mediaDevices?.getDisplayMedia) {
+      toast.error('Este dispositivo no permite compartir pantalla.');
+      return;
+    }
+    try {
+      const on = await session.setScreenShareEnabled(!currentUser.isScreenSharing);
+      setCurrentUser((prev) => ({ ...prev, isScreenSharing: on }));
+    } catch (error) {
+      setCurrentUser((prev) => ({ ...prev, isScreenSharing: false }));
+      // Cancelling the browser's picker is not an error worth shouting about.
+      if (!/NotAllowed|AbortError|Permission denied/i.test(String(error))) toast.error('No se pudo compartir la pantalla.');
+    }
   };
 
   // Thread controls
@@ -2412,6 +2511,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Server, Channel & Category operations
+  // Sets (or clears, with '') the signed-in person's nickname in a space.
+  const setSpaceNickname = async (serverId: string, nickname: string) => {
+    try {
+      const saved = await api.setNickname(serverId, nickname);
+      setServers((prev) => prev.map((server) => server.id !== serverId ? server : {
+        ...server,
+        members: (server.members || []).map((member) => member.id === currentUser.id ? { ...member, nickname: saved.nickname } : member),
+      }));
+      toast.success(saved.nickname ? `Ahora eres «${saved.nickname}» aquí` : 'Apodo quitado');
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar el apodo.');
+      return false;
+    }
+  };
+
   // Creates the space on the server first, so the caller can invite people
   // right away. Resolves to the new space, or null (an error toast is shown).
   const createServer = async (
@@ -2941,6 +3056,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         closeUserProfile,
         createServer,
         joinServerByInvite,
+        setSpaceNickname,
         createChannel,
         deleteServer,
         deleteChannel,

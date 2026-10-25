@@ -102,3 +102,33 @@
   .kset-identity { flex-wrap: wrap; gap: 10px; }
   .kset-btn-metal, .kset-btn-ghost, .kset-logout { padding: 9px 13px; }
 }
+
+/* Profile extras: colour, join sound, mute sound */
+.kset-extras { display: grid; gap: 18px; margin-top: 8px; }
+.kset-field h4 { margin: 0; font-size: 14px; font-weight: 600; color: #f4f5f7; }
+.kset-field p { margin: 3px 0 10px; font-size: 12px; color: #8b8d91; }
+.kset-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.kset-swatches button, .kset-swatch-custom {
+  width: 30px; height: 30px; min-height: 0 !important; padding: 0; border-radius: 50% !important; cursor: pointer;
+  border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.kset-swatches button.is-on { border-color: #f4f5f7; box-shadow: 0 0 0 2px #0f1011 inset; }
+.kset-swatch-custom { position: relative; overflow: hidden; background: conic-gradient(#ef4444, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444); }
+.kset-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.kset-sound {
+  display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 12px;
+  border: 1px solid rgba(194, 196, 200, 0.14); background: #141516; font-size: 14px; color: #d8d9dc;
+}
+.kset-sound > span { flex: 1; min-width: 0; }
+.kset-sound > svg { color: #8b8d91; }
+.kset-icon-btn {
+  display: grid; place-items: center; width: 32px; height: 32px; min-height: 0 !important; padding: 0;
+  border: 0; border-radius: 9px !important; background: none; color: #b4b6ba; cursor: pointer;
+}
+.kset-icon-btn:hover { background: rgba(194, 196, 200, 0.08); color: #f4f5f7; }
+.kset-segment { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; border: 1px solid rgba(194, 196, 200, 0.14); }
+.kset-segment button {
+  padding: 6px 14px; min-height: 0 !important; border: 0; border-radius: 999px !important;
+  background: none; color: #b4b6ba; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.kset-segment button.is-on { color: #0a0a0b; background: linear-gradient(180deg, #ffffff, #b8babe); }

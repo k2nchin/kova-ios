@@ -12,6 +12,8 @@ import {
   Crown,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { Avatar } from '../Common/Avatar';
+import '../../styles/serverSettings.css';
 
 const DISCORD_ROLE_COLORS = [
   { name: 'Predeterminado', value: '#99AAB5' },
@@ -46,7 +48,7 @@ const ALL_PERMISSIONS: PermissionDef[] = [
   {
     key: 'MANAGE_SERVER',
     name: 'Gestionar Servidor',
-    desc: 'Permite cambiar el nombre del servidor, icono y descripción.',
+    desc: 'Permite cambiar el nombre del espacio, icono y descripción.',
     category: 'general',
   },
   {
@@ -65,7 +67,7 @@ const ALL_PERMISSIONS: PermissionDef[] = [
   {
     key: 'KICK_MEMBERS',
     name: 'Expulsar Miembros',
-    desc: 'Permite expulsar a miembros del servidor.',
+    desc: 'Permite expulsar a miembros del espacio.',
     category: 'membership',
   },
   {
@@ -96,7 +98,7 @@ const ALL_PERMISSIONS: PermissionDef[] = [
   {
     key: 'ADD_REACTIONS',
     name: 'Añadir Reacciones',
-    desc: 'Permite reaccionar a mensajes con emojis del servidor y universales.',
+    desc: 'Permite reaccionar a mensajes con emojis del espacio y universales.',
     category: 'text',
   },
   // Voice
@@ -131,6 +133,8 @@ export const ServerSettingsModal: React.FC = () => {
   } = useApp();
 
   // Active role selected for editing
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
   const [roleSubTab, setRoleSubTab] = useState<'display' | 'permissions' | 'members'>('display');
   const [roleSearchQuery, setRoleSearchQuery] = useState('');
@@ -258,145 +262,81 @@ export const ServerSettingsModal: React.FC = () => {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150 select-none font-['Plus_Jakarta_Sans',sans-serif]"
-      onClick={() => setIsServerSettingsOpen(false)}
-    >
+    <div className="kss-overlay" onClick={() => setIsServerSettingsOpen(false)}>
       <div
-        className="kova-server-settings-modal w-full max-w-5xl h-[88vh] rounded-3xl bg-[#0d071c] border border-purple-500/25 shadow-[0_0_40px_rgba(147,51,234,0.2)] overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 duration-150 relative"
+        className="kova-server-settings-modal kss"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="kss-title"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Left Navigation Sidebar */}
-        <div className="w-full md:w-64 bg-[#080312] border-r border-purple-950/40 p-4 flex flex-col justify-between shrink-0">
-          <div className="space-y-4">
-            {/* Server Identity */}
-            <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-              {activeServer.icon ? (
-                <img
-                  src={activeServer.icon}
-                  alt={activeServer.name}
-                  className="w-10 h-10 rounded-xl object-cover"
-                />
+        <header className="kss-head">
+          <Avatar src={activeServer.icon} name={activeServer.name} size={36} />
+          <div className="kss-head-text">
+            <h2 id="kss-title">{activeServer.name}</h2>
+            <p>Ajustes del espacio</p>
+          </div>
+          <button type="button" className="kss-close" onClick={() => setIsServerSettingsOpen(false)} aria-label="Cerrar ajustes del espacio">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="kss-body">
+          <nav className="kss-nav" aria-label="Secciones">
+            {([
+              { id: 'overview', label: 'General', icon: Settings },
+              { id: 'roles', label: 'Roles', icon: Shield, count: roles.length },
+              { id: 'members', label: 'Miembros', icon: Users, count: members.length },
+            ] as const).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`kss-tab ${serverSettingsTab === item.id ? 'is-active' : ''}`}
+                aria-current={serverSettingsTab === item.id ? 'page' : undefined}
+                onClick={() => setServerSettingsTab(item.id)}
+              >
+                <item.icon size={16} />
+                <span>{item.label}</span>
+                {'count' in item && <em>{item.count}</em>}
+              </button>
+            ))}
+
+            <div className="kss-danger">
+              {confirmingDelete ? (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (deleteConfirmText.trim() !== activeServer.name) return;
+                    setIsServerSettingsOpen(false);
+                    deleteServer(activeServer.id);
+                  }}
+                >
+                  <label htmlFor="kss-delete">Escribe <strong>{activeServer.name}</strong> para borrarlo para siempre.</label>
+                  <input id="kss-delete" value={deleteConfirmText} onChange={(event) => setDeleteConfirmText(event.target.value)} autoFocus />
+                  <div>
+                    <button type="button" className="kss-btn-ghost" onClick={() => { setConfirmingDelete(false); setDeleteConfirmText(''); }}>Cancelar</button>
+                    <button type="submit" className="kss-btn-danger" disabled={deleteConfirmText.trim() !== activeServer.name}>Borrar</button>
+                  </div>
+                </form>
               ) : (
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold font-['Outfit'] text-sm">
-                  {activeServer.acronym}
-                </div>
+                <button type="button" className="kss-tab kss-tab-danger" onClick={() => setConfirmingDelete(true)}>
+                  <Trash2 size={16} />
+                  <span>Borrar espacio</span>
+                </button>
               )}
-              <div className="min-w-0 flex-1">
-                <h3 className="text-xs font-bold text-white truncate font-['Outfit']">
-                  {activeServer.name}
-                </h3>
-                <span className="text-[10px] text-purple-400 font-mono">Ajustes del Servidor</span>
-              </div>
             </div>
+          </nav>
 
-            {/* Navigation Options */}
-            <nav className="space-y-1">
-              <button
-                type="button"
-                onClick={() => setServerSettingsTab('overview')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  serverSettingsTab === 'overview'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Settings size={15} />
-                  <span>Vista General</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setServerSettingsTab('roles')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  serverSettingsTab === 'roles'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Shield size={15} />
-                  <span>Roles</span>
-                </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 text-white font-mono">
-                  {roles.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setServerSettingsTab('members')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  serverSettingsTab === 'members'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Users size={15} />
-                  <span>Gestión de Miembros</span>
-                </div>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 text-white font-mono">
-                  {members.length}
-                </span>
-              </button>
-
-            </nav>
-          </div>
-
-          {/* Bottom actions: Delete server */}
-          <div className="pt-4 border-t border-white/[0.08] space-y-2">
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el servidor "${activeServer.name}"? Esta acción no se puede deshacer.`)) {
-                  setIsServerSettingsOpen(false);
-                  deleteServer(activeServer.id);
-                }
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/15 transition-all cursor-pointer"
-            >
-              <Trash2 size={15} />
-              <span>Eliminar Servidor</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right Main Content Area */}
-        <div className="flex-1 flex flex-col bg-[#121520] overflow-hidden">
-          {/* Header Bar */}
-          <div className="h-14 border-b border-white/[0.08] px-6 flex items-center justify-between shrink-0 bg-white/[0.01]">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
-                {serverSettingsTab === 'overview' && 'Vista General'}
-                {serverSettingsTab === 'roles' && 'Roles del Servidor'}
-                {serverSettingsTab === 'members' && 'Miembros y Asignación de Roles'}
-              </span>
-            </div>
-
-            {/* Close ESC button (Discord style) */}
-            <button
-              type="button"
-              onClick={() => setIsServerSettingsOpen(false)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-all cursor-pointer text-xs"
-              title="Cerrar Ajustes"
-            >
-              <X size={14} />
-              <span className="text-[10px] font-mono border border-white/20 rounded px-1">ESC</span>
-            </button>
-          </div>
-
+        <div className="kss-main">
           {/* Content Views */}
-          <div className="flex-1 overflow-hidden p-6 bg-[#0d071c]">
+          <div className="kss-content">
             {/* ======================= TAB: ROLES ======================= */}
             {serverSettingsTab === 'roles' && (
               <div className="h-full flex flex-col gap-4">
                 {/* Intro & Create button */}
                 <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 shrink-0">
                   <div>
-                    <h2 className="text-sm font-bold text-white font-['Outfit']">Roles del Servidor</h2>
+                    <h2 className="text-sm font-bold text-white font-['Outfit']">Roles</h2>
                     <p className="text-xs text-slate-400">
                       Usa los roles para organizar a los miembros, asignarles colores y configurar sus permisos.
                     </p>
@@ -412,9 +352,9 @@ export const ServerSettingsModal: React.FC = () => {
                 </div>
 
                 {/* Main Split: Roles List on left, Role Editor on right */}
-                <div className="flex-1 flex gap-5 overflow-hidden">
+                <div className="kss-roles-split flex-1 flex gap-5 overflow-hidden">
                   {/* Left Column: Roles list */}
-                  <div className="w-56 flex flex-col gap-2 shrink-0 border-r border-white/[0.08] pr-4">
+                  <div className="kss-roles-list w-56 flex flex-col gap-2 shrink-0 border-r border-white/[0.08] pr-4">
                     <div className="relative shrink-0">
                       <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
@@ -479,9 +419,9 @@ export const ServerSettingsModal: React.FC = () => {
 
                   {/* Right Column: Selected Role Editor */}
                   {selectedRole ? (
-                    <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                       {/* Sub-tabs */}
-                      <div className="flex items-center gap-4 border-b border-white/[0.08] pb-2 shrink-0 mb-4">
+                      <div className="kss-subtabs flex items-center gap-4 border-b border-white/[0.08] pb-2 shrink-0 mb-4">
                         <button
                           type="button"
                           onClick={() => setRoleSubTab('display')}
@@ -763,14 +703,14 @@ export const ServerSettingsModal: React.FC = () => {
             {/* ======================= TAB: MEMBERS ======================= */}
             {serverSettingsTab === 'members' && (
               <div className="h-full flex flex-col gap-4">
-                <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 shrink-0">
+                <div className="kss-section-head flex items-center justify-between border-b border-white/[0.06] pb-3 shrink-0">
                   <div>
-                    <h2 className="text-sm font-bold text-white font-['Outfit']">Gestión de Miembros</h2>
+                    <h2 className="text-sm font-bold text-white font-['Outfit']">Miembros</h2>
                     <p className="text-xs text-slate-400">
-                      Administra los miembros de tu servidor y asígnales roles directamente.
+                      Administra los miembros de tu espacio y asígnales roles directamente.
                     </p>
                   </div>
-                  <div className="relative w-64">
+                  <div className="kss-search relative w-64">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
@@ -807,7 +747,7 @@ export const ServerSettingsModal: React.FC = () => {
                             <div className="text-xs font-bold text-white truncate flex items-center gap-1.5 font-['Outfit']">
                               <span>{member.displayName}</span>
                               {isOwner && (
-                                <span title="Propietario del servidor">
+                                <span title="Propietario del espacio">
                                   <Crown size={13} className="text-amber-400 fill-amber-400" />
                                 </span>
                               )}
@@ -895,8 +835,8 @@ export const ServerSettingsModal: React.FC = () => {
             {serverSettingsTab === 'overview' && (
               <form onSubmit={handleSaveOverview} className="h-full overflow-y-auto custom-scrollbar space-y-5 pr-2">
                 <div className="border-b border-white/[0.06] pb-3">
-                  <h2 className="text-sm font-bold text-white font-['Outfit']">Vista General del Servidor</h2>
-                  <p className="text-xs text-slate-400">Personaliza el nombre, icono, portada y detalles de tu servidor.</p>
+                  <h2 className="text-sm font-bold text-white font-['Outfit']">General</h2>
+                  <p className="text-xs text-slate-400">Personaliza el nombre, icono, portada y detalles de tu espacio.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -993,7 +933,7 @@ export const ServerSettingsModal: React.FC = () => {
                       <textarea
                         value={serverDescription}
                         onChange={(e) => setServerDescription(e.target.value)}
-                        placeholder="Cuéntale a la gente de qué se trata tu servidor..."
+                        placeholder="Cuéntale a la gente de qué se trata tu espacio..."
                         rows={4}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-purple-500 custom-scrollbar resize-none font-sans"
                         maxLength={200}
@@ -1017,6 +957,7 @@ export const ServerSettingsModal: React.FC = () => {
             )}
 
           </div>
+        </div>
         </div>
       </div>
     </div>

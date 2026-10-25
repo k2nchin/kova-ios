@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
+import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { Avatar } from '../Common/Avatar';
 import type { Channel } from '../../types';
 import '../../styles/console.css';
@@ -160,6 +161,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
         <header className="kova-channels-head">
           <button type="button" className="kova-channels-title" onClick={() => setIsServerSettingsOpen(true)} title="Ajustes del espacio">
             <span>{activeServer?.name || 'Kova'}</span>
+            {activeServer?.verified && <VerifiedBadge size={15} label="Espacio verificado" />}
             <Settings size={14} />
           </button>
           <button type="button" className="kova-icon-btn" onClick={() => openInviteModal()} title="Invitar personas" aria-label="Invitar personas">
@@ -216,9 +218,22 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                       <ul className="kova-channel-peers">
                         {voicePeers.map((peer) => (
                           <li key={peer.id} className={peer.isSpeaking ? 'is-speaking' : ''}>
-                            <Avatar src={peer.avatar} name={peer.name} size={20} />
-                            <span>{peer.isLocal ? `${peer.name} (tú)` : peer.name}</span>
-                            {peer.isMuted && <MicOff size={12} aria-label="Silenciado" />}
+                            {(() => {
+                              const member = activeServer?.members?.find((m) => m.id === peer.id);
+                              const name = member?.nickname || member?.displayName || peer.name;
+                              return (
+                                <button
+                                  type="button"
+                                  className="kova-channel-peer"
+                                  onClick={() => openUserProfile(member || (peer.isLocal ? currentUser : { id: peer.id, username: peer.name, displayName: peer.name, avatar: peer.avatar || '', tag: '0000', status: 'online' }))}
+                                  title={`Ver perfil de ${name}`}
+                                >
+                                  <Avatar src={member?.avatar || peer.avatar} name={name} size={20} />
+                                  <span>{peer.isLocal ? `${name} (tú)` : name}</span>
+                                  {peer.isMuted && <MicOff size={12} aria-label="Silenciado" />}
+                                </button>
+                              );
+                            })()}
                           </li>
                         ))}
                       </ul>

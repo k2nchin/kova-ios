@@ -16,6 +16,12 @@ export interface User {
   verified?: boolean;
   status: UserStatus;
   customStatus?: string;
+  /** Per-space nickname (only set on members of a space). */
+  nickname?: string;
+  /** Profile colour, #rrggbb. */
+  accentColor?: string;
+  /** Sound others hear when this person joins a voice room. */
+  joinSound?: string;
   activity?: {
     type: 'Playing' | 'Listening' | 'Coding' | 'Streaming';
     name: string;
@@ -72,6 +78,8 @@ export interface Server {
   banner?: string;
   description: string;
   ownerId: string;
+  /** Set by the server for spaces owned by a verified account. */
+  verified?: boolean;
   visibility?: 'public' | 'private';
   themeGradient?: string;
   categories: ChannelCategory[];

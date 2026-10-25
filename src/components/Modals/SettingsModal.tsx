@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import '../../styles/settings.css';
+import { ProfileExtras, MuteSoundPicker } from '../Settings/ProfileExtras';
 import { Avatar } from '../Common/Avatar';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { isDesktopApp } from '../../utils/platform';
@@ -593,6 +594,7 @@ export const SettingsModal: React.FC = () => {
                   </div>
                 </div>
               )}
+                <ProfileExtras />
               </div>
             )}
 
@@ -747,9 +749,10 @@ export const SettingsModal: React.FC = () => {
                 title="Voz y vídeo HD"
                 description="Ajustes de calidad para llamadas privadas y canales de voz."
               >
+                <MuteSoundPicker />
                 <PreferenceToggle
-                  label="Supresión de ruido neuronal Crisp"
-                  description="Filtra tecleos, ruidos de fondo y eco mediante procesamiento en tiempo real."
+                  label="Supresión de ruido"
+                  description="Reduce zumbidos y ruido de fondo de tu micrófono."
                   checked={preferences.noiseSuppression}
                   onChange={() => updatePreference('noiseSuppression', !preferences.noiseSuppression)}
                 />

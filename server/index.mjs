@@ -25,7 +25,7 @@ const RATE_LIMIT = 120;
 const AUTH_RATE_LIMIT = 20;
 const scrypt = promisify(crypto.scrypt);
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const schema = `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, avatar TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', visibility TEXT NOT NULL DEFAULT 'private', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS space_members (space_id TEXT NOT NULL, user_id TEXT NOT NULL, joined_at TEXT NOT NULL, PRIMARY KEY(space_id, user_id), FOREIGN KEY(space_id) REFERENCES spaces(id), FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, topic TEXT NOT NULL DEFAULT '', category_id TEXT, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS server_invites (code TEXT PRIMARY KEY, space_id TEXT NOT NULL, creator_id TEXT NOT NULL, expires_at TEXT, max_uses INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, signal_id TEXT NOT NULL, author_id TEXT NOT NULL, content TEXT NOT NULL, reply_to_id TEXT, attachments TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS message_reactions (message_id TEXT NOT NULL, user_id TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(message_id, user_id, emoji)); CREATE TABLE IF NOT EXISTS direct_messages (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS friend_requests (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, UNIQUE(sender_id, receiver_id)); CREATE TABLE IF NOT EXISTS friendships (user_a TEXT NOT NULL, user_b TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(user_a, user_b)); CREATE TABLE IF NOT EXISTS blocked_users (blocker_id TEXT NOT NULL, blocked_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(blocker_id, blocked_id)); CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, reporter_id TEXT NOT NULL, target_id TEXT NOT NULL, reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL);`;
+const schema = `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, avatar TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', visibility TEXT NOT NULL DEFAULT 'private', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS space_members (space_id TEXT NOT NULL, user_id TEXT NOT NULL, joined_at TEXT NOT NULL, PRIMARY KEY(space_id, user_id), FOREIGN KEY(space_id) REFERENCES spaces(id), FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, topic TEXT NOT NULL DEFAULT '', category_id TEXT, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS server_invites (code TEXT PRIMARY KEY, space_id TEXT NOT NULL, creator_id TEXT NOT NULL, expires_at TEXT, max_uses INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, signal_id TEXT NOT NULL, author_id TEXT NOT NULL, content TEXT NOT NULL, reply_to_id TEXT, attachments TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS message_reactions (message_id TEXT NOT NULL, user_id TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(message_id, user_id, emoji)); CREATE TABLE IF NOT EXISTS direct_messages (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS friend_requests (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, UNIQUE(sender_id, receiver_id)); CREATE TABLE IF NOT EXISTS friendships (user_a TEXT NOT NULL, user_b TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(user_a, user_b)); CREATE TABLE IF NOT EXISTS blocked_users (blocker_id TEXT NOT NULL, blocked_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(blocker_id, blocked_id)); CREATE TABLE IF NOT EXISTS space_nicknames (space_id TEXT NOT NULL, user_id TEXT NOT NULL, nickname TEXT NOT NULL, PRIMARY KEY(space_id, user_id)); CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, reporter_id TEXT NOT NULL, target_id TEXT NOT NULL, reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL);`;
 let db;
 let runInTransaction;
 if (databaseUrl) {
@@ -83,7 +83,7 @@ try { await db.exec('ALTER TABLE signals ADD COLUMN category_id TEXT'); } catch 
 try { await db.exec('ALTER TABLE messages ADD COLUMN reply_to_id TEXT'); } catch {}
 try { await db.exec("ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); } catch {}
 try { await db.prepare('UPDATE sessions SET expires_at = ? WHERE expires_at IS NULL').run(new Date(0).toISOString()); } catch {}
-const userFromRow = (row) => row && ({ id: row.id, username: row.username, displayName: row.display_name, email: row.email, avatar: row.avatar, passwordHash: row.password_hash, twoFactorEnabled: Number(row.totp_enabled || 0) === 1, bio: row.bio || '', banner: row.banner || '', customStatus: row.custom_status || '', thoughtBubble: row.thought_bubble || '' });
+const userFromRow = (row) => row && ({ id: row.id, username: row.username, displayName: row.display_name, email: row.email, avatar: row.avatar, passwordHash: row.password_hash, twoFactorEnabled: Number(row.totp_enabled || 0) === 1, bio: row.bio || '', banner: row.banner || '', customStatus: row.custom_status || '', thoughtBubble: row.thought_bubble || '', accentColor: row.accent_color || '', joinSound: row.join_sound || '' });
 const passwordHash = async (password) => {
   const salt = crypto.randomBytes(16).toString('hex');
   const derived = await scrypt(password, salt, 64);
@@ -108,8 +108,8 @@ const canAccessSpace = async (spaceId, userId) => Boolean(await db.prepare('SELE
 // Owner plus everyone who joined, as the public profile shape the client renders.
 // Live presence comes from the realtime gateway, so status starts as offline.
 const spaceMembers = async (spaceId, ownerId) => {
-  const rows = await db.prepare('SELECT u.* FROM users u WHERE u.id = ? OR u.id IN (SELECT user_id FROM space_members WHERE space_id = ?)').all(ownerId, spaceId);
-  return rows.map((row) => ({ ...publicUser(userFromRow(row)), email: undefined, status: 'offline' }));
+  const rows = await db.prepare('SELECT u.*, n.nickname AS space_nickname FROM users u LEFT JOIN space_nicknames n ON n.space_id = ? AND n.user_id = u.id WHERE u.id = ? OR u.id IN (SELECT user_id FROM space_members WHERE space_id = ?)').all(spaceId, ownerId, spaceId);
+  return rows.map((row) => ({ ...publicUser(userFromRow(row)), email: undefined, status: 'offline', nickname: row.space_nickname || '' }));
 };
 // Space icons/banners must be hosted images (Kova uploads or https), never
 // inline data: URLs stored in the database. Anything else becomes ''.
@@ -132,9 +132,14 @@ const readBody = async (req) => {
     throw new Error('INVALID_JSON');
   }
 };
+// Verified accounts are decided here (by e-mail), never by the client. Spaces
+// owned by a verified account are verified too.
+const VERIFIED_EMAILS = new Set(String(process.env.KOVA_VERIFIED_EMAILS || 'infokenchinvfx@gmail.com').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean));
+const isVerifiedEmail = (email) => VERIFIED_EMAILS.has(String(email || '').trim().toLowerCase());
+const isVerifiedUserId = async (userId) => isVerifiedEmail((await db.prepare('SELECT email FROM users WHERE id = ?').get(userId))?.email);
 const publicUser = (u) => {
   const hash = [...String(u.id || '')].reduce((n, c) => ((n * 33) ^ c.charCodeAt(0)) >>> 0, 5381);
-  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, email: u.email, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: false, twoFactorEnabled: Boolean(u.twoFactorEnabled), bio: u.bio || '', banner: u.banner || '', customStatus: u.customStatus || '', thoughtBubble: u.thoughtBubble || '' };
+  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, email: u.email, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: isVerifiedEmail(u.email), twoFactorEnabled: Boolean(u.twoFactorEnabled), bio: u.bio || '', banner: u.banner || '', customStatus: u.customStatus || '', thoughtBubble: u.thoughtBubble || '', accentColor: u.accentColor || '', joinSound: u.joinSound || '' };
 };
 const issueSession = async (user) => {
   const token = crypto.randomBytes(32).toString('hex');
@@ -515,12 +520,25 @@ const handleRequest = async (req, res) => {
     await db.prepare("DELETE FROM friend_requests WHERE id = ? AND (sender_id = ? OR receiver_id = ?)").run(friendRequestMatch[1], session.user_id, session.user_id);
     return send(res, 200, { ok: true });
   }
+  const nicknameMatch = requestPath.match(/^\/api\/servers\/([^/]+)\/nickname$/);
+  if (nicknameMatch && req.method === 'PUT') {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const serverId = decodeURIComponent(nicknameMatch[1]);
+    if (!await canAccessSpace(serverId, session.user_id)) return send(res, 403, { message: 'No perteneces a este espacio.' });
+    const body = await readBody(req);
+    const nickname = String(body.nickname ?? '').replace(/\s+/g, ' ').trim().slice(0, 32);
+    if (nickname) await db.prepare('INSERT INTO space_nicknames (space_id, user_id, nickname) VALUES (?, ?, ?) ON CONFLICT (space_id, user_id) DO UPDATE SET nickname = excluded.nickname').run(serverId, session.user_id, nickname);
+    else await db.prepare('DELETE FROM space_nicknames WHERE space_id = ? AND user_id = ?').run(serverId, session.user_id);
+    const space = await db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(serverId);
+    const memberIds = (await db.prepare('SELECT user_id FROM space_members WHERE space_id = ?').all(serverId)).map((row) => row.user_id);
+    void emitToUsers([space.owner_id, ...memberIds], 'space:nickname', { serverId, userId: session.user_id, nickname });
+    return send(res, 200, { serverId, userId: session.user_id, nickname });
+  }
   const inviteCreateMatch = requestPath.match(/^\/api\/servers\/([^/]+)\/invites$/);
   if (inviteCreateMatch && req.method === 'POST') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const serverId = decodeURIComponent(inviteCreateMatch[1]);
-    const server = await db.prepare('SELECT id FROM spaces WHERE id = ? AND owner_id = ?').get(serverId, session.user_id);
-    if (!server) return send(res, 403, { message: 'Solo el propietario puede crear invitaciones para este espacio.' });
+    if (!await canAccessSpace(serverId, session.user_id)) return send(res, 403, { message: 'No perteneces a este espacio.' });
     const body = await readBody(req);
     const allowedExpiries = new Set([0, 30, 60, 360, 720, 1440, 10080]);
     const expiryMinutes = Number(body.expiresInMinutes ?? 10080);
@@ -581,6 +599,7 @@ const handleRequest = async (req, res) => {
         icon: space.icon_url || '',
         banner: space.banner_url || '',
         ownerId: space.owner_id,
+        verified: await isVerifiedUserId(space.owner_id),
         memberCount,
         onlineCount: 0,
         categories: categories.map((category) => ({ id: category.id, name: category.name, channelIds: channels.filter((channel) => channel.category_id === category.id).map((channel) => channel.id) })),
@@ -592,7 +611,7 @@ const handleRequest = async (req, res) => {
   if (requestPath === '/api/servers' && req.method === 'GET') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const spaces = await db.prepare('SELECT DISTINCT s.* FROM spaces s LEFT JOIN space_members m ON m.space_id = s.id WHERE s.owner_id = ? OR m.user_id = ? ORDER BY s.created_at DESC').all(session.user_id, session.user_id);
-    const result = []; for (const s of spaces) { const members = await spaceMembers(s.id, s.owner_id); const channels = await db.prepare('SELECT * FROM signals WHERE space_id = ?').all(s.id); const categories = await db.prepare('SELECT * FROM categories WHERE space_id = ? ORDER BY position, created_at').all(s.id); result.push({ members, id: s.id, name: s.name, description: s.description, visibility: s.visibility || 'private', icon: s.icon_url || '', banner: s.banner_url || '', ownerId: s.owner_id, categories: categories.map((c) => ({ id: c.id, name: c.name, channelIds: channels.filter((channel) => channel.category_id === c.id).map((channel) => channel.id) })), channels: channels.map((c) => ({ id: c.id, name: c.name, type: c.type, topic: c.topic, categoryId: c.category_id })) }); }
+    const result = []; for (const s of spaces) { const members = await spaceMembers(s.id, s.owner_id); const channels = await db.prepare('SELECT * FROM signals WHERE space_id = ?').all(s.id); const categories = await db.prepare('SELECT * FROM categories WHERE space_id = ? ORDER BY position, created_at').all(s.id); result.push({ members, verified: await isVerifiedUserId(s.owner_id), id: s.id, name: s.name, description: s.description, visibility: s.visibility || 'private', icon: s.icon_url || '', banner: s.banner_url || '', ownerId: s.owner_id, categories: categories.map((c) => ({ id: c.id, name: c.name, channelIds: channels.filter((channel) => channel.category_id === c.id).map((channel) => channel.id) })), channels: channels.map((c) => ({ id: c.id, name: c.name, type: c.type, topic: c.topic, categoryId: c.category_id })) }); }
     return send(res, 200, result);
   }
   if (requestPath === '/api/servers' && req.method === 'POST') {

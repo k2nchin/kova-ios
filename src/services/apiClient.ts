@@ -113,6 +113,8 @@ export const api = {
     return webOrigin ? { ...invite, url: `${webOrigin}/invite/${encodeURIComponent(invite.code)}` } : invite;
   },
   joinServer: (inviteCode: string) => request<any>('/servers/join', { method: 'POST', data: { inviteCode } }),
+  setNickname: (serverId: string, nickname: string) =>
+    request<{ serverId: string; userId: string; nickname: string }>(`/servers/${encodeURIComponent(serverId)}/nickname`, { method: 'PUT', data: { nickname } }),
   deleteServer: (serverId: string) => request<{ ok: boolean }>(`/servers/${encodeURIComponent(serverId)}`, { method: 'DELETE' }),
   updateServer: (serverId: string, data: { name?: string; description?: string; visibility?: 'public' | 'private'; icon?: string; banner?: string }) =>
     request<any>(`/servers/${encodeURIComponent(serverId)}`, { method: 'PATCH', data }),
@@ -159,7 +161,7 @@ export const api = {
   // Uploads, profile and user content
   createUpload: (data: { kind: UploadKind; fileName: string; contentType: string; size: number }) =>
     request<{ uploadUrl: string; method: 'PUT'; headers: Record<string, string>; publicUrl: string }>('/uploads', { method: 'POST', data }),
-  updateProfile: (data: { displayName?: string; avatar?: string; banner?: string; bio?: string; customStatus?: string; thoughtBubble?: string }) =>
+  updateProfile: (data: { displayName?: string; avatar?: string; banner?: string; bio?: string; customStatus?: string; thoughtBubble?: string; accentColor?: string; joinSound?: string }) =>
     request<any>('/users/me', { method: 'PATCH', data }),
   getStories: () => request<any[]>('/stories', { method: 'GET' }),
   createStory: (data: { mediaUrl?: string; mediaType?: 'image' | 'video'; text?: string; backgroundColor?: string }) =>

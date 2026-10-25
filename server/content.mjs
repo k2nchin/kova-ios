@@ -12,6 +12,8 @@ export const contentUserColumns = [
   "ALTER TABLE users ADD COLUMN banner TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE users ADD COLUMN custom_status TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE users ADD COLUMN thought_bubble TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE users ADD COLUMN accent_color TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE users ADD COLUMN join_sound TEXT NOT NULL DEFAULT ''",
 ];
 
 const text = (value, max) => String(value ?? '').trim().slice(0, max);
@@ -82,6 +84,16 @@ export async function handleContentRoute({ req, res, requestPath, session, db, s
     if ('bio' in body) updates.bio = text(body.bio, 300);
     if ('customStatus' in body) updates.custom_status = text(body.customStatus, 128);
     if ('thoughtBubble' in body) updates.thought_bubble = text(body.thoughtBubble, 100);
+    if ('accentColor' in body) {
+      const color = text(body.accentColor, 7);
+      if (color && !/^#[0-9a-f]{6}$/i.test(color)) { send(res, 400, { message: 'El color no es válido.' }); return true; }
+      updates.accent_color = color.toLowerCase();
+    }
+    if ('joinSound' in body) {
+      const url = mediaUrl(body.joinSound);
+      if (url === null) { send(res, 400, { message: 'El sonido debe subirse a Kova antes de usarlo.', code: 'INVALID_MEDIA_URL' }); return true; }
+      updates.join_sound = url;
+    }
     const columns = Object.keys(updates);
     if (columns.length) await db.prepare(`UPDATE users SET ${columns.map((column) => `${column} = ?`).join(', ')} WHERE id = ?`).run(...columns.map((column) => updates[column]), userId);
     send(res, 200, publicUser(userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(userId))));

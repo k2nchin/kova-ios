@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { Message } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { VoiceMessagePlayer } from '../Audio/VoiceMessagePlayer';
 import { Avatar } from '../Common/Avatar';
 
@@ -78,6 +79,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
     }, 150);
   };
 
+  const authorMember = activeServer?.members?.find((member) => member.id === message.author.id);
+  const authorName = authorMember?.nickname || message.author.displayName || message.author.username;
   const isBotMessage = message.author.tag === 'BOT' || message.aiGenerated || /kova\s*bot|kova\s*ia/i.test(message.author.displayName || '');
   // Automated replies always stay on the incoming side, even if a legacy
   // local message was persisted with the current user's id.
@@ -106,7 +109,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
         ) : (
           <Avatar
             src={message.author.avatar}
-            name={message.author.displayName || message.author.username}
+            name={authorName}
             size={40}
             className="kova-message-avatar"
             onClick={() => openUserProfile(message.author)}
@@ -132,7 +135,8 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
             style={{ color: authorColor || '#f2f3f5' }}
             onClick={() => openUserProfile(message.author)}
           >
-            {message.author.displayName}
+            {authorName}
+            {(authorMember?.verified || message.author.verified) && <VerifiedBadge size={14} />}
             {isOwner && (
               <span className="text-[10px] font-medium text-[#797b7e] border border-white/10 rounded-full px-1.5 py-px" title="Creador del espacio">Creador</span>
             )}
@@ -239,7 +243,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
         {message.voiceNote && (
           <VoiceMessagePlayer
             durationSeconds={message.voiceNote.duration}
-            authorName={message.author.displayName}
+            authorName={authorName}
           />
         )}
 
