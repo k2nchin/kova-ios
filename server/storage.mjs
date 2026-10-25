@@ -76,7 +76,10 @@ export async function createUploadTicket(db, userId, { kind, fileName, contentTy
     });
     let response = await sign();
     let data = await response.json().catch(() => ({}));
-    if (!response.ok && /bucket not found/i.test(`${data?.message || ''} ${data?.error || ''}`) && await ensureBucket(config)) {
+    // Supabase reports a missing bucket as "Bucket not found" or, in newer versions,
+    // "The related resource does not exist".
+    const missingBucket = /bucket not found|related resource does not exist/i.test(`${data?.message || ''} ${data?.error || ''}`);
+    if (!response.ok && missingBucket && await ensureBucket(config)) {
       response = await sign();
       data = await response.json().catch(() => ({}));
     }
