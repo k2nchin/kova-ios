@@ -1,12 +1,12 @@
 {
-  "version": "1.0.17",
-  "notes": "Kova 1.0.17: abre más rápido, usa un servidor de reserva si Vercel no responde y arrastrar la ventana ya no la bloquea.",
-  "pub_date": "2026-10-25T07:30:02Z",
+  "version": "1.0.18",
+  "notes": "Kova 1.0.18: mensajes fijados para todos, respuestas con cita, /ai privado, acciones de mensaje en móvil y presencia real de amigos.",
+  "pub_date": "2026-10-25T16:43:15Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.17_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGIwOWpsZ1EwYXZZa05HQ0s0c0syb3lzbXlqK1BITjdCeXZhSHVZSHFibktINXJWaEdIc2hFcHUvSG9scTdzb3Y1Qkg3bjgrdUZlQmNmbVRsMzI0WUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTEzMzI1CWZpbGU6S292YV8xLjAuMTdfeDY0LXNldHVwLmV4ZQpTM0psODBRYk5KdlQya0MrcFVMUVk1VFBhbk5QdEJ6YWFPMTU1OEYrSUZpdEtCZ1ZkaDlvb2xIUUZzV0RSVzRObUVDNVZSQjFFWk9zSmE3MUFzblNEZz09Cg==",
-      "sha256": "AFD9A44535747C0DDBBB1FBE6B5F7E292A912944763C938689D42AAAAB2AE02E"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.18_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFJvTmdFVnYyd3FUTXJDbFlLcG03L1d5NC85dlZOZ1dYN3pMNVBiVHB6YmN0ZTEvQVpnYkQyTS80bE9Yd1hPSGZHaTM1RVZ4WDY4SEVyRlhEVVYvTmdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ2NDc5CWZpbGU6S292YV8xLjAuMThfeDY0LXNldHVwLmV4ZQo5T1ppMGZnOUFOR0NCbFFjcUl5Z3ZCUGR5Zk5kTXluaU95YlJ1bGxUSjUyMWd3WUVUUTVnOXBEN09qUFFJWUhpZkEyOXQ1dnY4cGh3TnJ4S0dteEZBUT09Cg==",
+      "sha256": "CFFFB8282ECD97A6A108439AB89F4D0181F2C32236EA5FEFEA35A8443B5DB10F"
     }
   }
 }
