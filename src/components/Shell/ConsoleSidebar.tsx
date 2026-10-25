@@ -56,6 +56,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
     isInVoice,
     activeVoiceChannelId,
     voicePeers,
+    connectingVoiceChannelId,
     setActiveServerId,
     setActiveChannelId,
     setIsDMViewActive,
@@ -217,6 +218,17 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                       <span className="kova-channel-name">{cleanName(channel.name)}</span>
                       {channel.unreadCount ? <b className="kova-channel-badge">{channel.unreadCount}</b> : null}
                     </button>
+                    {channel.type === 'voice' && connectingVoiceChannelId === channel.id && !isLive && (
+                      <ul className="kova-channel-peers" aria-live="polite">
+                        <li>
+                          <span className="kova-channel-peer is-connecting">
+                            <Avatar src={currentUser.avatar} name={currentUser.displayName || currentUser.username} size={20} />
+                            <span>{currentUser.displayName} (tú)</span>
+                            <small>Conectando…</small>
+                          </span>
+                        </li>
+                      </ul>
+                    )}
                     {isLive && voicePeers.length > 0 && (
                       <ul className="kova-channel-peers">
                         {voicePeers.map((peer) => (

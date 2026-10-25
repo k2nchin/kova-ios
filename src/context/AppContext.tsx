@@ -229,6 +229,7 @@ interface AppContextType {
   ) => Promise<Server | null>;
   setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
   removeFromSpace: (serverId: string, userId: string, ban?: boolean) => Promise<boolean>;
+  connectingVoiceChannelId: string | null;
   refreshServers: () => Promise<void>;
   joinServerByInvite: (inviteCodeOrId: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   createChannel: (name: string, type: ChannelType, categoryId?: string) => void;
@@ -1209,6 +1210,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isInVoice = activeVoiceChannelId !== null;
   const [voicePeers, setVoicePeers] = useState<VoicePeer[]>([]);
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
+  // Which room we're joining, so the sidebar can show us there immediately.
+  const [connectingVoiceChannelId, setConnectingVoiceChannelId] = useState<string | null>(null);
 
   // Activities, Soundboard & Arcades
   const [isArcadeOpen, setIsArcadeOpen] = useState(false);
@@ -1875,6 +1878,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsDMViewActive(false);
     if (activeVoiceChannelId === channelId || isVoiceConnecting) return;
     setIsVoiceConnecting(true);
+    setConnectingVoiceChannelId(channelId);
     try {
       await voiceSessionRef.current?.disconnect();
       voiceSessionRef.current = null;
@@ -1919,6 +1923,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.error(error instanceof Error ? error.message : 'No se pudo conectar al canal de voz.');
     } finally {
       setIsVoiceConnecting(false);
+      setConnectingVoiceChannelId(null);
     }
   };
 
@@ -3113,6 +3118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinServerByInvite,
         setSpaceNickname,
         removeFromSpace,
+        connectingVoiceChannelId,
         refreshServers,
         createChannel,
         deleteServer,

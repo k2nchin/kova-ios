@@ -119,15 +119,17 @@ export async function connectVoice(options: ConnectOptions): Promise<VoiceSessio
     });
 
   await room.connect(options.url, options.token);
-  try {
-    await room.localParticipant.setMicrophoneEnabled(options.micEnabled);
-  } catch (error) {
-    // Joining without a microphone is still useful for listening.
-    console.warn('[Kova voice] No se pudo activar el micrófono:', error);
-  }
-  // Browsers may block autoplay until a user gesture; joining is one.
-  await room.startAudio().catch(() => undefined);
+  // Show the room right away; opening the microphone can take a few seconds
+  // (device start-up, permission prompt), so it continues in the background.
   emitPeers();
+  void room.localParticipant.setMicrophoneEnabled(options.micEnabled)
+    .catch((error) => {
+      // Joining without a microphone is still useful for listening.
+      console.warn('[Kova voice] No se pudo activar el micrófono:', error);
+    })
+    .finally(emitPeers);
+  // Browsers may block autoplay until a user gesture; joining is one.
+  void room.startAudio().catch(() => undefined);
 
   return {
     setMicrophoneEnabled: async (enabled) => {
