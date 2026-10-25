@@ -32,6 +32,24 @@ const supabase = () => {
   return url && key ? { url, key, bucket } : null;
 };
 
+// Creates the public uploads bucket the first time it's needed, so a fresh
+// Supabase project works without manual setup. Returns true when it exists.
+let bucketReady = null;
+const ensureBucket = (config) => {
+  bucketReady ??= fetch(`${config.url}/storage/v1/bucket`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${config.key}`, apikey: config.key, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: config.bucket, name: config.bucket, public: true, file_size_limit: 25 * MB }),
+  }).then(async (res) => {
+    const body = await res.json().catch(() => ({}));
+    const ok = res.ok || /already exists/i.test(`${body?.message || ''} ${body?.error || ''}`);
+    console.log(ok ? `[Kova storage] Bucket ${config.bucket} listo` : `[Kova storage] No se pudo crear el bucket: ${res.status} ${body?.message || ''}`);
+    if (!ok) bucketReady = null;
+    return ok;
+  }).catch(() => { bucketReady = null; return false; });
+  return bucketReady;
+};
+
 export const storageDriver = () => (supabase() ? 'supabase' : process.env.VERCEL ? 'none' : 'local');
 
 const safeName = (name) => String(name || 'archivo').normalize('NFKD').replace(/[^\w.-]+/g, '_').replace(/\.{2,}/g, '.').replace(/^[._]+/, '').slice(-80) || 'archivo';
@@ -51,12 +69,17 @@ export async function createUploadTicket(db, userId, { kind, fileName, contentTy
   const objectPath = `${kind}/${userId}/${crypto.randomUUID()}-${safeName(fileName)}`;
   const config = supabase();
   if (config) {
-    const response = await fetch(`${config.url}/storage/v1/object/upload/sign/${config.bucket}/${objectPath}`, {
+    const sign = () => fetch(`${config.url}/storage/v1/object/upload/sign/${config.bucket}/${objectPath}`, {
       method: 'POST',
       headers: { authorization: `Bearer ${config.key}`, apikey: config.key, 'content-type': 'application/json' },
       body: '{}',
     });
-    const data = await response.json().catch(() => ({}));
+    let response = await sign();
+    let data = await response.json().catch(() => ({}));
+    if (!response.ok && /bucket not found/i.test(`${data?.message || ''} ${data?.error || ''}`) && await ensureBucket(config)) {
+      response = await sign();
+      data = await response.json().catch(() => ({}));
+    }
     if (!response.ok || !data.url) {
       console.error('[Kova storage] Supabase sign failed', response.status, data?.message || data?.error);
       throw new UploadError(502, 'STORAGE_ERROR', 'No se pudo preparar la subida del archivo.');
