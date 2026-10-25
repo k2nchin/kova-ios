@@ -16,7 +16,9 @@ const port = Number(process.env.KOVA_API_PORT || process.env.PORT || 4000);
 // Vercel's deployment filesystem is read-only. Use its writable temporary
 // directory when no hosted PostgreSQL connection is configured.
 const dataDir = path.resolve(process.env.KOVA_DATA_DIR || (process.env.VERCEL ? '/tmp/kova-data' : './server/data'));
-if (process.env.VERCEL && !process.env.DATABASE_URL) throw new Error('DATABASE_URL es obligatorio en Vercel; se cancela el inicio para evitar guardar datos en almacenamiento temporal.');
+// DATABASE_URL wins; POSTGRES_URL is what the Vercel Supabase/Neon integrations inject.
+const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+if (process.env.VERCEL && !databaseUrl) throw new Error('DATABASE_URL (o POSTGRES_URL) es obligatorio en Vercel; se cancela el inicio para evitar guardar datos en almacenamiento temporal.');
 const requestBuckets = new Map();
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 120;
@@ -26,9 +28,9 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const schema = `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, avatar TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS spaces (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', visibility TEXT NOT NULL DEFAULT 'private', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS space_members (space_id TEXT NOT NULL, user_id TEXT NOT NULL, joined_at TEXT NOT NULL, PRIMARY KEY(space_id, user_id), FOREIGN KEY(space_id) REFERENCES spaces(id), FOREIGN KEY(user_id) REFERENCES users(id)); CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL, topic TEXT NOT NULL DEFAULT '', category_id TEXT, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, space_id TEXT NOT NULL, name TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS server_invites (code TEXT PRIMARY KEY, space_id TEXT NOT NULL, creator_id TEXT NOT NULL, expires_at TEXT, max_uses INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, signal_id TEXT NOT NULL, author_id TEXT NOT NULL, content TEXT NOT NULL, reply_to_id TEXT, attachments TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS message_reactions (message_id TEXT NOT NULL, user_id TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(message_id, user_id, emoji)); CREATE TABLE IF NOT EXISTS direct_messages (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS friend_requests (id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, receiver_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, UNIQUE(sender_id, receiver_id)); CREATE TABLE IF NOT EXISTS friendships (user_a TEXT NOT NULL, user_b TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(user_a, user_b)); CREATE TABLE IF NOT EXISTS blocked_users (blocker_id TEXT NOT NULL, blocked_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(blocker_id, blocked_id)); CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, reporter_id TEXT NOT NULL, target_id TEXT NOT NULL, reason TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL);`;
 let db;
 let runInTransaction;
-if (process.env.DATABASE_URL) {
+if (databaseUrl) {
   const { Pool } = await import('pg');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'false' ? false : true });
+  const pool = new Pool({ connectionString: databaseUrl, ssl: process.env.DATABASE_SSL === 'false' ? false : true });
   const convert = (sql) => { let i = 0; return sql.replace(/\?/g, () => `$${++i}`); };
   const adapter = (query) => ({ exec: (sql) => query(sql), prepare: (sql) => ({
     get: async (...args) => (await query(convert(sql), args)).rows[0],
