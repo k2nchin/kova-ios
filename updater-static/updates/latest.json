@@ -1,12 +1,12 @@
 {
-  "version": "1.0.15",
-  "notes": "Kova 1.0.15: pantalla de inicio, verificado en todas partes, solicitudes de amistad arregladas y actualizaciones más fiables.",
-  "pub_date": "2026-10-25T06:35:19Z",
+  "version": "1.0.13",
+  "notes": "Kova 1.0.13: actualizacion automatica de escritorio y modo invitado movil para pruebas.",
+  "pub_date": "2026-09-19T04:00:00Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.15_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGR2SE84NDRlaVZ4TDhGMUQwZ285eXhsSjRGMEljVzVXNHdnNForS0ZJTmpHK2RnQlVRZjJHVmowNjZwSTNNYjZILzRncEJ0amxVcHFKWnlENDYvMEEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTA5ODA5CWZpbGU6S292YV8xLjAuMTVfeDY0LXNldHVwLmV4ZQpXejVvekxTYWJ4QVlLRWNKQlNkaTFsRUFkZVkvaW5oOUwwZVlESjdIdkJTUHVTbGFoZFFZMkt5STdac3lJYzY1NCtBZUpTSmVycE14WnhvU2ZSQW1CQT09Cg==",
-      "sha256": "E906FF19E082C7EA845EFAD1D55A2D59BF7E37C612862FB410448C624DFFF4CA"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.13_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFZjUHpVNXJYb1dQSmNCL0NIUWFPUGhoaGZuMDFTRG9DK1NkalY3MHRvVGdJcGlBQUNjQVRVNDBBWERPdXFaeHhDK1ZmQkJIdERGSXpKbjN1OEdBTHd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTM1ODM2CWZpbGU6S292YV8xLjAuMTNfeDY0LXNldHVwLmV4ZQordHhlakFTUXRzWWZ1aUUvZURKMWJMVW5ETS93d05nRWlxdDFFeW5ZcGg0L0IweGdWdHpZamZIYkR5c1dncVczZDBRL21QZjVpRmJPeVloVFNDQWREdz09Cg==",
+      "sha256": "9119713590A5A8E391DFE87930ADFDAB33F6C55B7A8705DA14C23BBF8DCE68B8"
     }
   }
 }
