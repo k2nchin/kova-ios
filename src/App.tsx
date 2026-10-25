@@ -10,7 +10,8 @@ import { requestNotificationPermission } from './services/notificationService';
 import { connectSocketOnResume } from './services/socketClient';
 import { useIsMobile } from './hooks/useIsMobile';
 import { isDesktopApp, isTauriApp } from './utils/platform';
-import { startAutoUpdates } from './services/updateService';
+import { startAutoUpdates, checkAtLaunch, type LaunchUpdateState } from './services/updateService';
+import { DesktopSplash } from './components/Brand/DesktopSplash';
 
 // Heavy app views are split into on-demand chunks: landing visitors never
 // download the chat workspace, and desktop keeps its instant local load.
@@ -369,10 +370,32 @@ export const MainLayout: React.FC = () => {
   );
 };
 
+// Desktop launch screen: checks for updates first (like Discord), then fades
+// out once Kova has had a moment to start.
+const DesktopLaunch: React.FC = () => {
+  const [state, setState] = useState<LaunchUpdateState | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const startedAt = Date.now();
+    void checkAtLaunch((next) => { if (!cancelled) setState(next); }).finally(() => {
+      if (cancelled) return;
+      window.setTimeout(() => {
+        setLeaving(true);
+        window.setTimeout(() => setGone(true), 400);
+      }, Math.max(0, 1400 - (Date.now() - startedAt)));
+    });
+    return () => { cancelled = true; };
+  }, []);
+  return gone ? null : <DesktopSplash state={state} leaving={leaving} />;
+};
+
 export default function App() {
   return (
     <ErrorBoundary>
       <MainLayout />
+      {isDesktopApp() && <DesktopLaunch />}
     </ErrorBoundary>
   );
 }

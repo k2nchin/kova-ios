@@ -389,6 +389,7 @@ export const VoiceRoom: React.FC = () => {
     isMuted: Boolean(currentUser.isMuted),
     isDeafened: Boolean(currentUser.isDeafened),
     isMe: true,
+    verified: Boolean(currentUser.verified),
   };
 
   const otherParticipants: VoiceParticipant[] = otherVoiceMembers.map((member, index) => ({
@@ -399,6 +400,7 @@ export const VoiceRoom: React.FC = () => {
     isMuted: Boolean(member.isMuted),
     isDeafened: Boolean(member.isDeafened),
     roleLabel: voiceRoleLabel(member),
+    verified: Boolean(member.verified),
   }));
 
   const totalParticipants = 1 + otherParticipants.length;

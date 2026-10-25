@@ -130,7 +130,8 @@ export const api = {
   updateServer: (serverId: string, data: { name?: string; description?: string; visibility?: 'public' | 'private'; icon?: string; banner?: string }) =>
     request<any>(`/servers/${encodeURIComponent(serverId)}`, { method: 'PATCH', data }),
   getFriends: () => request<any>('/friends', { method: 'GET' }),
-  sendFriendRequest: (userId: string) => request<any>('/friends/requests', { method: 'POST', data: { userId } }),
+  /** Accepts a user id or a username/@username (what people type in "Añadir amigo"). */
+  sendFriendRequest: (who: string) => request<any>('/friends/requests', { method: 'POST', data: /^user_[\w-]+$/.test(who) ? { userId: who } : { identity: who } }),
   acceptFriendRequest: (requestId: string) => request<any>(`/friends/requests/${requestId}/accept`, { method: 'POST' }),
   deleteFriendRequest: (requestId: string) => request<any>(`/friends/requests/${requestId}`, { method: 'DELETE' }),
   removeFriend: (userId: string) => request<{ ok: boolean }>(`/friends/${encodeURIComponent(userId)}`, { method: 'DELETE' }),

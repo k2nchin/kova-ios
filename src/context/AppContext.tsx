@@ -1565,9 +1565,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!clean) return;
     try {
       const result = await api.sendFriendRequest(clean);
-      setPendingFriendRequests((prev) => [{ id: result.id, username: result.user.displayName || result.user.username, tag: result.user.tag || '0000', userId: result.user.id, timestamp: 'Ahora', direction: 'outgoing' }, ...prev]);
+      const name = result.user.displayName || result.user.username;
+      if (result.accepted) {
+        // They had already asked us: it's a friendship now.
+        await refreshFriends();
+        soundFx.playJoinVoice();
+        toast.success(`Ahora tú y ${name} son amigos`);
+        return;
+      }
+      setPendingFriendRequests((prev) => [{ id: result.id, username: name, tag: result.user.tag || '0000', userId: result.user.id, timestamp: 'Ahora', direction: 'outgoing' }, ...prev]);
       soundFx.playAISparkle();
-      toast.success(`Solicitud enviada a ${result.user.displayName || result.user.username}`);
+      toast.success(`Solicitud enviada a ${name}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo enviar la solicitud.');
     }
@@ -1580,6 +1588,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast.info('Solicitud eliminada');
     } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la solicitud.'); }
   };
+
+  // Friend requests sent, accepted or cancelled by the other person show up live.
+  const refreshFriendsRef = useRef(refreshFriends);
+  useEffect(() => { refreshFriendsRef.current = refreshFriends; }, [refreshFriends]);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    const onFriends = () => { void refreshFriendsRef.current(); };
+    socket.on('friends:changed', onFriends);
+    return () => { socket.off('friends:changed', onFriends); };
+  }, [isAuthenticated]);
 
   const acceptFriendRequest = async (id: string) => {
     try {

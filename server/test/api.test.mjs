@@ -306,3 +306,23 @@ test('roles y permisos: se guardan en el servidor y se aplican', async () => {
   assert.ok(joined.body.members.some((m) => m.id === owner.id));
   assert.ok(Array.isArray(joined.body.roles) && joined.body.roles.length >= 3);
 });
+
+test('amistad: enviar por nombre, aceptar, eliminar y volver a pedir', async () => {
+  const a = await register('amiga');
+  const b = await register('amigo');
+  const meB = (await call('GET', '/auth/me', undefined, b.token)).body;
+  const sent = await call('POST', '/friends/requests', { identity: `@${meB.username}` }, a.token);
+  assert.equal(sent.status, 201, JSON.stringify(sent.body));
+  const incoming = (await call('GET', '/friends', undefined, b.token)).body.incoming;
+  assert.equal(incoming.length, 1);
+  assert.equal((await call('POST', `/friends/requests/${incoming[0].id}/accept`, undefined, b.token)).status, 200);
+  assert.ok((await call('GET', '/friends', undefined, a.token)).body.friends.some((f) => f.id === b.id));
+
+  // Removing and asking again works (the old accepted request doesn't block it).
+  assert.equal((await call('DELETE', `/friends/${a.id}`, undefined, b.token)).status, 200);
+  assert.equal((await call('POST', '/friends/requests', { userId: b.id }, a.token)).status, 201);
+  // Asking back accepts it straight away.
+  const back = await call('POST', '/friends/requests', { userId: a.id }, b.token);
+  assert.equal(back.body.accepted, true);
+  assert.ok((await call('GET', '/friends', undefined, b.token)).body.friends.some((f) => f.id === a.id));
+});

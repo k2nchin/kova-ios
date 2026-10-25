@@ -233,6 +233,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                                 >
                                   <Avatar src={member?.avatar || peer.avatar} name={name} size={20} />
                                   <span>{peer.isLocal ? `${name} (tú)` : name}</span>
+                                  {(member?.verified || (peer.isLocal && currentUser.verified)) && <VerifiedBadge size={12} />}
                                   {peer.isMuted && <MicOff size={12} aria-label="Silenciado" />}
                                 </button>
                               );

@@ -3,6 +3,7 @@ import { MicOff, HeadphoneOff } from 'lucide-react';
 import type { Track } from 'livekit-client';
 import { Avatar } from '../Common/Avatar';
 import { VideoTrackView } from './VideoTrackView';
+import { VerifiedBadge } from '../Common/VerifiedBadge';
 
 export interface VoiceParticipant {
   id: string;
@@ -13,6 +14,7 @@ export interface VoiceParticipant {
   isDeafened: boolean;
   roleLabel?: string;
   isMe?: boolean;
+  verified?: boolean;
 }
 
 interface VoiceParticipantCardProps {
@@ -60,6 +62,7 @@ export const VoiceParticipantCard: React.FC<VoiceParticipantCardProps> = ({
 
       <span className="kvr-tile-name">
         <span>{member.name}</span>
+        {member.verified && <VerifiedBadge size={13} />}
         {member.isMe && <em>tú</em>}
         {member.isDeafened ? <HeadphoneOff size={13} aria-hidden /> : member.isMuted ? <MicOff size={13} aria-hidden /> : null}
       </span>

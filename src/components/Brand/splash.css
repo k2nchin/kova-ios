@@ -1,0 +1,28 @@
+/* Desktop launch screen. */
+.ksp {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: radial-gradient(ellipse 60% 45% at 50% 42%, rgba(244, 245, 247, 0.08), transparent 70%), #0a0a0b;
+  color: #c2c4c8; font-family: "Plus Jakarta Sans", sans-serif; user-select: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.ksp.is-leaving { opacity: 0; transform: scale(1.03); pointer-events: none; }
+.ksp-logo { position: relative; width: 112px; height: 112px; display: grid; place-items: center; margin-bottom: 14px; }
+.ksp-logo img { width: 88px; height: 88px; object-fit: contain; animation: ksp-float 2.4s ease-in-out infinite; filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.6)); }
+.ksp-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid transparent; border-top-color: #f4f5f7; border-right-color: rgba(244, 245, 247, 0.25);
+  animation: ksp-spin 1.1s linear infinite;
+}
+.ksp-line { margin: 0; font: 600 16px/1.3 "Outfit", sans-serif; color: #f4f5f7; letter-spacing: -0.01em; }
+.ksp-status { margin: 0; font-size: 12px; color: #8b8d91; min-height: 16px; }
+.ksp-bar { width: 200px; height: 4px; margin-top: 8px; border-radius: 999px; overflow: hidden; background: #1e1f21; }
+.ksp-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a7aaae, #ffffff); transition: width 0.2s ease; }
+.ksp-bar.is-indeterminate span { width: 35%; animation: ksp-slide 1.2s ease-in-out infinite; }
+
+@keyframes ksp-spin { to { transform: rotate(360deg); } }
+@keyframes ksp-float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-6px) rotate(-3deg); } }
+@keyframes ksp-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ksp-logo img, .ksp-ring, .ksp-bar.is-indeterminate span { animation: none; }
+}

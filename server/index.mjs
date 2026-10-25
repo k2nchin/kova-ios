@@ -4,6 +4,10 @@ import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Signed desktop installers + latest.json, also served from the API host.
+const updatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'updater-static', 'updates');
 import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
 import { askKovaAI, AiError } from './ai.mjs';
 import { createVoiceToken, VoiceError } from './voice.mjs';
@@ -109,6 +113,16 @@ const parseJson = (value, fallback) => { try { return JSON.parse(value || ''); }
 const canAccessSpace = async (spaceId, userId) => Boolean(await db.prepare('SELECT s.id FROM spaces s LEFT JOIN space_members m ON m.space_id = s.id WHERE s.id = ? AND (s.owner_id = ? OR m.user_id = ?)').get(spaceId, userId, userId));
 // Owner plus everyone who joined, as the public profile shape the client renders.
 // Live presence comes from the realtime gateway, so status starts as offline.
+// Two plain statements (no transaction): safe on Supabase's transaction pooler.
+const acceptFriendship = async (requestId, senderId, receiverId) => {
+  const [a, b] = [senderId, receiverId].sort();
+  if (!await db.prepare('SELECT user_a FROM friendships WHERE user_a = ? AND user_b = ?').get(a, b)) {
+    try { await db.prepare('INSERT INTO friendships (user_a, user_b, created_at) VALUES (?, ?, ?)').run(a, b, new Date().toISOString()); }
+    catch (error) { if (!await db.prepare('SELECT user_a FROM friendships WHERE user_a = ? AND user_b = ?').get(a, b)) throw error; }
+  }
+  await db.prepare("UPDATE friend_requests SET status = 'accepted' WHERE id = ?").run(requestId);
+  void emitToUsers([senderId, receiverId], 'friends:changed', { kind: 'accepted' });
+};
 // Tells everyone in a space that something changed; clients refetch it.
 const notifySpace = async (spaceId, kind) => {
   const audience = await spaceAudience(db, spaceId);
@@ -243,6 +257,25 @@ const handleRequest = async (req, res) => {
     return send(res, broadcastRelayed(await readBody(req)) ? 200 : 400, { ok: true });
   }
   if (requestPath === '/api/health') return send(res, 200, { ok: true, service: 'kova-api', timestamp: new Date().toISOString() });
+  // Second home for desktop updates (Render), for networks that block Vercel.
+  // latest.json is rewritten so the installer is also downloaded from here.
+  const updateFileMatch = requestPath.match(/^\/api\/updates\/(latest\.json|Kova_[\d.]+_x64-setup\.exe(?:\.sig)?)$/);
+  if (updateFileMatch && req.method === 'GET') {
+    const file = path.join(updatesDir, updateFileMatch[1]);
+    if (!fs.existsSync(file)) return send(res, 404, { message: 'No hay actualizaciones disponibles aquí.' });
+    if (updateFileMatch[1] === 'latest.json') {
+      const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
+      for (const platform of Object.values(manifest.platforms || {})) {
+        platform.url = `${origin}/api/updates/${String(platform.url).split('/').pop()}`;
+      }
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=300' });
+      return res.end(JSON.stringify(manifest));
+    }
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': fs.statSync(file).size, 'cache-control': 'public, max-age=31536000, immutable' });
+    fs.createReadStream(file).pipe(res);
+    return;
+  }
   if (requestPath === '/api/errors' && req.method === 'POST') {
     const body = await readBody(req);
     console.error('[Kova client error]', JSON.stringify({ message: body.message, source: body.source, version: body.version, createdAt: body.createdAt }));
@@ -521,28 +554,35 @@ const handleRequest = async (req, res) => {
     if (target.id === session.user_id) return send(res, 400, { message: 'No puedes enviarte una solicitud a ti mismo.' });
     const pair = [session.user_id, target.id].sort();
     if (await db.prepare('SELECT user_a FROM friendships WHERE user_a = ? AND user_b = ?').get(pair[0], pair[1])) return send(res, 409, { message: 'Ya son amigos en Kova.' });
+    // They already asked you: sending one back accepts it (like Discord).
     const reverse = await db.prepare("SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ? AND status = 'pending'").get(target.id, session.user_id);
-    if (reverse) return send(res, 409, { message: 'Esta persona ya te envió una solicitud. Acéptala en Pendientes.' });
+    if (reverse) {
+      await acceptFriendship(reverse.id, target.id, session.user_id);
+      return send(res, 200, { accepted: true, user: publicUser(target) });
+    }
+    if (await db.prepare("SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ? AND status = 'pending'").get(session.user_id, target.id)) return send(res, 409, { message: 'La solicitud ya está pendiente.' });
+    // Old accepted/declined rows (e.g. after removing a friend) must not block a new request.
+    await db.prepare("DELETE FROM friend_requests WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND status <> 'pending'").run(session.user_id, target.id, target.id, session.user_id);
     const id = `friend_req_${crypto.randomUUID()}`;
-    try { await db.prepare('INSERT INTO friend_requests (id, sender_id, receiver_id, status, created_at) VALUES (?, ?, ?, ?, ?)').run(id, session.user_id, target.id, 'pending', new Date().toISOString()); }
+    const timestamp = new Date().toISOString();
+    try { await db.prepare('INSERT INTO friend_requests (id, sender_id, receiver_id, status, created_at) VALUES (?, ?, ?, ?, ?)').run(id, session.user_id, target.id, 'pending', timestamp); }
     catch { return send(res, 409, { message: 'La solicitud ya está pendiente.' }); }
-    return send(res, 201, { id, user: publicUser(target), timestamp: new Date().toISOString() });
+    void emitToUsers([target.id], 'friends:changed', { kind: 'request' });
+    return send(res, 201, { id, user: publicUser(target), timestamp });
   }
   const friendRequestMatch = requestPath.match(/^\/api\/friends\/requests\/([^/]+)(\/accept)?$/);
   if (friendRequestMatch && req.method === 'POST' && friendRequestMatch[2]) {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const request = await db.prepare("SELECT * FROM friend_requests WHERE id = ? AND receiver_id = ? AND status = 'pending'").get(friendRequestMatch[1], session.user_id);
     if (!request) return send(res, 404, { message: 'Esta solicitud ya no está disponible.' });
-    const pair = [request.sender_id, request.receiver_id].sort();
-    await runInTransaction(async (tx) => {
-      await tx.prepare('INSERT INTO friendships (user_a, user_b, created_at) VALUES (?, ?, ?) ON CONFLICT (user_a, user_b) DO NOTHING').run(pair[0], pair[1], new Date().toISOString());
-      await tx.prepare("UPDATE friend_requests SET status = 'accepted' WHERE id = ? AND receiver_id = ? AND status = 'pending'").run(request.id, session.user_id);
-    });
+    await acceptFriendship(request.id, request.sender_id, session.user_id);
     return send(res, 200, { ok: true });
   }
   if (friendRequestMatch && req.method === 'DELETE') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const request = await db.prepare('SELECT sender_id, receiver_id FROM friend_requests WHERE id = ?').get(friendRequestMatch[1]);
     await db.prepare("DELETE FROM friend_requests WHERE id = ? AND (sender_id = ? OR receiver_id = ?)").run(friendRequestMatch[1], session.user_id, session.user_id);
+    if (request) void emitToUsers([request.sender_id, request.receiver_id].filter((id) => id !== session.user_id), 'friends:changed', { kind: 'request' });
     return send(res, 200, { ok: true });
   }
   const nicknameMatch = requestPath.match(/^\/api\/servers\/([^/]+)\/nickname$/);
@@ -693,7 +733,7 @@ const handleRequest = async (req, res) => {
     if (req.method === 'GET') {
       const requested = Number(new URL(req.url || '/', 'http://localhost').searchParams.get('limit')) || 50;
       const limit = Math.min(100, Math.max(1, Math.floor(requested)));
-      const rows = await db.prepare('SELECT m.*, u.username, u.display_name, u.avatar FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, limit);
+      const rows = await db.prepare('SELECT m.*, u.username, u.display_name, u.avatar, u.email AS author_email FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, limit);
       const messages = [];
       for (const row of rows.reverse()) {
         const reactions = await db.prepare('SELECT emoji, user_id FROM message_reactions WHERE message_id = ?').all(row.id);
@@ -704,7 +744,7 @@ const handleRequest = async (req, res) => {
           current.users.push(reaction.user_id);
           grouped.set(reaction.emoji, current);
         }
-        messages.push({ id: row.id, channelId, author: { id: row.author_id, username: row.username, displayName: row.display_name, avatar: row.avatar, status: 'online' }, content: row.content, replyToId: row.reply_to_id || undefined, attachments: parseJson(row.attachments, []), createdAt: row.created_at, reactions: [...grouped.values()] });
+        messages.push({ id: row.id, channelId, author: { id: row.author_id, username: row.username, displayName: row.display_name, avatar: row.avatar, status: 'online', verified: isVerifiedEmail(row.author_email) }, content: row.content, replyToId: row.reply_to_id || undefined, attachments: parseJson(row.attachments, []), createdAt: row.created_at, reactions: [...grouped.values()] });
       }
       return send(res, 200, messages);
     }

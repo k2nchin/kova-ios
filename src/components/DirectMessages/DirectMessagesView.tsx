@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
+import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { StoriesBar } from '../Stories/StoriesBar';
 import '../../styles/friends.css';
 
@@ -134,6 +135,7 @@ export const DirectMessagesView: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-xs truncate flex items-center justify-between">
                         <span className="truncate">{dm.user.displayName}</span>
+                        {dm.user.verified && <VerifiedBadge size={13} />}
                         {dm.lastMessageTime && (
                           <span className="text-[10px] text-slate-500 font-mono shrink-0">
                             {dm.lastMessageTime}
@@ -192,6 +194,7 @@ export const DirectMessagesView: React.FC = () => {
               <div>
                 <h3 className="text-sm font-bold text-white font-['Outfit']">
                   {activeUser.displayName}
+                  {activeUser.verified && <VerifiedBadge size={15} />}
                 </h3>
                 <p className="text-[11px] text-purple-400">
                   {activeUser.customStatus || 'En línea'}
@@ -519,7 +522,7 @@ export const DirectMessagesView: React.FC = () => {
                         </div>
                         <div>
                           <div className="text-xs font-bold text-white font-['Outfit']">
-                            {f.displayName} <span className="text-slate-500 text-[10px]">#{f.tag}</span>
+                            {f.displayName} {f.verified && <VerifiedBadge size={13} />} <span className="text-slate-500 text-[10px]">#{f.tag}</span>
                           </div>
                           <div className="text-[10px] text-slate-400">{f.customStatus || 'En línea'}</div>
                         </div>

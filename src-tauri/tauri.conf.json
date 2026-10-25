@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Kova",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "identifier": "com.kova.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -20,7 +20,9 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
-        "transparent": false
+        "transparent": false,
+        "backgroundColor": "#0a0a0b",
+        "center": true
       }
     ],
     "security": {
@@ -30,7 +32,7 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQxREYxRDYyNkJDRUNBQzgKUldUSXlzNXJZaDNmMFVkU3A0VGhHVGtkMElCZ0JwME9yVnhFT1poYjJ2T0haeTJuVXZrUjMybEUK",
-      "endpoints": ["https://kova-k2nchin.vercel.app/updates/latest.json"]
+      "endpoints": ["https://kova-k2nchin.vercel.app/updates/latest.json", "https://kova-ios.onrender.com/api/updates/latest.json"]
     },
     "deep-link": {
       "mobile": [
