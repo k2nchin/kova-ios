@@ -350,15 +350,17 @@ const relativeTime = (iso: string) => {
 
 const storyFromApi = (item: any, fallbackUser: User): Story => ({
   id: item.id,
+  // Other people are built only from what the server sent: never copy the
+  // signed-in user's fields (avatar, verified badge…) onto them.
   author: item.author?.id === fallbackUser.id ? fallbackUser : {
-    ...fallbackUser,
     id: item.author?.id,
     userId: item.author?.id,
     username: item.author?.username || 'usuario',
     displayName: item.author?.displayName || item.author?.username || 'Usuario',
-    avatar: item.author?.avatar || fallbackUser.avatar,
-    tag: '0000',
+    avatar: item.author?.avatar || '',
+    tag: item.author?.tag || '0000',
     status: 'online',
+    verified: Boolean(item.author?.verified),
   },
   mediaUrl: item.mediaUrl,
   text: item.text,
@@ -369,16 +371,16 @@ const storyFromApi = (item: any, fallbackUser: User): Story => ({
 });
 
 const messageFromApi = (item: any, fallbackUser: User): Message => {
-  const author: User = item.author ? {
-    ...fallbackUser,
+  const author: User = !item.author ? fallbackUser : item.author.id === fallbackUser.id ? { ...fallbackUser } : {
     id: item.author.id,
     userId: item.author.userId || item.author.id,
     username: item.author.username || 'usuario',
     displayName: item.author.displayName || item.author.username || 'Usuario',
     tag: item.author.tag || '0000',
-    avatar: item.author.avatar || fallbackUser.avatar,
+    avatar: item.author.avatar || '',
     status: item.author.status || 'online',
-  } : fallbackUser;
+    verified: Boolean(item.author.verified),
+  };
   const date = new Date(item.createdAt || Date.now());
   return {
     id: item.id,
@@ -1338,7 +1340,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const prior = previous.find((conversation) => conversation.user.id === item.user.id);
           return {
             id: `dm_${item.user.id}`,
-            user: { ...(prior?.user || currentUser), ...item.user },
+            user: { ...(prior?.user || {}), ...item.user },
             unreadCount: prior?.unreadCount || 0,
             lastMessage: item.lastMessage,
             lastMessageTime: item.lastMessageTime ? new Date(item.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',

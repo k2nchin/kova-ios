@@ -181,6 +181,7 @@ export const ServerSettingsModal: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeServer?.id]);
 
+  const [uploadingImage, setUploadingImage] = useState<'icon' | 'banner' | null>(null);
   if (!isServerSettingsOpen || !activeServer) return null;
 
   const roles = activeServer.roles || [];
@@ -245,7 +246,6 @@ export const ServerSettingsModal: React.FC = () => {
   // Handle Icon file upload
   // Images are uploaded to Kova storage; the space keeps only the hosted URL
   // (the server rejects inline data: images).
-  const [uploadingImage, setUploadingImage] = useState<'icon' | 'banner' | null>(null);
   const uploadSpaceImage = async (e: React.ChangeEvent<HTMLInputElement>, kind: 'icon' | 'banner') => {
     const file = e.target.files?.[0];
     e.target.value = '';
