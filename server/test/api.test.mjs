@@ -187,6 +187,15 @@ test('voz: token de LiveKit firmado solo para canales de voz accesibles', async 
   assert.equal(claims.sub, owner.id);
 });
 
+test('espacios: incluyen a sus miembros sin exponer correos', async () => {
+  const owner = await register('miembros');
+  const guest = await register('invitado');
+  const space = await createSpace(owner, guest);
+  const listed = (await call('GET', '/servers', undefined, guest.token)).body.find((s) => s.id === space.id);
+  assert.deepEqual(listed.members.map((m) => m.id).sort(), [owner.id, guest.id].sort());
+  assert.ok(listed.members.every((m) => !('email' in m)), 'no se envían correos de otros miembros');
+});
+
 test('relé de tiempo real: solo con el secreto y solo eventos permitidos', async () => {
   const relay = (body, secret) => fetch(`${base}/realtime/emit`, { method: 'POST', headers: { 'content-type': 'application/json', ...(secret ? { 'x-kova-realtime-secret': secret } : {}) }, body: JSON.stringify(body) });
   assert.equal((await relay({ channelId: 'c', event: 'message:created', payload: {} })).status, 401);

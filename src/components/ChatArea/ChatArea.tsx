@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { MessageItem } from './MessageItem';
 import { EmojiGifPicker } from './EmojiGifPicker';
-import { CommunityHeroBanner } from './CommunityHeroBanner';
+import { Avatar } from '../Common/Avatar';
 import { Attachment } from '../../types';
 import { uploadFile } from '../../services/apiClient';
 
@@ -231,7 +231,17 @@ export const ChatArea: React.FC = () => {
     processBotTriggers,
     typingUsers,
     setTyping,
+    setIsCommandPaletteOpen,
+    realtimeConnected,
+    presenceByUser,
+    currentUser,
   } = useApp();
+
+  // People here now: you, plus members the realtime gateway reports online.
+  const onlineMembers = [
+    currentUser,
+    ...(activeServer?.members || []).filter((member) => member.id !== currentUser.id && realtimeConnected && presenceByUser[member.id] === 'online'),
+  ];
 
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: string; authorName: string } | null>(null);
@@ -553,51 +563,42 @@ export const ChatArea: React.FC = () => {
         </div>
       )}
       {/* 1. Modern Channel Header matching reference screenshot */}
-      <header className="kova-channel-header h-14 px-6 flex items-center justify-between border-b border-purple-950/40 bg-[#080312]/90 backdrop-blur-md shrink-0 z-20">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-purple-950/60 border border-purple-800/40 flex items-center justify-center text-purple-300 shadow-inner">
-            <img src="/kova-chrome-cube.png" alt="" className="w-6 h-6 object-contain rounded-lg" />
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-base font-['Outfit']">{channelLabel}</span>
-            </div>
-            <span className="text-xs text-purple-300/60 font-medium">
-              {activeChannel.topic || 'Chatea, comparte, conecta.'}
-            </span>
+      <header className="kova-stage-head">
+        <div className="kova-stage-title">
+          <Hash size={20} aria-hidden="true" />
+          <div>
+            <h1>{channelLabel}</h1>
+            <p>{activeChannel.topic || `Conversación en ${activeServer?.name || 'tu espacio'}`}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-purple-300/70">
-          <button
-            onClick={() => setIsPinnedDrawerOpen(true)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
-            title="Buscar en canal"
-          >
-            <Search size={16} />
+        <div className="kova-stage-actions">
+          {onlineMembers.length > 0 && (
+            <button type="button" className="kova-stage-presence" onClick={() => setIsMemberListOpen(true)} title="Ver miembros en línea">
+              <span className="kova-stage-stack">
+                {onlineMembers.slice(0, 3).map((member) => (
+                  <Avatar key={member.id} src={member.avatar} name={member.displayName || member.username} size={24} />
+                ))}
+              </span>
+              <span>{onlineMembers.length} en línea</span>
+            </button>
+          )}
+          <button type="button" onClick={() => setIsCommandPaletteOpen(true)} title="Buscar (Ctrl+K)" aria-label="Buscar">
+            <Search size={17} />
           </button>
-
-          <button
-            onClick={() => setIsPinnedDrawerOpen(true)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
-            title="Mensajes fijados"
-          >
-            <Pin size={16} />
+          <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes fijados" aria-label="Mensajes fijados">
+            <Pin size={17} />
           </button>
-
           <button
-            onClick={() => toast.info('Notificaciones del canal activadas')}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
-            title="Notificaciones"
+            type="button"
+            onClick={() => setIsMemberListOpen(!isMemberListOpen)}
+            className={isMemberListOpen ? 'is-active' : ''}
+            title={isMemberListOpen ? 'Ocultar miembros' : 'Mostrar miembros'}
+            aria-pressed={isMemberListOpen}
           >
-            <Bell size={16} />
+            <Users size={17} />
           </button>
-
-          <button
-            onClick={() => setIsChannelInfoOpen(true)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:text-white hover:bg-purple-950/40 transition-colors cursor-pointer"
-            title="Ajustes del canal"
-          >
+          <button type="button" onClick={() => setIsChannelInfoOpen(true)} title="Ajustes del canal" aria-label="Ajustes del canal">
             <MoreHorizontal size={17} />
           </button>
         </div>
@@ -605,8 +606,6 @@ export const ChatArea: React.FC = () => {
 
       {/* 2. Conversation Scroll Area */}
       <div ref={scrollRef} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
-        {/* Top Cosmic Synthwave Community Hero Banner matching screenshot */}
-        <CommunityHeroBanner />
 
         {/* Reglas destacadas en canal de reglas */}
         {activeChannel?.name.toLowerCase().includes('regla') && (
@@ -673,10 +672,11 @@ export const ChatArea: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-1">
-            {visibleMessages.map((message) => (
+            {visibleMessages.map((message, index) => (
               <MessageItem
                 key={message.id}
                 message={message}
+                isGrouped={index > 0 && !message.replyTo && visibleMessages[index - 1].author.id === message.author.id}
                 onReply={(m) => setReplyingTo({ id: m.id, authorName: m.author.displayName })}
               />
             ))}
@@ -934,7 +934,7 @@ export const ChatArea: React.FC = () => {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   title="Adjuntar archivo"
-                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="kova-composer-extra w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 >
                   <Paperclip size={16} />
                 </button>
@@ -954,7 +954,7 @@ export const ChatArea: React.FC = () => {
                   type="button"
                   onClick={() => setIsSoundboardOpen(true)}
                   title="Efectos de sonido KOVA"
-                  className="w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="kova-composer-extra w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 >
                   <Sparkles size={16} />
                 </button>

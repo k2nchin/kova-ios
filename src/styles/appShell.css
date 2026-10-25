@@ -1,0 +1,275 @@
+/*
+ * Kova app shell — the landing page's language applied to the workspace:
+ * obsidian room with a perspective grid and a silver beam, graphite glass
+ * panels with chrome hairlines, Outfit display type and metallic actions.
+ * Scoped to the default theme so the other presets keep their own look.
+ */
+
+/* ---------- Avatar (all themes) ---------- */
+.kova-avatar {
+  position: relative;
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #1e1f20;
+  cursor: inherit;
+}
+button.kova-avatar { cursor: pointer; }
+.kova-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.kova-avatar-monogram {
+  color: #0a0a0b;
+  font-family: "Outfit", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(150deg, #f4f5f7 0%, #c2c4c8 45%, #8a8d92 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="oled"] {
+  --kova-glass: rgba(20, 21, 22, 0.72);
+  --kova-glass-strong: rgba(24, 25, 27, 0.9);
+  --kova-hairline: rgba(194, 196, 200, 0.1);
+  --kova-hairline-strong: rgba(194, 196, 200, 0.22);
+}
+
+/* ---------- Room behind the panels ---------- */
+[data-theme="oled"] .kova-workspace-shell {
+  position: relative;
+  isolation: isolate;
+  padding: 10px;
+  gap: 10px;
+  background: #0a0a0b;
+}
+[data-theme="oled"] .kova-workspace-shell::before,
+[data-theme="oled"] .kova-workspace-shell::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+}
+/* Floor grid in perspective, like the landing hero */
+[data-theme="oled"] .kova-workspace-shell::before {
+  left: -40%;
+  right: -40%;
+  bottom: -30%;
+  height: 70%;
+  background-image:
+    linear-gradient(rgba(194, 196, 200, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(194, 196, 200, 0.07) 1px, transparent 1px);
+  background-size: 80px 80px;
+  transform: perspective(900px) rotateX(70deg);
+  transform-origin: bottom;
+  mask-image: linear-gradient(to bottom, transparent, #000 60%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 60%);
+}
+/* Silver beam from the top */
+[data-theme="oled"] .kova-workspace-shell::after {
+  top: -20%;
+  left: 50%;
+  width: min(760px, 70vw);
+  height: 80%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at top, rgba(244, 245, 247, 0.14), rgba(194, 196, 200, 0.04) 45%, transparent 72%);
+  filter: blur(20px);
+}
+
+/* ---------- Glass panels ---------- */
+[data-theme="oled"] .kova-panel {
+  border: 1px solid var(--kova-hairline) !important;
+  border-radius: 22px !important;
+  background: var(--kova-glass) !important;
+  box-shadow: inset 0 1px 0 rgba(244, 245, 247, 0.05), 0 30px 80px rgba(0, 0, 0, 0.45) !important;
+  /* No backdrop-filter here: on full-height panels Chromium paints the
+     children dimmed. The panel background is nearly opaque anyway. */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+[data-theme="oled"] .kova-panel-center { background: rgba(14, 14, 16, 0.78) !important; }
+
+/* ---------- Left sidebar ---------- */
+[data-theme="oled"] .kova-inbox .kova-inbox-head { justify-content: flex-start; min-height: 46px; margin-bottom: 14px; }
+[data-theme="oled"] .kova-inbox .kova-inbox-head > div:first-child { text-align: left; }
+[data-theme="oled"] .kova-inbox-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: auto;
+  margin: 0;
+  overflow: visible;
+  font: 600 22px/1.1 "Outfit", sans-serif;
+  letter-spacing: -0.03em;
+  text-align: left;
+}
+[data-theme="oled"] .kova-inbox-head h2 span {
+  padding-right: 2px;
+  color: transparent;
+  background: linear-gradient(100deg, #8a8d92 0%, #f4f5f7 35%, #a9acb1 60%, #ffffff 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+[data-theme="oled"] .kova-inbox-head h2 img { width: 30px; height: 30px; filter: drop-shadow(0 6px 16px rgba(244, 245, 247, 0.18)); }
+[data-theme="oled"] .kova-inbox-head-actions button,
+[data-theme="oled"] .kova-inbox-profile > button:last-child {
+  border-color: var(--kova-hairline);
+  border-radius: 999px;
+  background: rgba(30, 31, 32, 0.7);
+  color: #c2c4c8;
+}
+[data-theme="oled"] .kova-inbox-head-actions button:hover,
+[data-theme="oled"] .kova-inbox-profile > button:last-child:hover { border-color: var(--kova-hairline-strong); color: #f4f5f7; }
+
+[data-theme="oled"] .kova-inbox-actions {
+  border: 1px solid var(--kova-hairline) !important;
+  border-radius: 18px !important;
+  background: rgba(10, 10, 11, 0.45) !important;
+}
+[data-theme="oled"] .kova-inbox-actions button { border-radius: 12px; color: #9a9da2; }
+[data-theme="oled"] .kova-inbox-actions button:hover,
+[data-theme="oled"] .kova-inbox-actions button.is-active { color: #f4f5f7; background: rgba(194, 196, 200, 0.08) !important; }
+[data-theme="oled"] .kova-inbox-actions b { color: #0a0a0b; background: #c2c4c8; }
+
+[data-theme="oled"] .kova-space-chips button {
+  border: 1px solid var(--kova-hairline);
+  border-radius: 999px;
+  background: rgba(30, 31, 32, 0.6);
+  color: #c2c4c8;
+}
+[data-theme="oled"] .kova-space-chips button.is-active {
+  color: #0a0a0b;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffffff 0%, #c9cbcf 55%, #a7aaae 100%);
+  box-shadow: inset 0 1px 0 #fff, 0 8px 22px rgba(194, 196, 200, 0.16);
+}
+
+[data-theme="oled"] .kova-inbox-search {
+  border: 1px solid var(--kova-hairline) !important;
+  border-radius: 999px !important;
+  background: rgba(10, 10, 11, 0.5) !important;
+}
+[data-theme="oled"] .kova-inbox-search:focus-within { border-color: var(--kova-hairline-strong) !important; }
+[data-theme="oled"] .kova-signal-list-title span { color: #797b7e; letter-spacing: 0.04em; text-transform: none; font: 500 12px/1 "Plus Jakarta Sans", sans-serif; }
+[data-theme="oled"] .kova-signal-list-title i { background: var(--kova-hairline); }
+
+[data-theme="oled"] .kova-signal-card {
+  border: 1px solid transparent !important;
+  border-radius: 16px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+[data-theme="oled"] .kova-signal-card:hover { background: rgba(194, 196, 200, 0.05) !important; }
+[data-theme="oled"] .kova-signal-card.is-active {
+  border-color: var(--kova-hairline-strong) !important;
+  background: linear-gradient(160deg, rgba(69, 71, 73, 0.45), rgba(30, 31, 32, 0.6)) !important;
+  box-shadow: inset 0 1px 0 rgba(244, 245, 247, 0.07) !important;
+}
+[data-theme="oled"] .kova-signal-icon { border-radius: 12px; background: rgba(30, 31, 32, 0.8); color: #c2c4c8; border: 1px solid var(--kova-hairline); }
+[data-theme="oled"] .kova-signal-card.is-active .kova-signal-icon {
+  color: #0a0a0b;
+  border-color: transparent;
+  background: linear-gradient(180deg, #ffffff, #b4b7bc);
+}
+[data-theme="oled"] .kova-signal-card.is-live .kova-signal-icon { box-shadow: 0 0 0 3px rgba(244, 245, 247, 0.12); }
+[data-theme="oled"] .kova-signal-badge { color: #0a0a0b; background: #f4f5f7; }
+
+[data-theme="oled"] .kova-inbox-profile { border-top: 1px solid var(--kova-hairline); }
+
+/* ---------- Messages: flat rows, grouped by author ---------- */
+[data-theme="oled"] .kova-message-item,
+[data-theme="oled"] .kova-message-mine {
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  transform: none !important;
+}
+[data-theme="oled"] .kova-message-item::before { display: none; }
+[data-theme="oled"] .kova-message-item:hover { background: rgba(194, 196, 200, 0.04); box-shadow: none; }
+[data-theme="oled"] .kova-message-item.is-grouped { padding-top: 1px; padding-bottom: 1px; }
+[data-theme="oled"] .kova-message-item.is-first-of-group { margin-top: 10px; }
+[data-theme="oled"] .kova-message-item:hover .kova-message-avatar { transform: none; box-shadow: none; filter: none; }
+.kova-message-gutter-time {
+  display: grid;
+  width: 40px;
+  place-items: center;
+  color: transparent;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.kova-message-item:hover .kova-message-gutter-time { color: #797b7e; }
+
+/* ---------- Composer ---------- */
+[data-theme="oled"] .kova-message-composer {
+  border: 1px solid var(--kova-hairline-strong) !important;
+  background: rgba(20, 21, 22, 0.85) !important;
+  box-shadow: inset 0 1px 0 rgba(244, 245, 247, 0.06), 0 18px 50px rgba(0, 0, 0, 0.5) !important;
+}
+[data-theme="oled"] .kova-message-composer:focus-within { border-color: rgba(244, 245, 247, 0.38) !important; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 767px) {
+  [data-theme="oled"] .kova-workspace-shell { padding: 0; gap: 0; }
+  [data-theme="oled"] .kova-panel { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+  [data-theme="oled"] .kova-composer-extra { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kova-workspace-shell::after { filter: none; }
+}
+
+/* ---------- Space header card ---------- */
+[data-theme="oled"] .kova-space-pulse {
+  border: 1px solid var(--kova-hairline) !important;
+  border-radius: 20px !important;
+  background: linear-gradient(160deg, rgba(69, 71, 73, 0.32), rgba(20, 21, 22, 0.7)) !important;
+  box-shadow: inset 0 1px 0 rgba(244, 245, 247, 0.06) !important;
+}
+[data-theme="oled"] .kova-space-pulse h1 {
+  font-family: "Outfit", sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: transparent;
+  background: linear-gradient(100deg, #8a8d92 0%, #f4f5f7 35%, #a9acb1 60%, #ffffff 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+[data-theme="oled"] .kova-space-pulse-stats span {
+  border-color: var(--kova-hairline) !important;
+  background: rgba(10, 10, 11, 0.45) !important;
+  color: #b4b6ba !important;
+}
+[data-theme="oled"] .kova-space-pulse .kova-live-dot { background: #f4f5f7 !important; box-shadow: 0 0 0 3px rgba(244, 245, 247, 0.12) !important; }
+[data-theme="oled"] .kova-space-pulse-actions .kova-space-invite {
+  color: #0a0a0b !important;
+  border-color: transparent !important;
+  background: linear-gradient(180deg, #ffffff 0%, #c9cbcf 55%, #a7aaae 100%) !important;
+  box-shadow: inset 0 1px 0 #fff, 0 8px 22px rgba(194, 196, 200, 0.16) !important;
+}
+.kova-member-offline { filter: grayscale(1); opacity: 0.6; }
+
+/* Chromium paints large blurred layers dimmed (the whole app looked darkened),
+   so the default theme uses solid glass tones instead of backdrop blur. */
+[data-theme="oled"] .kova-app-shell * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Members panel is a real column now (it used to float as a 74px strip). */
+@media (min-width: 768px) {
+  [data-theme="oled"] .kova-panel-right {
+    position: relative;
+    inset: auto;
+    width: auto;
+    height: 100% !important;
+  }
+  [data-theme="oled"] .kova-panel-center:has(+ .kova-panel-right) .kova-channel-main { padding-right: 0; }
+}

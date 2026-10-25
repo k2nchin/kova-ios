@@ -105,6 +105,12 @@ const verifyPassword = async (password, stored) => {
 const sessionExpiry = () => new Date(Date.now() + SESSION_TTL_MS).toISOString();
 const parseJson = (value, fallback) => { try { return JSON.parse(value || ''); } catch { return fallback; } };
 const canAccessSpace = async (spaceId, userId) => Boolean(await db.prepare('SELECT s.id FROM spaces s LEFT JOIN space_members m ON m.space_id = s.id WHERE s.id = ? AND (s.owner_id = ? OR m.user_id = ?)').get(spaceId, userId, userId));
+// Owner plus everyone who joined, as the public profile shape the client renders.
+// Live presence comes from the realtime gateway, so status starts as offline.
+const spaceMembers = async (spaceId, ownerId) => {
+  const rows = await db.prepare('SELECT u.* FROM users u WHERE u.id = ? OR u.id IN (SELECT user_id FROM space_members WHERE space_id = ?)').all(ownerId, spaceId);
+  return rows.map((row) => ({ ...publicUser(userFromRow(row)), email: undefined, status: 'offline' }));
+};
 const readBody = async (req) => {
   let raw = '';
   for await (const chunk of req) {
@@ -580,7 +586,7 @@ const handleRequest = async (req, res) => {
   if (requestPath === '/api/servers' && req.method === 'GET') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const spaces = await db.prepare('SELECT DISTINCT s.* FROM spaces s LEFT JOIN space_members m ON m.space_id = s.id WHERE s.owner_id = ? OR m.user_id = ? ORDER BY s.created_at DESC').all(session.user_id, session.user_id);
-    const result = []; for (const s of spaces) { const channels = await db.prepare('SELECT * FROM signals WHERE space_id = ?').all(s.id); const categories = await db.prepare('SELECT * FROM categories WHERE space_id = ? ORDER BY position, created_at').all(s.id); result.push({ id: s.id, name: s.name, description: s.description, visibility: s.visibility || 'private', icon: s.icon_url || '', banner: s.banner_url || '', ownerId: s.owner_id, categories: categories.map((c) => ({ id: c.id, name: c.name, channelIds: channels.filter((channel) => channel.category_id === c.id).map((channel) => channel.id) })), channels: channels.map((c) => ({ id: c.id, name: c.name, type: c.type, topic: c.topic, categoryId: c.category_id })) }); }
+    const result = []; for (const s of spaces) { const members = await spaceMembers(s.id, s.owner_id); const channels = await db.prepare('SELECT * FROM signals WHERE space_id = ?').all(s.id); const categories = await db.prepare('SELECT * FROM categories WHERE space_id = ? ORDER BY position, created_at').all(s.id); result.push({ members, id: s.id, name: s.name, description: s.description, visibility: s.visibility || 'private', icon: s.icon_url || '', banner: s.banner_url || '', ownerId: s.owner_id, categories: categories.map((c) => ({ id: c.id, name: c.name, channelIds: channels.filter((channel) => channel.category_id === c.id).map((channel) => channel.id) })), channels: channels.map((c) => ({ id: c.id, name: c.name, type: c.type, topic: c.topic, categoryId: c.category_id })) }); }
     return send(res, 200, result);
   }
   if (requestPath === '/api/servers' && req.method === 'POST') {

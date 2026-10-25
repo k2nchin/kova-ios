@@ -1,4 +1,5 @@
 import React from 'react';
+import { Avatar } from '../Common/Avatar';
 import { Plus } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -27,7 +28,7 @@ export const StoriesBar: React.FC = () => {
             className={`w-12 h-12 rounded-2xl p-0.5 transition-all flex items-center justify-center cursor-pointer ${
               myStories.length > 0
                 ? 'bg-gradient-to-tr from-[#72e4d0] via-pink-500 to-purple-600 shadow-[0_0_12px_rgba(114,228,208,0.4)] hover:scale-105'
-                : 'border-2 border-dashed border-[#72e4d0]/60 hover:border-[#72e4d0] bg-[#171b25]'
+                : 'border-2 border-dashed border-[#c2c4c8]/50 hover:border-[#f4f5f7] bg-[#171b25]'
             }`}
             title={myStories.length > 0 ? 'Ver mi historia' : 'Subir una nueva historia'}
           >
@@ -80,16 +81,12 @@ export const StoriesBar: React.FC = () => {
               >
                 <div className="relative">
                   {/* Neon glowing ring */}
-                  <div className="w-12 h-12 rounded-2xl p-[2px] bg-gradient-to-tr from-purple-500 via-pink-500 to-[#72e4d0] shadow-md group-hover:shadow-[0_0_12px_rgba(184,156,255,0.5)] transition-all group-hover:scale-105">
+                  <div className="w-12 h-12 rounded-2xl p-[2px] bg-gradient-to-tr from-[#797b7e] via-[#f4f5f7] to-[#a9acb1] shadow-md group-hover:shadow-[0_0_12px_rgba(184,156,255,0.5)] transition-all group-hover:scale-105">
                     <div className="w-full h-full rounded-[14px] overflow-hidden bg-[#111420] ring-2 ring-[#0e111a]">
-                      <img
-                        src={story.author.avatar}
-                        alt={story.author.displayName}
-                        className="w-full h-full object-cover"
-                      />
+                      <Avatar src={story.author.avatar} name={story.author.displayName || story.author.username} size={44} className="!w-full !h-full !rounded-[14px]" />
                     </div>
                   </div>
-                  <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-pink-500 border border-[#0e111a] animate-pulse" />
+                  <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#f4f5f7] border border-[#0e111a]" />
                 </div>
                 <span className="text-[10px] text-slate-300 font-medium group-hover:text-[#72e4d0] transition-colors max-w-[62px] truncate text-center">
                   {story.author.displayName.split(' ')[0]}

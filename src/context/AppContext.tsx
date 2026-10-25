@@ -316,7 +316,7 @@ const createDefaultRoles = (serverId: string): Role[] => [
   {
     id: `role_owner_${serverId}`,
     name: '👑 Propietario',
-    color: '#FFB800',
+    color: '#F4F5F7',
     hoist: true,
     permissions: [
       'ADMINISTRATOR',
@@ -331,7 +331,7 @@ const createDefaultRoles = (serverId: string): Role[] => [
   {
     id: `role_admin_${serverId}`,
     name: '🛡️ Administrador',
-    color: '#5865F2',
+    color: '#C2C4C8',
     hoist: true,
     permissions: [
       'MANAGE_SERVER',
@@ -345,14 +345,14 @@ const createDefaultRoles = (serverId: string): Role[] => [
   {
     id: `role_mod_${serverId}`,
     name: '⚔️ Moderador',
-    color: '#57F287',
+    color: '#A9ACB1',
     hoist: true,
     permissions: ['MANAGE_CHANNELS', 'KICK_MEMBERS', 'SEND_MESSAGES'],
   },
   {
     id: `role_vip_${serverId}`,
     name: '⭐ VIP',
-    color: '#EB459E',
+    color: '#D9CBB0',
     hoist: true,
     permissions: ['SEND_MESSAGES', 'ATTACH_FILES', 'CONNECT_VOICE', 'SPEAK_VOICE'],
   },
@@ -919,6 +919,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return general?.id || servers[0]?.channels[0]?.id || '';
   });
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>({});
+
+  // Spaces arrive from the API after the first render: once they do, point the
+  // active space/channel at a real one (otherwise message loading never starts).
+  useEffect(() => {
+    if (servers.length === 0 || servers.some((server) => server.id === activeServerId)) return;
+    const owner = servers.find((server) => server.channels.some((channel) => channel.id === activeChannelId)) || servers[0];
+    setActiveServerId(owner.id);
+    if (!owner.channels.some((channel) => channel.id === activeChannelId)) {
+      const general = owner.channels.find((channel) => channel.type !== 'voice' && channel.name.includes('general')) || owner.channels.find((channel) => channel.type !== 'voice');
+      if (general) setActiveChannelId(general.id);
+    }
+  }, [servers, activeServerId, activeChannelId]);
 
   // Sincronización en tiempo real vía Socket.IO: mensajes, presencia y "escribiendo…"
   const [realtimeConnected, setRealtimeConnected] = useState(false);

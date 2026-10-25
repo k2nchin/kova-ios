@@ -285,6 +285,7 @@ export const MainLayout: React.FC = () => {
           <WorkspaceContainer
             layoutMode={layoutMode}
             sidebarCollapsed={sidebarCollapsed}
+            onCloseSidebar={isMobile ? () => setSidebarCollapsed(true) : undefined}
           />
         </Suspense>
       </main>

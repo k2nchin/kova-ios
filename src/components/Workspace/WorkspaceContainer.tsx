@@ -1,5 +1,5 @@
 import React from 'react';
-import { UnifiedNavSidebar } from '../ChannelSidebar/UnifiedNavSidebar';
+import { ConsoleSidebar } from '../Shell/ConsoleSidebar';
 import { ChatArea } from '../ChatArea/ChatArea';
 import { VoiceRoom } from '../VoiceRoom/VoiceRoom';
 import { NotesChannel } from '../NotesChannel/NotesChannel';
@@ -14,11 +14,14 @@ import { WorkspaceLayoutMode } from '../../types';
 interface WorkspaceContainerProps {
   layoutMode?: WorkspaceLayoutMode;
   sidebarCollapsed?: boolean;
+  /** Mobile only: closes the navigation drawer. */
+  onCloseSidebar?: () => void;
 }
 
 export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
   layoutMode = 'split',
   sidebarCollapsed = false,
+  onCloseSidebar,
 }) => {
   const {
     activeServer,
@@ -33,9 +36,12 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
     <div className="kova-workspace-shell flex-1 flex overflow-hidden w-full h-full bg-[#05010b] p-2 gap-2 select-none font-['Plus_Jakarta_Sans',sans-serif]">
       {/* 1. Integrated Left Navigation (Nav + Servidores + Canales + User Capsule) */}
       {!sidebarCollapsed && (
-        <div className="kova-panel kova-panel-left h-full rounded-2xl bg-[#070210] border border-purple-950/40 shadow-xl overflow-hidden shrink-0">
-          <UnifiedNavSidebar />
-        </div>
+        <>
+          {onCloseSidebar && <button type="button" className="kova-drawer-backdrop" onClick={onCloseSidebar} aria-label="Cerrar menú" />}
+          <div className="kova-panel kova-panel-left h-full rounded-2xl bg-[#070210] border border-purple-950/40 shadow-xl overflow-hidden shrink-0">
+            <ConsoleSidebar onNavigate={onCloseSidebar} />
+          </div>
+        </>
       )}
 
       {/* 2. Center Stage (Chat / Voice Room / DMs / Notes) */}

@@ -20,13 +20,19 @@ import { toast } from 'sonner';
 import { Message } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { VoiceMessagePlayer } from '../Audio/VoiceMessagePlayer';
+import { Avatar } from '../Common/Avatar';
 
 interface MessageItemProps {
   message: Message;
   onReply: (message: Message) => void;
+  /** Continues a run of messages from the same author: no avatar or name row. */
+  isGrouped?: boolean;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) => {
+// "Hoy a las 11:24 p. m." -> "11:24 p. m."
+const shortTime = (timestamp: string) => timestamp.replace(/^hoy a las\s*/i, '');
+
+export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGrouped = false }) => {
   const {
     currentUser,
     activeServer,
@@ -83,22 +89,29 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
   const authorHighestRole = activeServer?.roles?.find(
     (r) => r.name !== '@everyone' && authorRoleIds.includes(r.id)
   );
-  const authorColor = authorHighestRole?.color || (message.aiGenerated ? '#c084fc' : isAuthorMe ? '#5865f2' : undefined);
+  // Only real role colors tint names; everyone else reads in chrome.
+  const authorColor = authorHighestRole?.color;
+  const isOwner = message.author.id === activeServer?.ownerId;
 
   return (
     <div
-      className={`kova-message-item ${isAuthorMe ? 'kova-message-mine' : ''} ${isBotMessage ? 'kova-message-bot' : ''} group relative flex gap-4 px-4 py-2 hover:bg-purple-950/20 transition-colors ${
-        message.pinned ? 'bg-purple-950/30 border-l-2 border-purple-500' : ''
+      className={`kova-message-item ${isAuthorMe ? 'kova-message-mine' : ''} ${isBotMessage ? 'kova-message-bot' : ''} ${isGrouped ? 'is-grouped' : 'is-first-of-group'} group relative flex gap-4 px-4 py-2 transition-colors ${
+        message.pinned ? 'bg-white/[0.03] border-l-2 border-[#c2c4c8]' : ''
       }`}
     >
-      {/* 1. Author Avatar */}
+      {/* 1. Author Avatar (or the time, when continuing a group) */}
       <div className="relative shrink-0 mt-0.5">
-        <img
-          src={message.author.avatar}
-          alt={message.author.displayName}
-          onClick={() => openUserProfile(message.author)}
-          className="kova-message-avatar w-10 h-10 rounded-full object-cover cursor-pointer hover:opacity-90 transition-opacity hover:scale-105"
-        />
+        {isGrouped ? (
+          <span className="kova-message-gutter-time">{shortTime(message.timestamp)}</span>
+        ) : (
+          <Avatar
+            src={message.author.avatar}
+            name={message.author.displayName || message.author.username}
+            size={40}
+            className="kova-message-avatar"
+            onClick={() => openUserProfile(message.author)}
+          />
+        )}
       </div>
 
       {/* 2. Message Body */}
@@ -112,6 +125,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
         )}
 
         {/* Author Header */}
+        {!isGrouped && (
         <div className="flex items-center gap-1.5 mb-0.5">
           <span
             className="font-semibold text-sm hover:underline cursor-pointer flex items-center gap-1"
@@ -119,19 +133,19 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
             onClick={() => openUserProfile(message.author)}
           >
             {message.author.displayName}
-            {(message.author.id === activeServer?.ownerId || message.author.id === currentUser.id) && (
-              <span className="text-[12px] text-amber-400" title="Propietario / Líder">👑</span>
+            {isOwner && (
+              <span className="text-[10px] font-medium text-[#797b7e] border border-white/10 rounded-full px-1.5 py-px" title="Creador del espacio">Creador</span>
             )}
           </span>
 
           {/* Discord Standard BOT Tag */}
           {message.author.tag === 'BOT' && (
-            <span className="px-1.5 py-0.5 rounded-md bg-[#5865F2] text-white text-[10px] font-extrabold uppercase tracking-wider">
-              BOT
+            <span className="px-1.5 py-px rounded-full bg-[#c2c4c8] text-[#0a0a0b] text-[10px] font-bold">
+              Bot
             </span>
           )}
 
-          <span className="text-[11px] text-slate-500 font-normal ml-0.5">{message.timestamp}</span>
+          <span className="text-[11px] text-[#797b7e] font-normal ml-0.5">{shortTime(message.timestamp)}</span>
 
           {message.pinned && (
             <span className="flex items-center gap-1 text-[10px] text-[#7c3aed] bg-[#7c3aed]/10 px-1.5 py-0.2 rounded">
@@ -139,6 +153,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
             </span>
           )}
         </div>
+        )}
 
         {/* Message Content with text formatting & inline Discord editing */}
         {isEditing ? (
@@ -361,15 +376,6 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply }) =>
             );
           })}
 
-          {/* Quick Reply Button matching screenshot */}
-          <button
-            onClick={() => onReply(message)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-purple-400/70 hover:text-purple-200 hover:bg-purple-900/30 border border-purple-900/20 hover:border-purple-800/40 transition-all cursor-pointer"
-            title="Responder mensaje"
-          >
-            <Reply size={12} />
-            <span className="text-[11px]">Responder</span>
-          </button>
         </div>
 
         {/* Thread indicator */}

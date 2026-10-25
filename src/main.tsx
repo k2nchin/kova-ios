@@ -8,6 +8,7 @@ import { installGlobalErrorReporting } from './services/errorReporter';
 installGlobalErrorReporting();
 import './index.css';
 import './styles/chromeTheme.css';
+import './styles/appShell.css';
 
 // Register the offline shell only on deployed HTTPS builds (never in dev or
 // inside the Tauri desktop app, which loads from a custom protocol).
