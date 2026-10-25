@@ -12,6 +12,8 @@ import {
   Crown,
 } from 'lucide-react';
 import { useApp, permissionsIn } from '../../context/AppContext';
+import { uploadFile } from '../../services/apiClient';
+import { toast } from 'sonner';
 import { Avatar } from '../Common/Avatar';
 import '../../styles/serverSettings.css';
 
@@ -241,30 +243,28 @@ export const ServerSettingsModal: React.FC = () => {
   };
 
   // Handle Icon file upload
-  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Images are uploaded to Kova storage; the space keeps only the hosted URL
+  // (the server rejects inline data: images).
+  const [uploadingImage, setUploadingImage] = useState<'icon' | 'banner' | null>(null);
+  const uploadSpaceImage = async (e: React.ChangeEvent<HTMLInputElement>, kind: 'icon' | 'banner') => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setServerIcon(dataUrl);
-      updateServerDetails(activeServer.id, { icon: dataUrl });
-    };
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith('image/')) { toast.error('Elige una imagen (PNG, JPG, WEBP o GIF).'); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error('La imagen supera 8 MB.'); return; }
+    setUploadingImage(kind);
+    try {
+      const url = await uploadFile(file, kind);
+      if (kind === 'icon') setServerIcon(url); else setServerBanner(url);
+      updateServerDetails(activeServer.id, kind === 'icon' ? { icon: url } : { banner: url });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen.');
+    } finally {
+      setUploadingImage(null);
+    }
   };
-
-  // Handle Banner file upload
-  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setServerBanner(dataUrl);
-      updateServerDetails(activeServer.id, { banner: dataUrl });
-    };
-    reader.readAsDataURL(file);
-  };
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => void uploadSpaceImage(e, 'icon');
+  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => void uploadSpaceImage(e, 'banner');
 
   // Save Overview
   const handleSaveOverview = (e: React.FormEvent) => {
@@ -885,7 +885,7 @@ export const ServerSettingsModal: React.FC = () => {
                   {/* Left: Icon & Banner */}
                   <div className="space-y-4">
                     <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-2">ICONO DEL SERVIDOR</label>
+                      <label className="text-xs font-semibold text-slate-300 block mb-2">ICONO DEL ESPACIO</label>
                       <input
                         ref={iconInputRef}
                         type="file"
@@ -910,9 +910,10 @@ export const ServerSettingsModal: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => iconInputRef.current?.click()}
-                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold cursor-pointer shadow-md transition-all"
+                            disabled={uploadingImage !== null}
+                            className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold cursor-pointer shadow-md transition-all disabled:opacity-60"
                           >
-                            Subir imagen
+                            {uploadingImage === 'icon' ? 'Subiendo…' : 'Subir imagen'}
                           </button>
                           {serverIcon && (
                             <button
