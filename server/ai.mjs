@@ -65,35 +65,42 @@ export async function askKovaAI(userId, { prompt, context } = {}) {
   if (!isAiConfigured()) throw new AiError(503, 'AI_NOT_CONFIGURED', 'Kova IA no está configurada en este servidor.');
   consumeQuota(userId);
 
-  const model = process.env.GEMINI_MODEL || 'gemini-flash-latest';
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
-  let response;
-  try {
-    response = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-        contents: [{ role: 'user', parts: [{ text: buildPrompt(text, context && typeof context === 'object' ? context : {}) }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
-      }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    throw new AiError(504, 'AI_TIMEOUT', error?.name === 'AbortError' ? 'Kova IA tardó demasiado en responder. Inténtalo de nuevo.' : 'No se pudo contactar con el servicio de IA.');
-  } finally {
-    clearTimeout(timer);
-  }
+  // When the main model is overloaded, retry once on the lighter model.
+  const models = [...new Set([process.env.GEMINI_MODEL || 'gemini-flash-latest', process.env.GEMINI_FALLBACK_MODEL || 'gemini-flash-lite-latest'])];
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    contents: [{ role: 'user', parts: [{ text: buildPrompt(text, context && typeof context === 'object' ? context : {}) }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+  });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    console.error('[Kova AI] Gemini error', response.status, data?.error?.message);
-    if (response.status === 429) throw new AiError(503, 'AI_BUSY', 'Kova IA está saturada en este momento. Inténtalo en unos segundos.');
-    throw new AiError(502, 'AI_UPSTREAM_ERROR', 'El servicio de IA devolvió un error.');
+  let lastError = null;
+  for (const model of models) {
+    let response;
+    try {
+      response = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS / models.length),
+      });
+    } catch (error) {
+      lastError = new AiError(504, 'AI_TIMEOUT', error?.name === 'TimeoutError' ? 'Kova IA tardó demasiado en responder. Inténtalo de nuevo.' : 'No se pudo contactar con el servicio de IA.');
+      continue;
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[Kova AI] Gemini error', model, response.status, data?.error?.message);
+      if (response.status === 429 || response.status === 503) {
+        lastError = new AiError(503, 'AI_BUSY', 'Kova IA está saturada en este momento. Inténtalo en unos segundos.');
+        continue;
+      }
+      throw new AiError(502, 'AI_UPSTREAM_ERROR', 'El servicio de IA devolvió un error.');
+    }
+    if (data?.promptFeedback?.blockReason) throw new AiError(422, 'AI_BLOCKED', 'Kova IA no puede responder a esa petición.');
+    const answer = (data?.candidates?.[0]?.content?.parts || []).map((part) => part?.text || '').join('').trim();
+    if (!answer) throw new AiError(502, 'AI_EMPTY', 'Kova IA no devolvió ninguna respuesta.');
+    return { text: answer, model };
   }
-  if (data?.promptFeedback?.blockReason) throw new AiError(422, 'AI_BLOCKED', 'Kova IA no puede responder a esa petición.');
-  const answer = (data?.candidates?.[0]?.content?.parts || []).map((part) => part?.text || '').join('').trim();
-  if (!answer) throw new AiError(502, 'AI_EMPTY', 'Kova IA no devolvió ninguna respuesta.');
-  return { text: answer, model };
+  throw lastError;
 }
