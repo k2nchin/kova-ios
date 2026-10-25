@@ -65,7 +65,7 @@ export async function askKovaAI(userId, { prompt, context } = {}) {
   if (!isAiConfigured()) throw new AiError(503, 'AI_NOT_CONFIGURED', 'Kova IA no está configurada en este servidor.');
   consumeQuota(userId);
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = process.env.GEMINI_MODEL || 'gemini-flash-latest';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   let response;
