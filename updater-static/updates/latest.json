@@ -1,12 +1,12 @@
 {
-  "version": "1.0.13",
-  "notes": "Kova 1.0.13: actualizacion automatica de escritorio y modo invitado movil para pruebas.",
-  "pub_date": "2026-09-19T04:00:00Z",
+  "version": "1.0.14",
+  "notes": "Kova 1.0.14: perfiles con apodos y sonidos, roles y permisos reales, espacios en tiempo real, cámara y pantalla compartida, y actualizaciones en segundo plano.",
+  "pub_date": "2026-10-25T06:11:56Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.13_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFZjUHpVNXJYb1dQSmNCL0NIUWFPUGhoaGZuMDFTRG9DK1NkalY3MHRvVGdJcGlBQUNjQVRVNDBBWERPdXFaeHhDK1ZmQkJIdERGSXpKbjN1OEdBTHd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTM1ODM2CWZpbGU6S292YV8xLjAuMTNfeDY0LXNldHVwLmV4ZQordHhlakFTUXRzWWZ1aUUvZURKMWJMVW5ETS93d05nRWlxdDFFeW5ZcGg0L0IweGdWdHpZamZIYkR5c1dncVczZDBRL21QZjVpRmJPeVloVFNDQWREdz09Cg==",
-      "sha256": "9119713590A5A8E391DFE87930ADFDAB33F6C55B7A8705DA14C23BBF8DCE68B8"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.14_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGQ1clBlRklER01Oc0xRVGlqaHl1Y2lyeTgrZGNmWWZYbTFSODJVRzkzS2RwMlg2WDJCSk1ZemNURFRBOHN3bHd6ZVBjYmJ6ZXhIOVk1aFNLOCtuV3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTA4NjU3CWZpbGU6S292YV8xLjAuMTRfeDY0LXNldHVwLmV4ZQpiTEFSdUpBc055dTRQSUsxN3FmZHNudUFsVENIa0hsem9NRjdUR1oyNEtWTWZ2b2o3Q1lBNTQ5YWJveGJidmRGK0hkSWFtek03endyYmV6TjF6VXZDQT09Cg==",
+      "sha256": "ABBE88A00D4D36028D96B6708E78C0AB22A819A50D3DEF74FCAD0E74673462D6"
     }
   }
 }

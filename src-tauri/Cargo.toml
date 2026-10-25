@@ -1,6 +1,6 @@
 [package]
 name = "kova"
-version = "1.0.13"
+version = "1.0.14"
 description = "Kova — espacios de voz, mensajes y señales"
 authors = ["Kova"]
 license = "LicenseRef-Proprietary"
