@@ -69,6 +69,7 @@ before(async () => {
       KOVA_API_PORT: String(port),
       KOVA_DATA_DIR: dataDir,
       KOVA_ENCRYPTION_KEY: 'test-encryption-key',
+      KOVA_AUTH_RATE_LIMIT: '1000',
       GEMINI_API_KEY: 'test-gemini-key',
       GEMINI_API_BASE: `http://localhost:${geminiPort}`,
       KOVA_REALTIME_SECRET: 'relay-test-secret',
@@ -251,4 +252,57 @@ test('verificado: solo la cuenta configurada y sus espacios', async () => {
   const loner = await register('solo');
   const other = await createSpace(loner);
   assert.equal(other.verified, false);
+});
+
+test('roles y permisos: se guardan en el servidor y se aplican', async () => {
+  const owner = await register('jefa');
+  const mod = await register('mod');
+  const guest = await register('visita');
+  const space = await createSpace(owner, mod, guest);
+  const get = async (who) => (await call('GET', '/servers', undefined, who.token)).body.find((s) => s.id === space.id);
+
+  // Defaults exist and the owner carries the owner role.
+  const initial = await get(guest);
+  assert.ok(initial.roles.some((r) => r.name === '@everyone'));
+  assert.ok(initial.members.find((m) => m.id === owner.id).roles.includes(`role_owner_${space.id}`));
+
+  // A plain member can't create channels or roles.
+  assert.equal((await call('POST', '/channels', { serverId: space.id, name: 'nope' }, guest.token)).status, 403);
+  assert.equal((await call('POST', `/servers/${space.id}/roles`, { name: 'x' }, guest.token)).status, 403);
+
+  // Owner creates a role with MANAGE_CHANNELS and gives it to mod.
+  const role = await call('POST', `/servers/${space.id}/roles`, { name: 'Canales', color: '#ABCDEF', permissions: ['MANAGE_CHANNELS', 'INVENTADO'] }, owner.token);
+  assert.equal(role.status, 201);
+  assert.deepEqual(role.body.permissions, ['MANAGE_CHANNELS']);
+  assert.equal((await call('PUT', `/servers/${space.id}/members/${mod.id}/roles/${role.body.id}`, {}, owner.token)).status, 200);
+  assert.ok((await get(guest)).members.find((m) => m.id === mod.id).roles.includes(role.body.id), 'persistido para todos');
+
+  const created = await call('POST', '/channels', { serverId: space.id, name: 'nuevo', type: 'raro' }, mod.token);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.type, 'text', 'tipos desconocidos pasan a texto');
+  assert.equal((await call('DELETE', `/channels/${created.body.id}`, undefined, mod.token)).status, 200);
+
+  // Only the owner can hand out ADMINISTRATOR; the owner role is untouchable.
+  assert.equal((await call('PATCH', `/servers/${space.id}/roles/${role.body.id}`, { permissions: ['ADMINISTRATOR'] }, owner.token)).status, 200);
+  assert.equal((await call('PATCH', `/servers/${space.id}/roles/role_owner_${space.id}`, { name: 'yo' }, owner.token)).status, 403);
+
+  // Kick: members can't kick; the owner can; the kicked person loses access.
+  assert.equal((await call('DELETE', `/servers/${space.id}/members/${mod.id}`, undefined, guest.token)).status, 403);
+  assert.equal((await call('DELETE', `/servers/${space.id}/members/${guest.id}`, undefined, owner.token)).status, 200);
+  assert.equal(await get(guest), undefined);
+  // Ban: banned people can't come back with a new invite.
+  const invite = await call('POST', `/servers/${space.id}/invites`, {}, owner.token);
+  assert.equal((await call('POST', '/servers/join', { inviteCode: invite.body.code }, guest.token)).status, 200, 'expulsar no veta');
+  assert.equal((await call('DELETE', `/servers/${space.id}/members/${guest.id}?ban=1`, undefined, owner.token)).status, 200);
+  assert.equal((await call('POST', '/servers/join', { inviteCode: invite.body.code }, guest.token)).status, 403);
+
+  // Leave: a member may leave, the owner may not.
+  assert.equal((await call('DELETE', `/servers/${space.id}/members/${mod.id}`, undefined, mod.token)).status, 200);
+  assert.equal((await call('DELETE', `/servers/${space.id}/members/${owner.id}`, undefined, owner.token)).status, 403);
+
+  // Joining returns the full space, members included.
+  const fresh = await register('nueva');
+  const joined = await call('POST', '/servers/join', { inviteCode: invite.body.code }, fresh.token);
+  assert.ok(joined.body.members.some((m) => m.id === owner.id));
+  assert.ok(Array.isArray(joined.body.roles) && joined.body.roles.length >= 3);
 });

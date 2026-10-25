@@ -113,6 +113,17 @@ export const api = {
     return webOrigin ? { ...invite, url: `${webOrigin}/invite/${encodeURIComponent(invite.code)}` } : invite;
   },
   joinServer: (inviteCode: string) => request<any>('/servers/join', { method: 'POST', data: { inviteCode } }),
+  createRole: (serverId: string, data: { name: string; color?: string; hoist?: boolean; permissions?: string[] }) =>
+    request<any>(`/servers/${encodeURIComponent(serverId)}/roles`, { method: 'POST', data }),
+  updateRole: (serverId: string, roleId: string, data: { name?: string; color?: string; hoist?: boolean; permissions?: string[] }) =>
+    request<any>(`/servers/${encodeURIComponent(serverId)}/roles/${encodeURIComponent(roleId)}`, { method: 'PATCH', data }),
+  deleteRole: (serverId: string, roleId: string) =>
+    request<{ ok: true }>(`/servers/${encodeURIComponent(serverId)}/roles/${encodeURIComponent(roleId)}`, { method: 'DELETE' }),
+  setMemberRole: (serverId: string, userId: string, roleId: string, give: boolean) =>
+    request<{ ok: true }>(`/servers/${encodeURIComponent(serverId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`, { method: give ? 'PUT' : 'DELETE' }),
+  /** Leave (your own id), kick, or ban (ban=true) someone from a space. */
+  removeMember: (serverId: string, userId: string, ban = false) =>
+    request<{ ok: true }>(`/servers/${encodeURIComponent(serverId)}/members/${encodeURIComponent(userId)}${ban ? '?ban=1' : ''}`, { method: 'DELETE' }),
   setNickname: (serverId: string, nickname: string) =>
     request<{ serverId: string; userId: string; nickname: string }>(`/servers/${encodeURIComponent(serverId)}/nickname`, { method: 'PUT', data: { nickname } }),
   deleteServer: (serverId: string) => request<{ ok: boolean }>(`/servers/${encodeURIComponent(serverId)}`, { method: 'DELETE' }),

@@ -86,3 +86,4 @@
   .kss-content button { white-space: nowrap; }
   .kss-content [role="tablist"], .kss-content .kss-subtabs { overflow-x: auto; }
 }
+.kss-member-actions { display: inline-flex; gap: 6px; margin-left: 4px; }

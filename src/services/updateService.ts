@@ -1,7 +1,12 @@
 import { isDesktopApp } from '../utils/platform';
 
 let updateCheckStarted = false;
+const CHECK_EVERY_MS = 4 * 60 * 60 * 1000;
 
+/**
+ * Manual check (Ajustes → "Buscar actualizaciones"): downloads, installs and
+ * restarts right away.
+ */
 export async function checkForKovaUpdate(
   onStatus?: (message: string) => void,
   options?: { manual?: boolean }
@@ -34,4 +39,40 @@ export async function checkForKovaUpdate(
   } finally {
     updateCheckStarted = false;
   }
+}
+
+/**
+ * Discord-style background updates: checks at launch and every few hours,
+ * downloads quietly, then offers a restart. Returns a stop function.
+ */
+export function startAutoUpdates(onReady: (version: string, restart: () => Promise<void>) => void) {
+  if (!isDesktopApp()) return () => undefined;
+  let stopped = false;
+  let readyVersion = '';
+
+  const run = async () => {
+    if (stopped || readyVersion || updateCheckStarted) return;
+    updateCheckStarted = true;
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      if (!update || stopped) return;
+      await update.download();
+      if (stopped) return;
+      readyVersion = update.version;
+      onReady(update.version, async () => {
+        await update.install();
+        const { relaunch } = await import('@tauri-apps/plugin-process');
+        await relaunch();
+      });
+    } catch (error) {
+      console.warn('[Kova updater]', error);
+    } finally {
+      updateCheckStarted = false;
+    }
+  };
+
+  void run();
+  const timer = window.setInterval(() => void run(), CHECK_EVERY_MS);
+  return () => { stopped = true; window.clearInterval(timer); };
 }

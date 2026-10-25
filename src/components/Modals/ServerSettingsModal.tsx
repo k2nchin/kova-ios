@@ -11,7 +11,7 @@ import {
   Upload,
   Crown,
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useApp, permissionsIn } from '../../context/AppContext';
 import { Avatar } from '../Common/Avatar';
 import '../../styles/serverSettings.css';
 
@@ -76,6 +76,18 @@ const ALL_PERMISSIONS: PermissionDef[] = [
     desc: 'Permite banear a miembros de forma permanente.',
     category: 'membership',
   },
+  {
+    key: 'MANAGE_MESSAGES',
+    name: 'Gestionar mensajes',
+    desc: 'Permite borrar mensajes de otras personas.',
+    category: 'general',
+  },
+  {
+    key: 'CREATE_INVITE',
+    name: 'Crear invitaciones',
+    desc: 'Permite generar enlaces para invitar gente al espacio.',
+    category: 'general',
+  },
   // Text
   {
     key: 'SEND_MESSAGES',
@@ -130,9 +142,13 @@ export const ServerSettingsModal: React.FC = () => {
     toggleMemberRole,
     updateServerDetails,
     deleteServer,
+    removeFromSpace,
   } = useApp();
 
   // Active role selected for editing
+  const myPerms = permissionsIn(activeServer, currentUser.id);
+  const canManageRoles = myPerms.has('MANAGE_ROLES');
+  const isSpaceOwner = activeServer?.ownerId === currentUser.id;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
@@ -179,14 +195,14 @@ export const ServerSettingsModal: React.FC = () => {
   );
 
   // Handle Role Creation
-  const handleCreateNewRole = () => {
-    const newRole = createRole(activeServer.id, {
-      name: 'nuevo rol',
-      color: '#5865F2',
+  const handleCreateNewRole = async () => {
+    const newRole = await createRole(activeServer.id, {
+      name: 'Nuevo rol',
+      color: '#5865f2',
       hoist: true,
-      permissions: ['SEND_MESSAGES', 'CONNECT_VOICE', 'SPEAK_VOICE'],
+      permissions: [],
     });
-    setSelectedRoleId(newRole.id);
+    if (newRole) setSelectedRoleId(newRole.id);
   };
 
   // Handle Role Color Pick
@@ -318,10 +334,23 @@ export const ServerSettingsModal: React.FC = () => {
                     <button type="submit" className="kss-btn-danger" disabled={deleteConfirmText.trim() !== activeServer.name}>Borrar</button>
                   </div>
                 </form>
-              ) : (
+              ) : isSpaceOwner ? (
                 <button type="button" className="kss-tab kss-tab-danger" onClick={() => setConfirmingDelete(true)}>
                   <Trash2 size={16} />
                   <span>Borrar espacio</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="kss-tab kss-tab-danger"
+                  onClick={() => {
+                    if (!window.confirm(`¿Salir de ${activeServer.name}? Necesitarás una invitación para volver.`)) return;
+                    setIsServerSettingsOpen(false);
+                    void removeFromSpace(activeServer.id, currentUser.id);
+                  }}
+                >
+                  <Trash2 size={16} />
+                  <span>Salir del espacio</span>
                 </button>
               )}
             </div>
@@ -736,18 +765,12 @@ export const ServerSettingsModal: React.FC = () => {
                       >
                         {/* Member Identity */}
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-2xl bg-purple-600/30 flex items-center justify-center font-bold text-white overflow-hidden text-sm shrink-0">
-                            {member.avatar ? (
-                              <img src={member.avatar} alt={member.displayName} className="w-full h-full object-cover" />
-                            ) : (
-                              member.displayName.slice(0, 1)
-                            )}
-                          </div>
+                          <Avatar src={member.avatar} name={member.nickname || member.displayName} size={40} />
                           <div className="min-w-0">
                             <div className="text-xs font-bold text-white truncate flex items-center gap-1.5 font-['Outfit']">
-                              <span>{member.displayName}</span>
+                              <span>{member.nickname || member.displayName}</span>
                               {isOwner && (
-                                <span title="Propietario del espacio">
+                                <span title="Creador del espacio">
                                   <Crown size={13} className="text-amber-400 fill-amber-400" />
                                 </span>
                               )}
@@ -760,7 +783,7 @@ export const ServerSettingsModal: React.FC = () => {
 
                         {/* Assigned Roles Pills & Add Role button */}
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          {memberRoles.map((role) => (
+                          {memberRoles.filter((role) => role.id !== `role_everyone_${activeServer.id}`).map((role) => (
                             <span
                               key={role.id}
                               className="px-2 py-0.5 rounded-lg text-[10px] font-semibold flex items-center gap-1 border"
@@ -775,21 +798,25 @@ export const ServerSettingsModal: React.FC = () => {
                                 style={{ backgroundColor: role.color }}
                               />
                               <span>{role.name}</span>
-                              <button
-                                type="button"
-                                onClick={() => toggleMemberRole(activeServer.id, member.id, role.id)}
-                                className="hover:text-white cursor-pointer ml-0.5 text-xs opacity-75 hover:opacity-100"
-                                title="Remover rol"
-                              >
-                                ×
-                              </button>
+                              {canManageRoles && role.id !== `role_owner_${activeServer.id}` && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleMemberRole(activeServer.id, member.id, role.id)}
+                                  className="hover:text-white cursor-pointer ml-0.5 text-xs opacity-75 hover:opacity-100"
+                                  title="Quitar rol"
+                                  aria-label={`Quitar ${role.name}`}
+                                >
+                                  ×
+                                </button>
+                              )}
                             </span>
                           ))}
 
-                          {/* Quick Role Toggle Selector */}
+                          {canManageRoles && (
                           <div className="relative group">
                             <button
                               type="button"
+                              aria-haspopup="menu"
                               className="px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <Plus size={12} />
@@ -797,11 +824,11 @@ export const ServerSettingsModal: React.FC = () => {
                             </button>
 
                             {/* Dropdown list */}
-                            <div className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-[#181c28] border border-white/15 shadow-xl p-1.5 hidden group-hover:block z-30 space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
+                            <div className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-[#181c28] border border-white/15 shadow-xl p-1.5 hidden group-hover:block group-focus-within:block z-30 space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar">
                               <span className="text-[9px] text-slate-400 uppercase font-mono px-2 py-1 block">
-                                Alternar Roles
+                                Roles
                               </span>
-                              {roles.map((role) => {
+                              {roles.filter((role) => role.id !== `role_owner_${activeServer.id}` && role.id !== `role_everyone_${activeServer.id}`).map((role) => {
                                 const hasRole = memberRoleIds.includes(role.id);
                                 return (
                                   <button
@@ -823,6 +850,21 @@ export const ServerSettingsModal: React.FC = () => {
                               })}
                             </div>
                           </div>
+                          )}
+                          {!isOwner && member.id !== currentUser.id && (myPerms.has('KICK_MEMBERS') || myPerms.has('BAN_MEMBERS')) && (
+                            <span className="kss-member-actions">
+                              {myPerms.has('KICK_MEMBERS') && (
+                                <button type="button" className="kss-btn-ghost" onClick={() => { if (window.confirm(`¿Expulsar a ${member.nickname || member.displayName}? Podrá volver con una invitación.`)) void removeFromSpace(activeServer.id, member.id); }}>
+                                  Expulsar
+                                </button>
+                              )}
+                              {myPerms.has('BAN_MEMBERS') && (
+                                <button type="button" className="kss-btn-danger" onClick={() => { if (window.confirm(`¿Vetar a ${member.nickname || member.displayName}? No podrá volver a entrar.`)) void removeFromSpace(activeServer.id, member.id, true); }}>
+                                  Vetar
+                                </button>
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );

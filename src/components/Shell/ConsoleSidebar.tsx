@@ -19,7 +19,7 @@ import {
   Volume2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useApp } from '../../context/AppContext';
+import { useApp, permissionsIn } from '../../context/AppContext';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { Avatar } from '../Common/Avatar';
 import type { Channel } from '../../types';
@@ -75,6 +75,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
     layoutMode,
     setLayoutMode,
   } = useApp();
+  const canManageChannels = permissionsIn(activeServer, currentUser.id).has('MANAGE_CHANNELS');
 
   const [query, setQuery] = useState('');
   const pinnedCount = messages.filter((message) => message.pinned).length;
@@ -194,9 +195,11 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
             <div key={section.id} className="kova-channels-section">
               <div className="kova-channels-section-head">
                 <span>{section.title}</span>
+                {canManageChannels && (
                 <button type="button" onClick={() => setIsCreateChannelOpen(true)} title="Crear canal" aria-label="Crear canal">
                   <Plus size={13} />
                 </button>
+                )}
               </div>
               {section.channels.map((channel) => {
                 const Icon = channelIcon(channel);

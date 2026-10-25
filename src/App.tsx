@@ -10,7 +10,7 @@ import { requestNotificationPermission } from './services/notificationService';
 import { connectSocketOnResume } from './services/socketClient';
 import { useIsMobile } from './hooks/useIsMobile';
 import { isDesktopApp, isTauriApp } from './utils/platform';
-import { checkForKovaUpdate } from './services/updateService';
+import { startAutoUpdates } from './services/updateService';
 
 // Heavy app views are split into on-demand chunks: landing visitors never
 // download the chat workspace, and desktop keeps its instant local load.
@@ -219,11 +219,20 @@ export const MainLayout: React.FC = () => {
 
   useEffect(() => {
     if (!isDesktop) return;
-    void checkForKovaUpdate((message) => toast.loading(message, { id: 'kova-update', duration: Infinity }));
+    // Like Discord: download new versions in the background, then offer a restart.
+    const stopUpdates = startAutoUpdates((version, restart) => {
+      toast(`Kova ${version} está lista`, {
+        id: 'kova-update',
+        description: 'Reinicia para usar la nueva versión.',
+        duration: Infinity,
+        action: { label: 'Reiniciar', onClick: () => { void restart(); } },
+      });
+    });
     const closeToTray = localStorage.getItem('kova.closeToTray') !== '0';
     import('@tauri-apps/api/core')
       .then(({ invoke }) => invoke('set_close_to_tray', { enabled: closeToTray }))
       .catch(() => undefined);
+    return stopUpdates;
   }, [isDesktop]);
 
   useEffect(() => {

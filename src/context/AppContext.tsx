@@ -228,6 +228,8 @@ interface AppContextType {
     visibility?: 'public' | 'private'
   ) => Promise<Server | null>;
   setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
+  removeFromSpace: (serverId: string, userId: string, ban?: boolean) => Promise<boolean>;
+  refreshServers: () => Promise<void>;
   joinServerByInvite: (inviteCodeOrId: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   createChannel: (name: string, type: ChannelType, categoryId?: string) => void;
   updateChannel: (channelId: string, updates: Partial<Channel>) => void;
@@ -248,10 +250,10 @@ interface AppContextType {
   setIsServerSettingsOpen: (open: boolean) => void;
   serverSettingsTab: 'overview' | 'roles' | 'members';
   setServerSettingsTab: (tab: 'overview' | 'roles' | 'members') => void;
-  createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Role;
+  createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Promise<Role | null>;
   updateRole: (serverId: string, roleId: string, updates: Partial<Role>) => void;
-  deleteRole: (serverId: string, roleId: string) => void;
-  toggleMemberRole: (serverId: string, memberId: string, roleId: string) => void;
+  deleteRole: (serverId: string, roleId: string) => Promise<void>;
+  toggleMemberRole: (serverId: string, memberId: string, roleId: string) => Promise<void>;
   updateServerDetails: (serverId: string, updates: { name?: string; icon?: string; banner?: string; description?: string }) => void;
   // Discord MCP & Bot Hub
   // Notes
@@ -299,67 +301,24 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Mirrors the server's default roles; only used until the space is loaded.
 const createDefaultRoles = (serverId: string): Role[] => [
-  {
-    id: `role_everyone_${serverId}`,
-    name: '@everyone',
-    color: '#99AAB5',
-    hoist: false,
-    permissions: [
-      'SEND_MESSAGES',
-      'VIEW_CHANNEL',
-      'EMBED_LINKS',
-      'ATTACH_FILES',
-      'READ_MESSAGE_HISTORY',
-      'ADD_REACTIONS',
-      'CONNECT_VOICE',
-      'SPEAK_VOICE',
-    ],
-  },
-  {
-    id: `role_owner_${serverId}`,
-    name: '👑 Propietario',
-    color: '#F4F5F7',
-    hoist: true,
-    permissions: [
-      'ADMINISTRATOR',
-      'MANAGE_SERVER',
-      'MANAGE_ROLES',
-      'MANAGE_CHANNELS',
-      'KICK_MEMBERS',
-      'BAN_MEMBERS',
-      'SEND_MESSAGES',
-    ],
-  },
-  {
-    id: `role_admin_${serverId}`,
-    name: '🛡️ Administrador',
-    color: '#C2C4C8',
-    hoist: true,
-    permissions: [
-      'MANAGE_SERVER',
-      'MANAGE_ROLES',
-      'MANAGE_CHANNELS',
-      'KICK_MEMBERS',
-      'BAN_MEMBERS',
-      'SEND_MESSAGES',
-    ],
-  },
-  {
-    id: `role_mod_${serverId}`,
-    name: '⚔️ Moderador',
-    color: '#A9ACB1',
-    hoist: true,
-    permissions: ['MANAGE_CHANNELS', 'KICK_MEMBERS', 'SEND_MESSAGES'],
-  },
-  {
-    id: `role_vip_${serverId}`,
-    name: '⭐ VIP',
-    color: '#D9CBB0',
-    hoist: true,
-    permissions: ['SEND_MESSAGES', 'ATTACH_FILES', 'CONNECT_VOICE', 'SPEAK_VOICE'],
-  },
+  { id: `role_everyone_${serverId}`, name: '@everyone', color: '#99aab5', hoist: false, permissions: ['SEND_MESSAGES', 'VIEW_CHANNEL', 'EMBED_LINKS', 'ATTACH_FILES', 'READ_MESSAGE_HISTORY', 'ADD_REACTIONS', 'CREATE_INVITE', 'CONNECT_VOICE', 'SPEAK_VOICE', 'STREAM_VIDEO'] },
+  { id: `role_owner_${serverId}`, name: 'Creador', color: '#f4f5f7', hoist: true, permissions: ['ADMINISTRATOR'] },
+  { id: `role_admin_${serverId}`, name: 'Administrador', color: '#c2c4c8', hoist: true, permissions: ['MANAGE_SERVER', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'KICK_MEMBERS', 'BAN_MEMBERS', 'MANAGE_MESSAGES'] },
+  { id: `role_mod_${serverId}`, name: 'Moderador', color: '#a9acb1', hoist: true, permissions: ['MANAGE_MESSAGES', 'KICK_MEMBERS', 'MUTE_MEMBERS'] },
 ];
+
+/** Effective permissions of a person in a space (owner and ADMINISTRATOR get all). */
+export const permissionsIn = (server: Server | undefined, userId: string): Set<string> => {
+  if (!server) return new Set();
+  const all = ['ADMINISTRATOR', 'MANAGE_SERVER', 'MANAGE_ROLES', 'MANAGE_CHANNELS', 'KICK_MEMBERS', 'BAN_MEMBERS', 'MANAGE_MESSAGES', 'CREATE_INVITE'];
+  if (server.ownerId === userId) return new Set(all);
+  const member = server.members?.find((m) => m.id === userId);
+  const roleIds = new Set([`role_everyone_${server.id}`, ...(member?.roles || [])]);
+  const perms = new Set((server.roles || []).filter((role) => roleIds.has(role.id)).flatMap((role) => role.permissions || []));
+  return perms.has('ADMINISTRATOR') ? new Set(all) : perms;
+};
 
 const ensureServerRoles = (serverList: Server[], user: User): Server[] => {
   return serverList.map((s) => {
@@ -908,21 +867,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [servers, serverCacheKey, serversCacheReadyForUser, currentUser.id]);
 
+  const serversRef = useRef(servers);
+  useEffect(() => { serversRef.current = servers; }, [servers]);
+
+  // Server copy of every space is the source of truth (channels, roles, members).
+  const refreshServers = async () => {
+    if (!getAuthToken()) return;
+    try {
+      const remote = await api.getServers();
+      if (!Array.isArray(remote)) return;
+      setServers((local) => remote.map((space: any) => {
+        const cached = local.find((item) => item.id === space.id);
+        return ensureServerRoles([{ ...(cached || {}), ...space } as Server], currentUser)[0];
+      }));
+      // Let the realtime gateway join rooms for spaces created/joined meanwhile.
+      try { getSocket().emit('spaces:refresh'); } catch {}
+    } catch (error) {
+      console.warn('[Kova spaces sync]', error);
+    }
+  };
+  const refreshServersRef = useRef(refreshServers);
+  refreshServersRef.current = refreshServers;
+
   useEffect(() => {
     if (!isAuthenticated || !getAuthToken()) return;
-    let cancelled = false;
-    api.getServers().then((remote) => {
-      if (cancelled || !Array.isArray(remote)) return;
-      setServers((local) => {
-        const merged = remote.map((space: any) => {
-          const cached = local.find((item) => item.id === space.id);
-          return ensureServerRoles([{ ...(cached || {}), ...space } as Server], currentUser)[0];
-        });
-        return merged;
-      });
-    }).catch((error) => console.warn('[Kova spaces sync]', error));
-    return () => { cancelled = true; };
+    void refreshServersRef.current();
   }, [isAuthenticated, currentUser.id]);
+
+  // Someone changed a space (channels, roles, members, settings): refetch.
+  // Several events in a row collapse into one request.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    let timer: number | undefined;
+    const onChanged = ({ serverId, kind }: { serverId: string; kind: string }) => {
+      if (kind === 'deleted' || kind === 'removed') {
+        const gone = serversRef.current.find((server) => server.id === serverId);
+        if (gone) toast.info(kind === 'deleted' ? `Se borró el espacio ${gone.name}` : `Ya no estás en ${gone.name}`);
+        setServers((prev) => prev.filter((server) => server.id !== serverId));
+        return;
+      }
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refreshServersRef.current(), 300);
+    };
+    socket.on('space:changed', onChanged);
+    return () => { socket.off('space:changed', onChanged); window.clearTimeout(timer); };
+  }, [isAuthenticated]);
 
   const [activeServerId, setActiveServerId] = useState<string>(() => servers[0]?.id || '');
   const [activeChannelId, setActiveChannelId] = useState<string>(() => {
@@ -1202,8 +1192,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   const isInVoice = activeVoiceChannelId !== null;
   const [voicePeers, setVoicePeers] = useState<VoicePeer[]>([]);
-  const serversRef = useRef(servers);
-  serversRef.current = servers;
   const [isVoiceConnecting, setIsVoiceConnecting] = useState(false);
 
   // Activities, Soundboard & Arcades
@@ -2833,86 +2821,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members'>('roles');
 
-  const createRole = (
+  const applyRoles = (serverId: string, update: (server: Server) => Server) =>
+    setServers((prev) => prev.map((server) => (server.id === serverId ? update(server) : server)));
+
+  const createRole = async (
     serverId: string,
     roleData: { name: string; color: string; hoist: boolean; permissions: string[] }
-  ): Role => {
-    soundFx.playReactionAdded();
-    const newRoleId = `role_${Date.now()}`;
-    const newRole: Role = {
-      id: newRoleId,
-      name: roleData.name,
-      color: roleData.color || '#99AAB5',
-      hoist: roleData.hoist ?? true,
-      permissions: roleData.permissions || ['SEND_MESSAGES', 'VIEW_CHANNEL'],
-    };
-
-    setServers((prev) =>
-      prev.map((s) => {
-        if (s.id !== serverId) return s;
-        return {
-          ...s,
-          roles: [...(s.roles || []), newRole],
-        };
-      })
-    );
-    toast.success(`Rol "${newRole.name}" creado`);
-    return newRole;
+  ): Promise<Role | null> => {
+    try {
+      const role = await api.createRole(serverId, roleData) as Role;
+      applyRoles(serverId, (server) => ({ ...server, roles: [...(server.roles || []).filter((r) => r.id !== role.id), role] }));
+      soundFx.playReactionAdded();
+      return role;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el rol.');
+      return null;
+    }
   };
 
+  // Edits show at once; the save waits until typing pauses (one request per role).
+  const roleSaveTimers = useRef<Record<string, { timer: number; data: Partial<Role> }>>({});
   const updateRole = (serverId: string, roleId: string, updates: Partial<Role>) => {
-    setServers((prev) =>
-      prev.map((s) => {
-        if (s.id !== serverId) return s;
-        return {
-          ...s,
-          roles: (s.roles || []).map((r) => (r.id === roleId ? { ...r, ...updates } : r)),
-        };
-      })
-    );
-    toast.success('Rol actualizado');
+    applyRoles(serverId, (server) => ({ ...server, roles: (server.roles || []).map((r) => (r.id === roleId ? { ...r, ...updates } : r)) }));
+    const key = `${serverId}:${roleId}`;
+    const pending = roleSaveTimers.current[key];
+    if (pending) window.clearTimeout(pending.timer);
+    const data = { ...(pending?.data || {}), ...updates };
+    roleSaveTimers.current[key] = {
+      data,
+      timer: window.setTimeout(() => {
+        delete roleSaveTimers.current[key];
+        const { name, color, hoist, permissions } = data;
+        api.updateRole(serverId, roleId, { name, color, hoist, permissions }).catch((error) => {
+          toast.error(error instanceof Error ? error.message : 'No se pudo guardar el rol.');
+          void refreshServersRef.current();
+        });
+      }, 500),
+    };
   };
 
-  const deleteRole = (serverId: string, roleId: string) => {
-    soundFx.playLeaveVoice();
-    setServers((prev) =>
-      prev.map((s) => {
-        if (s.id !== serverId) return s;
-        return {
-          ...s,
-          roles: (s.roles || []).filter((r) => r.id !== roleId),
-          members: (s.members || []).map((m) => ({
-            ...m,
-            roles: (m.roles || []).filter((rid) => rid !== roleId),
-          })),
-        };
-      })
-    );
-    toast.success('Rol eliminado');
+  const deleteRole = async (serverId: string, roleId: string) => {
+    try {
+      await api.deleteRole(serverId, roleId);
+      applyRoles(serverId, (server) => ({
+        ...server,
+        roles: (server.roles || []).filter((r) => r.id !== roleId),
+        members: (server.members || []).map((m) => ({ ...m, roles: (m.roles || []).filter((rid) => rid !== roleId) })),
+      }));
+      toast.success('Rol eliminado');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo borrar el rol.');
+    }
   };
 
-  const toggleMemberRole = (serverId: string, memberId: string, roleId: string) => {
-    soundFx.playReactionAdded();
-    setServers((prev) =>
-      prev.map((s) => {
-        if (s.id !== serverId) return s;
-        return {
-          ...s,
-          members: (s.members || []).map((m) => {
-            if (m.id !== memberId) return m;
-            const currentRoles = m.roles || [];
-            const hasRole = currentRoles.includes(roleId);
-            const nextRoles = hasRole
-              ? currentRoles.filter((id) => id !== roleId)
-              : [...currentRoles, roleId];
-            return {
-              ...m,
-              roles: nextRoles,
-            };
-          }),
-        };
-      })
-    );
+  const toggleMemberRole = async (serverId: string, memberId: string, roleId: string) => {
+    const server = servers.find((item) => item.id === serverId);
+    const has = Boolean(server?.members?.find((m) => m.id === memberId)?.roles?.includes(roleId));
+    const flip = (give: boolean) => applyRoles(serverId, (srv) => ({
+      ...srv,
+      members: (srv.members || []).map((m) => m.id !== memberId ? m : {
+        ...m,
+        roles: give ? [...new Set([...(m.roles || []), roleId])] : (m.roles || []).filter((id) => id !== roleId),
+      }),
+    }));
+    flip(!has);
+    try {
+      await api.setMemberRole(serverId, memberId, roleId, !has);
+      soundFx.playReactionAdded();
+    } catch (error) {
+      flip(has);
+      toast.error(error instanceof Error ? error.message : 'No se pudo cambiar el rol.');
+    }
+  };
+
+  /** Leave a space yourself, or kick/ban someone else. */
+  const removeFromSpace = async (serverId: string, userId: string, ban = false) => {
+    try {
+      await api.removeMember(serverId, userId, ban);
+      if (userId === currentUser.id) {
+        const left = servers.find((server) => server.id === serverId);
+        setServers((prev) => prev.filter((server) => server.id !== serverId));
+        if (activeServerId === serverId) setIsDMViewActive(true);
+        toast.success(`Saliste de ${left?.name || 'el espacio'}`);
+      } else {
+        applyRoles(serverId, (server) => ({ ...server, members: (server.members || []).filter((m) => m.id !== userId) }));
+        toast.success(ban ? 'Persona vetada del espacio' : 'Persona expulsada del espacio');
+      }
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo completar la acción.');
+      return false;
+    }
   };
 
   const updateServerDetails = (
@@ -3057,6 +3056,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createServer,
         joinServerByInvite,
         setSpaceNickname,
+        removeFromSpace,
+        refreshServers,
         createChannel,
         deleteServer,
         deleteChannel,
