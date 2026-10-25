@@ -30,7 +30,16 @@ let db;
 let runInTransaction;
 if (databaseUrl) {
   const { Pool } = await import('pg');
-  const pool = new Pool({ connectionString: databaseUrl, ssl: process.env.DATABASE_SSL === 'false' ? false : true });
+  // pg treats sslmode=require as verify-full, but in libpq it means "encrypt
+  // without verifying the issuer" — which is what Supabase/Vercel URLs expect,
+  // since their CA isn't in Node's trust store. Honour the libpq meaning.
+  const url = new URL(databaseUrl);
+  const sslMode = url.searchParams.get('sslmode');
+  url.searchParams.delete('sslmode');
+  const ssl = process.env.DATABASE_SSL === 'false' || sslMode === 'disable' ? false
+    : sslMode === 'require' || sslMode === 'prefer' ? { rejectUnauthorized: false }
+    : true;
+  const pool = new Pool({ connectionString: url.toString(), ssl });
   const convert = (sql) => { let i = 0; return sql.replace(/\?/g, () => `$${++i}`); };
   const adapter = (query) => ({ exec: (sql) => query(sql), prepare: (sql) => ({
     get: async (...args) => (await query(convert(sql), args)).rows[0],
