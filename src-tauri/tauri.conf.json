@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Kova",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "identifier": "com.kova.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -50,6 +50,7 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": ["nsis"],
+    "resources": { "WebView2Loader.dll": "WebView2Loader.dll" },
     "publisher": "Kova",
     "homepage": "https://kova-k2nchin.vercel.app",
     "copyright": "© 2026 Kova",

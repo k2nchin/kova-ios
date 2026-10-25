@@ -1,12 +1,12 @@
 {
-  "version": "1.0.13",
-  "notes": "Kova 1.0.13: actualizacion automatica de escritorio y modo invitado movil para pruebas.",
-  "pub_date": "2026-09-19T04:00:00Z",
+  "version": "1.0.16",
+  "notes": "Kova 1.0.16: arregla el arranque en Windows (WebView2Loader.dll), pantalla de inicio, verificado correcto, solicitudes de amistad y actualizaciones más fiables.",
+  "pub_date": "2026-10-25T07:17:49Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.13_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFZjUHpVNXJYb1dQSmNCL0NIUWFPUGhoaGZuMDFTRG9DK1NkalY3MHRvVGdJcGlBQUNjQVRVNDBBWERPdXFaeHhDK1ZmQkJIdERGSXpKbjN1OEdBTHd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTM1ODM2CWZpbGU6S292YV8xLjAuMTNfeDY0LXNldHVwLmV4ZQordHhlakFTUXRzWWZ1aUUvZURKMWJMVW5ETS93d05nRWlxdDFFeW5ZcGg0L0IweGdWdHpZamZIYkR5c1dncVczZDBRL21QZjVpRmJPeVloVFNDQWREdz09Cg==",
-      "sha256": "9119713590A5A8E391DFE87930ADFDAB33F6C55B7A8705DA14C23BBF8DCE68B8"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.16_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFI5a1FmaTF6TGZCWWdhczNDdEgxRXVLclM3UTBSVzJNNWF6Z29oeExGaXo5UysydmNOWU14WFRrb2FDSm1WU1p2M08vOGlGWWo5Qjlld2JXcW81OFFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTEyNjE1CWZpbGU6S292YV8xLjAuMTZfeDY0LXNldHVwLmV4ZQpoUDY1Ti85Tk45RzVYV1BER0o3Q21FUmgzWHA4anFMUnNoOWgrOEIwQzRGNlpZOC9QYlZEUllwM1ZlMGtQODRJVzJLYTVGRTZFNDd6enE2ZXVmdkVBZz09Cg==",
+      "sha256": "FDF132907D912B312930C95BB40D297074228A8C8FF246E11F9E610A40DB2AD0"
     }
   }
 }
