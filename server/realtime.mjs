@@ -1,6 +1,7 @@
+import crypto from 'node:crypto';
 // Kova realtime gateway (Socket.IO): messages, presence and typing.
-// Only runs on a long-lived Node host; on Vercel the emit helpers are no-ops
-// and the client falls back to REST polling.
+// Only runs on a long-lived Node host. Instances without it (Vercel) relay their
+// events here over HTTP, and clients also poll as a fallback.
 let io = null;
 const connectionsByUser = new Map(); // userId -> number of open sockets
 const TYPING_TTL_MS = 8_000;
@@ -11,8 +12,48 @@ const userRoom = (userId) => `user:${userId}`;
 
 export const isOnline = (userId) => (connectionsByUser.get(userId) || 0) > 0;
 
-export const emitToChannel = (channelId, event, payload) => { io?.to(channelRoom(channelId)).emit(event, payload); };
-export const emitToUsers = (userIds, event, payload) => { if (io) for (const id of new Set(userIds)) io.to(userRoom(id)).emit(event, payload); };
+// Instances without a socket server (Vercel) forward events to the realtime
+// gateway over HTTP, authenticated with a shared secret.
+const RELAY_URL = String(process.env.KOVA_REALTIME_URL || '').replace(/\/$/, '');
+const RELAY_SECRET = process.env.KOVA_REALTIME_SECRET || '';
+export const isRelayAuthorized = (header) => {
+  if (!RELAY_SECRET || typeof header !== 'string') return false;
+  const a = Buffer.from(header);
+  const b = Buffer.from(RELAY_SECRET);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+const relay = async (target, event, payload) => {
+  if (!RELAY_URL || !RELAY_SECRET) return;
+  try {
+    await fetch(`${RELAY_URL}/api/realtime/emit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-kova-realtime-secret': RELAY_SECRET },
+      body: JSON.stringify({ ...target, event, payload }),
+      signal: AbortSignal.timeout(2500),
+    });
+  } catch (error) {
+    // Realtime is best effort: clients still catch up through polling.
+    console.warn('[Kova realtime relay]', error?.name || error);
+  }
+};
+
+export const emitToChannel = async (channelId, event, payload) => {
+  if (io) io.to(channelRoom(channelId)).emit(event, payload);
+  else await relay({ channelId }, event, payload);
+};
+export const emitToUsers = async (userIds, event, payload) => {
+  if (io) for (const id of new Set(userIds)) io.to(userRoom(id)).emit(event, payload);
+  else await relay({ userIds: [...new Set(userIds)] }, event, payload);
+};
+
+/** Receives a relayed event (POST /api/realtime/emit) and broadcasts it locally. */
+export const broadcastRelayed = ({ channelId, userIds, event, payload } = {}) => {
+  const allowed = ['message:created', 'message:updated', 'message:deleted', 'message:reactions', 'dm:created'];
+  if (!io || !allowed.includes(event)) return false;
+  if (typeof channelId === 'string' && channelId) io.to(channelRoom(channelId)).emit(event, payload);
+  if (Array.isArray(userIds)) for (const id of new Set(userIds.map(String).slice(0, 50))) io.to(userRoom(id)).emit(event, payload);
+  return true;
+};
 
 const spaceIdsFor = async (db, userId) => {
   const rows = await db.prepare('SELECT s.id FROM spaces s LEFT JOIN space_members m ON m.space_id = s.id WHERE s.owner_id = ? OR m.user_id = ?').all(userId, userId);

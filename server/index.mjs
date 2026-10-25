@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { attachRealtime, emitToChannel, emitToUsers } from './realtime.mjs';
+import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
 import { askKovaAI, AiError } from './ai.mjs';
 import { createVoiceToken, VoiceError } from './voice.mjs';
 import { contentSchema, contentUserColumns, handleContentRoute } from './content.mjs';
@@ -196,6 +196,10 @@ const handleRequest = async (req, res) => {
   if (requestPath.startsWith('/api/files/') && req.method === 'GET') {
     if (serveLocalFile(res, decodeURIComponent(requestPath.slice('/api/files/'.length)))) return;
     return send(res, 404, { message: 'Archivo no encontrado.' });
+  }
+  if (requestPath === '/api/realtime/emit' && req.method === 'POST') {
+    if (!isRelayAuthorized(req.headers['x-kova-realtime-secret'])) return send(res, 401, { message: 'No autorizado.' });
+    return send(res, broadcastRelayed(await readBody(req)) ? 200 : 400, { ok: true });
   }
   if (requestPath === '/api/health') return send(res, 200, { ok: true, service: 'kova-api', timestamp: new Date().toISOString() });
   if (requestPath === '/api/errors' && req.method === 'POST') {
@@ -414,7 +418,7 @@ const handleRequest = async (req, res) => {
     const id = `dm_${crypto.randomUUID()}`; const createdAt = new Date().toISOString();
     await db.prepare('INSERT INTO direct_messages (id, sender_id, receiver_id, content, created_at) VALUES (?, ?, ?, ?, ?)').run(id, session.user_id, peerId, content, createdAt);
     const directMessage = { id, authorId: session.user_id, content, createdAt };
-    emitToUsers([session.user_id, peerId], 'dm:created', { ...directMessage, peerIds: [session.user_id, peerId] });
+    await emitToUsers([session.user_id, peerId], 'dm:created', { ...directMessage, peerIds: [session.user_id, peerId] });
     return send(res, 201, directMessage);
   }
   const removeFriendMatch = requestPath.match(/^\/api\/friends\/([^/]+)$/);
@@ -655,7 +659,7 @@ const handleRequest = async (req, res) => {
     await db.prepare('INSERT INTO messages (id, signal_id, author_id, content, reply_to_id, attachments, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, channelId, session.user_id, content, replyToId, JSON.stringify(attachments), createdAt);
     const author = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
     const created = { id, channelId, author: publicUser(author), content, replyToId: replyToId || undefined, attachments, createdAt, reactions: [] };
-    emitToChannel(channelId, 'message:created', created);
+    await emitToChannel(channelId, 'message:created', created);
     return send(res, 201, created);
   }
   const messageReactionMatch = requestPath.match(/^\/api\/messages\/([^/]+)\/reactions$/);
@@ -675,7 +679,7 @@ const handleRequest = async (req, res) => {
     const grouped = new Map();
     for (const row of rows) { const current = grouped.get(row.emoji) || { emoji: row.emoji, count: 0, users: [] }; current.count += 1; current.users.push(row.user_id); grouped.set(row.emoji, current); }
     const reactionUpdate = { messageId, channelId: message.signal_id, reactions: [...grouped.values()] };
-    emitToChannel(message.signal_id, 'message:reactions', reactionUpdate);
+    await emitToChannel(message.signal_id, 'message:reactions', reactionUpdate);
     return send(res, 200, reactionUpdate);
   }
   const messageMatch = requestPath.match(/^\/api\/messages\/([^/]+)$/);
@@ -687,7 +691,7 @@ const handleRequest = async (req, res) => {
     const message = await db.prepare('SELECT m.author_id, m.signal_id, s.space_id, p.owner_id FROM messages m JOIN signals s ON s.id = m.signal_id JOIN spaces p ON p.id = s.space_id WHERE m.id = ?').get(messageId);
     if (!message || (message.author_id !== session.user_id && message.owner_id !== session.user_id)) return send(res, 404, { message: 'No encontramos ese mensaje o no tienes permiso para editarlo.' });
     await db.prepare('UPDATE messages SET content = ? WHERE id = ?').run(content, messageId);
-    emitToChannel(message.signal_id, 'message:updated', { id: messageId, channelId: message.signal_id, content, edited: true });
+    await emitToChannel(message.signal_id, 'message:updated', { id: messageId, channelId: message.signal_id, content, edited: true });
     return send(res, 200, { id: messageId, content, edited: true });
   }
   if (messageMatch && req.method === 'DELETE') {
@@ -697,7 +701,7 @@ const handleRequest = async (req, res) => {
     if (!message || (message.author_id !== session.user_id && message.owner_id !== session.user_id)) return send(res, 404, { message: 'No encontramos ese mensaje o no tienes permiso para eliminarlo.' });
     await db.prepare('DELETE FROM message_reactions WHERE message_id = ?').run(messageId);
     await db.prepare('DELETE FROM messages WHERE id = ?').run(messageId);
-    emitToChannel(message.signal_id, 'message:deleted', { id: messageId, channelId: message.signal_id });
+    await emitToChannel(message.signal_id, 'message:deleted', { id: messageId, channelId: message.signal_id });
     return send(res, 200, { ok: true });
   }
   if (requestPath === '/api/channels' && req.method === 'POST') {

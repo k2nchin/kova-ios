@@ -71,6 +71,7 @@ before(async () => {
       KOVA_ENCRYPTION_KEY: 'test-encryption-key',
       GEMINI_API_KEY: 'test-gemini-key',
       GEMINI_API_BASE: `http://localhost:${geminiPort}`,
+      KOVA_REALTIME_SECRET: 'relay-test-secret',
       LIVEKIT_URL: 'wss://test.livekit.invalid',
       LIVEKIT_API_KEY: 'APItest',
       LIVEKIT_API_SECRET: 'livekit-test-secret-with-enough-length',
@@ -184,6 +185,14 @@ test('voz: token de LiveKit firmado solo para canales de voz accesibles', async 
   const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
   assert.equal(claims.video.room, `kova_${voice.id}`);
   assert.equal(claims.sub, owner.id);
+});
+
+test('relé de tiempo real: solo con el secreto y solo eventos permitidos', async () => {
+  const relay = (body, secret) => fetch(`${base}/realtime/emit`, { method: 'POST', headers: { 'content-type': 'application/json', ...(secret ? { 'x-kova-realtime-secret': secret } : {}) }, body: JSON.stringify(body) });
+  assert.equal((await relay({ channelId: 'c', event: 'message:created', payload: {} })).status, 401);
+  assert.equal((await relay({ channelId: 'c', event: 'message:created', payload: {} }, 'otro-secreto-xxxx')).status, 401);
+  assert.equal((await relay({ channelId: 'c', event: 'presence:changed', payload: {} }, 'relay-test-secret')).status, 400);
+  assert.equal((await relay({ channelId: 'c', event: 'message:created', payload: {} }, 'relay-test-secret')).status, 200);
 });
 
 test('Kova IA: exige sesión y usa las instrucciones del servidor', async () => {
