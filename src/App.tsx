@@ -384,7 +384,7 @@ const DesktopLaunch: React.FC = () => {
       window.setTimeout(() => {
         setLeaving(true);
         window.setTimeout(() => setGone(true), 400);
-      }, Math.max(0, 1400 - (Date.now() - startedAt)));
+      }, Math.max(0, 900 - (Date.now() - startedAt)));
     });
     return () => { cancelled = true; };
   }, []);

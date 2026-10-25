@@ -1,12 +1,12 @@
 {
-  "version": "1.0.16",
-  "notes": "Kova 1.0.16: arregla el arranque en Windows (WebView2Loader.dll), pantalla de inicio, verificado correcto, solicitudes de amistad y actualizaciones más fiables.",
-  "pub_date": "2026-10-25T07:17:49Z",
+  "version": "1.0.17",
+  "notes": "Kova 1.0.17: abre más rápido, usa un servidor de reserva si Vercel no responde y arrastrar la ventana ya no la bloquea.",
+  "pub_date": "2026-10-25T07:30:02Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.16_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFI5a1FmaTF6TGZCWWdhczNDdEgxRXVLclM3UTBSVzJNNWF6Z29oeExGaXo5UysydmNOWU14WFRrb2FDSm1WU1p2M08vOGlGWWo5Qjlld2JXcW81OFFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTEyNjE1CWZpbGU6S292YV8xLjAuMTZfeDY0LXNldHVwLmV4ZQpoUDY1Ti85Tk45RzVYV1BER0o3Q21FUmgzWHA4anFMUnNoOWgrOEIwQzRGNlpZOC9QYlZEUllwM1ZlMGtQODRJVzJLYTVGRTZFNDd6enE2ZXVmdkVBZz09Cg==",
-      "sha256": "FDF132907D912B312930C95BB40D297074228A8C8FF246E11F9E610A40DB2AD0"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.17_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGIwOWpsZ1EwYXZZa05HQ0s0c0syb3lzbXlqK1BITjdCeXZhSHVZSHFibktINXJWaEdIc2hFcHUvSG9scTdzb3Y1Qkg3bjgrdUZlQmNmbVRsMzI0WUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTEzMzI1CWZpbGU6S292YV8xLjAuMTdfeDY0LXNldHVwLmV4ZQpTM0psODBRYk5KdlQya0MrcFVMUVk1VFBhbk5QdEJ6YWFPMTU1OEYrSUZpdEtCZ1ZkaDlvb2xIUUZzV0RSVzRObUVDNVZSQjFFWk9zSmE3MUFzblNEZz09Cg==",
+      "sha256": "AFD9A44535747C0DDBBB1FBE6B5F7E292A912944763C938689D42AAAAB2AE02E"
     }
   }
 }

@@ -51,7 +51,7 @@ export type LaunchUpdateState =
  * version it is downloaded, installed and Kova restarts; otherwise it resolves
  * so the app can open. Gives up quietly after `timeoutMs` without network.
  */
-export async function checkAtLaunch(onState: (state: LaunchUpdateState) => void, timeoutMs = 6000) {
+export async function checkAtLaunch(onState: (state: LaunchUpdateState) => void, timeoutMs = 2000) {
   if (!isDesktopApp() || updateCheckStarted) return;
   updateCheckStarted = true;
   try {
@@ -113,7 +113,9 @@ export function startAutoUpdates(onReady: (version: string, restart: () => Promi
     }
   };
 
-  // The launch screen already checked; next look is in a few hours.
+  // The launch screen only waits ~2 s; look again shortly after start (slow
+  // networks) and then every few hours.
+  const first = window.setTimeout(() => void run(), 20_000);
   const timer = window.setInterval(() => void run(), CHECK_EVERY_MS);
-  return () => { stopped = true; window.clearInterval(timer); };
+  return () => { stopped = true; window.clearTimeout(first); window.clearInterval(timer); };
 }

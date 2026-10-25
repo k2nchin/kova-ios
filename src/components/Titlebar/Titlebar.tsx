@@ -80,10 +80,15 @@ export const Titlebar: React.FC<TitlebarProps> = ({ sidebarCollapsed = false, on
     }
   };
 
+  // One drag mechanism only: mixing data-tauri-drag-region with startDragging()
+  // made Windows freeze the window ("dejó de interactuar") while dragging.
+  // A double click maximizes instead of starting a drag.
   const handleTitlebarMouseDown = async (event: React.MouseEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement;
     if (target.closest('button, input, select, textarea, a, [role="button"]')) return;
+    event.preventDefault();
+    if (event.detail >= 2) { void handleMaximize(); return; }
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       await getCurrentWindow().startDragging();
@@ -94,9 +99,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({ sidebarCollapsed = false, on
 
   return (
     <header
-      data-tauri-drag-region
       onMouseDown={handleTitlebarMouseDown}
-      onDoubleClick={handleMaximize}
       className="kova-titlebar h-[52px] shrink-0 w-full bg-[#05030a] flex items-center justify-between px-4 select-none z-[60] text-xs text-[#949ba4] font-medium border-b border-white/10"
     >
       {/* Left: Star + Wordmark + Tagline + Sidebar Toggle */}

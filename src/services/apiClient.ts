@@ -1,5 +1,30 @@
 const isTauri = typeof window !== 'undefined' && ('__TAURI__' in window || '__TAURI_INTERNALS__' in window);
 const API_BASE_URL = import.meta.env.VITE_KOVA_API_URL || (isTauri ? 'https://kova-k2nchin.vercel.app/api' : '/api');
+// Same API and database, hosted on Render: the desktop app switches to it for
+// the rest of the session when Vercel doesn't answer (some networks block it).
+const FALLBACK_API_URL = 'https://kova-ios.onrender.com/api';
+const PRIMARY_TIMEOUT_MS = 6000;
+let activeApiBase = API_BASE_URL;
+
+const fetchApi = async (endpoint: string, config: RequestInit): Promise<Response> => {
+  const canFallBack = isTauri && activeApiBase !== FALLBACK_API_URL && /^https:/.test(activeApiBase);
+  if (!canFallBack) return fetch(`${activeApiBase}${endpoint}`, config);
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), PRIMARY_TIMEOUT_MS);
+  try {
+    return await fetch(`${activeApiBase}${endpoint}`, { ...config, signal: controller.signal });
+  } catch (error) {
+    const timedOut = controller.signal.aborted;
+    const isRead = !config.method || config.method === 'GET';
+    // A timed-out write may already have reached the server: don't repeat it.
+    if (timedOut && !isRead) throw new Error('El servidor tarda en responder. Inténtalo de nuevo.');
+    console.warn('[Kova API] Vercel no responde; usando el servidor de reserva.', error);
+    activeApiBase = FALLBACK_API_URL;
+    return fetch(`${activeApiBase}${endpoint}`, config);
+  } finally {
+    window.clearTimeout(timer);
+  }
+};
 
 export function getAuthToken(): string | null {
   try {
@@ -63,7 +88,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     config.body = JSON.stringify(data);
   }
 
-  const res = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  const res = await fetchApi(endpoint, config);
 
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
