@@ -189,6 +189,8 @@ export const api = {
     request<any>(`/messages/${messageId}`, { method: 'PUT', data: { content } }),
   toggleReaction: (messageId: string, emoji: string) =>
     request<any>(`/messages/${messageId}/reactions`, { method: 'POST', data: { emoji } }),
+  pinMessage: (messageId: string, pinned: boolean) =>
+    request<{ id: string; pinned: boolean }>(`/messages/${encodeURIComponent(messageId)}/pin`, { method: pinned ? 'PUT' : 'DELETE' }),
   deleteMessage: (messageId: string) => request<any>(`/messages/${messageId}`, { method: 'DELETE' }),
 
   // Voice

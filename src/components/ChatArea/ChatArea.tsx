@@ -294,45 +294,6 @@ export const ChatArea: React.FC = () => {
     }
   }, [messages.length]);
 
-  // Auto-welcome bot for roles/reglas/soporte/redes channels
-  useEffect(() => {
-    if (!activeChannel) return;
-    const name = activeChannel.name.toLowerCase();
-    if (name.includes('rol')) {
-      const timer = setTimeout(() => {
-        if (messages.length === 0) {
-          sendMessage('🤖 **Kova Bot**: ¡Hola! Aquí puedes seleccionar tus roles. Usa /roles para ver la lista completa.');
-          const rolesList = (activeServer?.roles || []).map(r => `• ${r.name}`).join('\n');
-          if (rolesList) {
-            setTimeout(() => {
-              sendMessage(`🎭 **Roles disponibles en ${activeServer?.name || 'el servidor'}**:\n${rolesList}`);
-            }, 600);
-          }
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-    if (name.includes('regla')) {
-      const timer = setTimeout(() => {
-        if (messages.length === 0) {
-          sendMessage('🤖 **Kova Bot**: Bienvenido/a a las reglas. Lee atentamente las normas para mantener la comunidad segura.');
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-    if (name.includes('soporte') || name.includes('ticket')) {
-      const timer = setTimeout(() => {
-        if (messages.length === 0) {
-          sendMessage('🤖 **Kova Bot**: ¡Hola! Soporte técnico y tickets. Crea tu ticket con /ticket o describe tu problema aquí.');
-          setTimeout(() => {
-            sendMessage(`🎫 **Cómo abrir un ticket**:\n1. Escribe \`/ticket\` o haz clic en el botón de soporte.\n2. Elige la categoría: Técnico, Cuenta, Moderación.\n3. Espera respuesta del equipo de moderación de ${activeServer?.name || 'el servidor'}.`);
-          }, 600);
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [activeChannel?.id, activeServer?.roles]);
-
   // Recording Timer
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -475,6 +436,15 @@ export const ChatArea: React.FC = () => {
       }
     }
 
+    // /ai is private: the question goes to the Kova IA panel, not to the channel.
+    if (text.startsWith('/ai')) {
+      const prompt = text.replace('/ai', '').trim();
+      setDraft('');
+      setIsTyping(true);
+      void askKovaAI(prompt || 'Resumen y análisis').finally(() => setIsTyping(false));
+      return;
+    }
+
     const attachments = pendingAttachments;
     sendMessage(
       fullText,
@@ -494,14 +464,8 @@ export const ChatArea: React.FC = () => {
       setSlowmodeCooldown(activeChannel.slowmode);
     }
 
-    if (text.startsWith('/ai')) {
-      const prompt = text.replace('/ai', '').trim();
-      setIsTyping(true);
-      askKovaAI(prompt || 'Resumen y análisis').finally(() => setIsTyping(false));
-    } else {
-      // Process Discord / Custom Bot commands and triggers
-      processBotTriggers(fullText, activeChannel.id);
-    }
+    // Process Discord / Custom Bot commands and triggers
+    processBotTriggers(fullText, activeChannel.id);
   };
 
   const exportConversation = (format: 'txt' | 'pdf') => {

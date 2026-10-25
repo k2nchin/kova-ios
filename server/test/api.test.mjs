@@ -326,3 +326,23 @@ test('amistad: enviar por nombre, aceptar, eliminar y volver a pedir', async () 
   assert.equal(back.body.accepted, true);
   assert.ok((await call('GET', '/friends', undefined, b.token)).body.friends.some((f) => f.id === a.id));
 });
+
+test('mensajes: fijar solo con permiso y respuestas con cita', async () => {
+  const owner = await register('fija');
+  const guest = await register('lee');
+  const space = await createSpace(owner, guest);
+  const channel = space.channels.find((c) => c.type !== 'voice');
+  const first = await call('POST', `/channels/${channel.id}/messages`, { content: 'Primer mensaje del canal' }, guest.token);
+  const reply = await call('POST', `/channels/${channel.id}/messages`, { content: 'Respuesta', replyToId: first.body.id }, owner.token);
+  assert.equal(reply.body.replyTo.content, 'Primer mensaje del canal');
+
+  assert.equal((await call('PUT', `/messages/${first.body.id}/pin`, undefined, guest.token)).status, 403, 'sin MANAGE_MESSAGES no se fija');
+  assert.equal((await call('PUT', `/messages/${first.body.id}/pin`, undefined, owner.token)).status, 200);
+  await call('PUT', `/messages/${first.body.id}`, { content: 'Primer mensaje editado' }, guest.token);
+
+  const history = (await call('GET', `/channels/${channel.id}/messages`, undefined, guest.token)).body;
+  const pinned = history.find((m) => m.id === first.body.id);
+  assert.equal(pinned.pinned, true, 'el fijado se guarda para todos');
+  assert.equal(pinned.edited, true);
+  assert.equal(history.find((m) => m.id === reply.body.id).replyTo.authorName.length > 0, true);
+});

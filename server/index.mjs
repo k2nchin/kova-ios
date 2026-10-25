@@ -88,6 +88,8 @@ try { await db.exec('ALTER TABLE sessions ADD COLUMN expires_at TEXT'); } catch 
 try { await db.exec('ALTER TABLE signals ADD COLUMN category_id TEXT'); } catch {}
 try { await db.exec('ALTER TABLE messages ADD COLUMN reply_to_id TEXT'); } catch {}
 try { await db.exec("ALTER TABLE messages ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'"); } catch {}
+try { await db.exec('ALTER TABLE messages ADD COLUMN pinned_at TEXT'); } catch {}
+try { await db.exec('ALTER TABLE messages ADD COLUMN edited_at TEXT'); } catch {}
 try { await db.prepare('UPDATE sessions SET expires_at = ? WHERE expires_at IS NULL').run(new Date(0).toISOString()); } catch {}
 const userFromRow = (row) => row && ({ id: row.id, username: row.username, displayName: row.display_name, email: row.email, avatar: row.avatar, passwordHash: row.password_hash, twoFactorEnabled: Number(row.totp_enabled || 0) === 1, bio: row.bio || '', banner: row.banner || '', customStatus: row.custom_status || '', thoughtBubble: row.thought_bubble || '', accentColor: row.accent_color || '', joinSound: row.join_sound || '' });
 const passwordHash = async (password) => {
@@ -122,6 +124,12 @@ const acceptFriendship = async (requestId, senderId, receiverId) => {
   }
   await db.prepare("UPDATE friend_requests SET status = 'accepted' WHERE id = ?").run(requestId);
   void emitToUsers([senderId, receiverId], 'friends:changed', { kind: 'accepted' });
+};
+// Short quote of the message being replied to (author + first words).
+const replyPreview = async (replyToId) => {
+  if (!replyToId) return undefined;
+  const row = await db.prepare('SELECT m.id, m.content, u.display_name, u.username FROM messages m JOIN users u ON u.id = m.author_id WHERE m.id = ?').get(replyToId);
+  return row ? { id: row.id, authorName: row.display_name || row.username, content: String(row.content || '').slice(0, 140) } : { id: replyToId, authorName: '', content: 'Mensaje eliminado' };
 };
 // Tells everyone in a space that something changed; clients refetch it.
 const notifySpace = async (spaceId, kind) => {
@@ -744,7 +752,7 @@ const handleRequest = async (req, res) => {
           current.users.push(reaction.user_id);
           grouped.set(reaction.emoji, current);
         }
-        messages.push({ id: row.id, channelId, author: { id: row.author_id, username: row.username, displayName: row.display_name, avatar: row.avatar, status: 'online', verified: isVerifiedEmail(row.author_email) }, content: row.content, replyToId: row.reply_to_id || undefined, attachments: parseJson(row.attachments, []), createdAt: row.created_at, reactions: [...grouped.values()] });
+        messages.push({ id: row.id, channelId, author: { id: row.author_id, username: row.username, displayName: row.display_name, avatar: row.avatar, status: 'online', verified: isVerifiedEmail(row.author_email) }, content: row.content, replyToId: row.reply_to_id || undefined, replyTo: await replyPreview(row.reply_to_id), pinned: Boolean(row.pinned_at), edited: Boolean(row.edited_at), attachments: parseJson(row.attachments, []), createdAt: row.created_at, reactions: [...grouped.values()] });
       }
       return send(res, 200, messages);
     }
@@ -760,7 +768,7 @@ const handleRequest = async (req, res) => {
     const createdAt = new Date().toISOString();
     await db.prepare('INSERT INTO messages (id, signal_id, author_id, content, reply_to_id, attachments, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, channelId, session.user_id, content, replyToId, JSON.stringify(attachments), createdAt);
     const author = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
-    const created = { id, channelId, author: publicUser(author), content, replyToId: replyToId || undefined, attachments, createdAt, reactions: [] };
+    const created = { id, channelId, author: publicUser(author), content, replyToId: replyToId || undefined, replyTo: await replyPreview(replyToId), attachments, createdAt, reactions: [] };
     await emitToChannel(channelId, 'message:created', created);
     return send(res, 201, created);
   }
@@ -784,6 +792,18 @@ const handleRequest = async (req, res) => {
     await emitToChannel(message.signal_id, 'message:reactions', reactionUpdate);
     return send(res, 200, reactionUpdate);
   }
+  const messagePinMatch = requestPath.match(/^\/api\/messages\/([^/]+)\/pin$/);
+  if (messagePinMatch && ['PUT', 'DELETE'].includes(req.method)) {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const messageId = decodeURIComponent(messagePinMatch[1]);
+    const message = await db.prepare('SELECT m.id, m.signal_id, s.space_id FROM messages m JOIN signals s ON s.id = m.signal_id WHERE m.id = ?').get(messageId);
+    if (!message || !(await canAccessSpace(message.space_id, session.user_id))) return send(res, 404, { message: 'No encontramos ese mensaje.' });
+    if (!await can(db, message.space_id, session.user_id, 'MANAGE_MESSAGES')) return send(res, 403, { message: 'No tienes permiso para fijar mensajes.' });
+    const pinned = req.method === 'PUT';
+    await db.prepare('UPDATE messages SET pinned_at = ? WHERE id = ?').run(pinned ? new Date().toISOString() : null, messageId);
+    await emitToChannel(message.signal_id, 'message:updated', { id: messageId, channelId: message.signal_id, pinned });
+    return send(res, 200, { id: messageId, pinned });
+  }
   const messageMatch = requestPath.match(/^\/api\/messages\/([^/]+)$/);
   if (messageMatch && req.method === 'PUT') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
@@ -792,7 +812,7 @@ const handleRequest = async (req, res) => {
     if (!content || content.length > 10_000) return send(res, 400, { message: 'El mensaje debe tener entre 1 y 10 000 caracteres.' });
     const message = await db.prepare('SELECT m.author_id, m.signal_id, s.space_id, p.owner_id FROM messages m JOIN signals s ON s.id = m.signal_id JOIN spaces p ON p.id = s.space_id WHERE m.id = ?').get(messageId);
     if (!message || message.author_id !== session.user_id) return send(res, 404, { message: 'No encontramos ese mensaje o no tienes permiso para editarlo.' });
-    await db.prepare('UPDATE messages SET content = ? WHERE id = ?').run(content, messageId);
+    await db.prepare('UPDATE messages SET content = ?, edited_at = ? WHERE id = ?').run(content, new Date().toISOString(), messageId);
     await emitToChannel(message.signal_id, 'message:updated', { id: messageId, channelId: message.signal_id, content, edited: true });
     return send(res, 200, { id: messageId, content, edited: true });
   }

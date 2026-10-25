@@ -53,6 +53,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionOutput, setExecutionOutput] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  // Touch screens have no hover: tapping a message shows its actions.
+  const [showActions, setShowActions] = useState(false);
+  const toggleActionsOnTouch = (event: React.MouseEvent) => {
+    if (!window.matchMedia('(hover: none)').matches) return;
+    if ((event.target as HTMLElement).closest('a, button, input, textarea, video, audio, img')) return;
+    setShowActions((open) => !open);
+  };
   const [editText, setEditText] = useState(message.content);
 
   useEffect(() => {
@@ -101,6 +108,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
       className={`kova-message-item ${isAuthorMe ? 'kova-message-mine' : ''} ${isBotMessage ? 'kova-message-bot' : ''} ${isGrouped ? 'is-grouped' : 'is-first-of-group'} group relative flex gap-4 px-4 py-2 transition-colors ${
         message.pinned ? 'bg-white/[0.03] border-l-2 border-[#c2c4c8]' : ''
       }`}
+      onClick={toggleActionsOnTouch}
     >
       {/* 1. Author Avatar (or the time, when continuing a group) */}
       <div className="relative shrink-0 mt-0.5">
@@ -395,7 +403,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
       </div>
 
       {/* 3. Floating Quick Action Toolbar on Hover */}
-      <div className="absolute top-2 right-3 hidden group-hover:flex items-center gap-0.5 bg-[#121520] border border-white/[0.1] rounded-xl p-1 shadow-2xl z-20 backdrop-blur-xl">
+      <div className={`absolute top-2 right-3 ${showActions ? 'flex' : 'hidden'} group-hover:flex items-center gap-0.5 bg-[#121520] border border-white/[0.1] rounded-xl p-1 shadow-2xl z-20 backdrop-blur-xl`}>
         {/* Emoji picker */}
         <div className="relative">
           <button

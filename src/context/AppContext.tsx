@@ -389,6 +389,8 @@ const messageFromApi = (item: any, fallbackUser: User): Message => {
     content: item.content || '',
     timestamp: `Hoy a las ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
     edited: Boolean(item.edited),
+    pinned: Boolean(item.pinned),
+    replyTo: item.replyTo?.id ? { id: item.replyTo.id, authorName: item.replyTo.authorName || '', content: item.replyTo.content || '' } : undefined,
     reactions: Array.isArray(item.reactions) ? item.reactions : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
   };
@@ -965,7 +967,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     const handleMessageUpdated = (msg: any) => {
       if (!msg?.channelId) return;
-      updateChannel(msg.channelId, (messages) => messages.map((m) => (m.id === msg.id ? { ...m, content: msg.content, edited: true } : m)));
+      updateChannel(msg.channelId, (messages) => messages.map((m) => {
+        if (m.id !== msg.id) return m;
+        const next = { ...m };
+        if (typeof msg.content === 'string') { next.content = msg.content; next.edited = true; }
+        if (typeof msg.pinned === 'boolean') next.pinned = msg.pinned;
+        return next;
+      }));
     };
     const handleMessageDeleted = (msg: any) => {
       if (!msg?.channelId) return;
@@ -1057,10 +1065,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
   const typingUsers = Object.values(typingByChannel[activeChannelId] || {});
 
+  const activeServerKnown = servers.some((server) => server.id === activeServerId);
   // REST polling is the reliable cross-device path on Vercel/serverless. Socket.IO
   // is used only when an actual realtime gateway URL has been configured.
   useEffect(() => {
-    if (!isAuthenticated || !getAuthToken() || !activeChannelId || !servers.some((server) => server.id === activeServerId)) return;
+    if (!isAuthenticated || !getAuthToken() || !activeChannelId || !activeServerKnown) return;
     let cancelled = false;
     const loadMessages = async () => {
       try {
@@ -1068,9 +1077,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (cancelled || !Array.isArray(remote)) return;
         const normalized = remote.map((item: any) => messageFromApi(item, currentUser));
         setAllMessages((previous) => {
-          const pending = (previous[activeChannelId] || []).filter((message) => message.id.startsWith('local_'));
+          const current = previous[activeChannelId] || [];
           const ids = new Set(normalized.map((message) => message.id));
-          return { ...previous, [activeChannelId]: [...normalized, ...pending.filter((message) => !ids.has(message.id))] };
+          // Keep what only exists here (sending, bot/AI answers) and per-device
+          // extras such as translations; the server is the truth for the rest.
+          const localOnly = current.filter((message) => !message.id.startsWith('message_') && !ids.has(message.id));
+          const translations = new Map(current.filter((m) => m.translatedText).map((m) => [m.id, m.translatedText]));
+          const merged = normalized.map((message) => (translations.has(message.id) ? { ...message, translatedText: translations.get(message.id) } : message));
+          return { ...previous, [activeChannelId]: [...merged, ...localOnly] };
         });
       } catch (error) {
         if (!cancelled) console.warn('[Kova messages sync]', error);
@@ -1080,7 +1094,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // With a live socket, polling is only a safety net for missed events.
     const timer = window.setInterval(loadMessages, realtimeConnected ? 30000 : 5000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [isAuthenticated, activeChannelId, activeServerId, currentUser.id, servers, realtimeConnected]);
+  }, [isAuthenticated, activeChannelId, activeServerId, currentUser.id, activeServerKnown, realtimeConnected]);
 
   // Themes & Sound
   const [theme, setThemeState] = useState<BackgroundTheme>(() => {
@@ -1591,6 +1605,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la solicitud.'); }
   };
 
+  // Friends' online state (they may share no space with us).
+  useEffect(() => {
+    if (!realtimeConnected || friends.length === 0) return;
+    const friendIds = friends.map((friend) => friend.id);
+    getSocket().emit('presence:query', { userIds: friendIds }, (reply: { online?: string[] }) => {
+      const online = new Set(reply?.online || []);
+      setPresenceByUser((prev) => {
+        const next = { ...prev };
+        for (const id of friendIds) next[id] = online.has(id) ? 'online' : 'offline';
+        return next;
+      });
+    });
+  }, [realtimeConnected, friends]);
+
   // Friend requests sent, accepted or cancelled by the other person show up live.
   const refreshFriendsRef = useRef(refreshFriends);
   useEffect(() => { refreshFriendsRef.current = refreshFriends; }, [refreshFriends]);
@@ -1825,13 +1853,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const togglePinMessage = (messageId: string) => {
-    setAllMessages((prev) => {
-      const channelMsgs = prev[activeChannel.id] || [];
-      const updated = channelMsgs.map((msg) =>
-        msg.id === messageId ? { ...msg, pinned: !msg.pinned } : msg
-      );
-      return { ...prev, [activeChannel.id]: updated };
-    });
+    const channelId = activeChannel.id;
+    const message = (allMessages[channelId] || []).find((msg) => msg.id === messageId);
+    if (!message) return;
+    const pinned = !message.pinned;
+    const apply = (value: boolean) => setAllMessages((prev) => ({
+      ...prev,
+      [channelId]: (prev[channelId] || []).map((msg) => (msg.id === messageId ? { ...msg, pinned: value } : msg)),
+    }));
+    apply(pinned);
+    if (!messageId.startsWith('message_')) return; // not on the server yet
+    api.pinMessage(messageId, pinned).then(
+      () => toast.success(pinned ? 'Mensaje fijado' : 'Mensaje desfijado'),
+      (error) => { apply(!pinned); toast.error(error instanceof Error ? error.message : 'No se pudo fijar el mensaje.'); },
+    );
   };
 
   // Voice Controls

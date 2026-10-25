@@ -143,6 +143,11 @@ export const MainLayout: React.FC = () => {
     typeof window !== 'undefined' ? window.innerWidth < 820 : false
   );
   const isMobile = useIsMobile();
+  // Wide screens have no tab bar to reopen the sidebar: never leave it folded
+  // after the window grows (it starts folded when the window opens narrow).
+  useEffect(() => {
+    if (!isMobile) setSidebarCollapsed(false);
+  }, [isMobile]);
   const isNative = isTauriApp();
   const isDesktop = isDesktopApp();
   const getInviteCode = () => {

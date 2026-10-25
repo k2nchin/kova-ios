@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
+import type { User } from '../../types';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { StoriesBar } from '../Stories/StoriesBar';
 import '../../styles/friends.css';
@@ -21,7 +22,7 @@ import '../../styles/friends.css';
 export const DirectMessagesView: React.FC = () => {
   const {
     currentUser,
-    dmConversations,
+    dmConversations: storedConversations,
     activeDMUserId,
     setActiveDMUserId,
     setIsDMViewActive,
@@ -29,14 +30,26 @@ export const DirectMessagesView: React.FC = () => {
     joinVoiceChannel,
     leaveVoiceChannel,
     isInVoice,
-    friends,
+    friends: storedFriends,
     addFriend,
     removeFriend,
     pendingFriendRequests,
     sendFriendRequest,
     cancelFriendRequest,
     acceptFriendRequest,
+    realtimeConnected,
+    presenceByUser,
   } = useApp();
+
+  // The server can't know who is online; live presence comes from the realtime
+  // gateway (unknown = offline, so nobody looks online by default).
+  const withPresence = <T extends { id: string; status: User['status'] }>(user: T): T => {
+    const live = realtimeConnected ? presenceByUser[user.id] : undefined;
+    const status: User['status'] = live === 'online' ? (user.status === 'offline' ? 'online' : user.status === 'online' ? 'online' : user.status) : 'offline';
+    return { ...user, status };
+  };
+  const friends = storedFriends.map(withPresence);
+  const dmConversations = storedConversations.map((conversation) => ({ ...conversation, user: withPresence(conversation.user) }));
 
   const [activeTab, setActiveTab] = useState<'online' | 'all' | 'pending' | 'add'>('all');
   const [friendQuery, setFriendQuery] = useState('');
