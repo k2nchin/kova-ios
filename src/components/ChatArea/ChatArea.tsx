@@ -583,7 +583,7 @@ export const ChatArea: React.FC = () => {
               <span>{onlineMembers.length} en línea</span>
             </button>
           )}
-          <button type="button" onClick={() => setIsCommandPaletteOpen(true)} title="Buscar (Ctrl+K)" aria-label="Buscar">
+          <button type="button" className="kova-stage-desktop" onClick={() => setIsCommandPaletteOpen(true)} title="Buscar (Ctrl+K)" aria-label="Buscar">
             <Search size={17} />
           </button>
           <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes fijados" aria-label="Mensajes fijados">
@@ -592,7 +592,7 @@ export const ChatArea: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsMemberListOpen(!isMemberListOpen)}
-            className={isMemberListOpen ? 'is-active' : ''}
+            className={`kova-stage-desktop ${isMemberListOpen ? 'is-active' : ''}`}
             title={isMemberListOpen ? 'Ocultar miembros' : 'Mostrar miembros'}
             aria-pressed={isMemberListOpen}
           >

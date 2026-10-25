@@ -304,7 +304,11 @@
   .kova-stage-head { padding: 12px 14px; }
   .kova-stage-title h1 { font-size: 18px; }
   .kova-stage-title p { display: none; }
-  .kova-stage-actions > .kova-stage-presence span:last-child { display: none; }
+  /* The bottom bar already has search and members on phones. */
+  .kova-stage-actions > .kova-stage-presence,
+  .kova-stage-actions > .kova-stage-desktop { display: none; }
+  .kova-stage-title { min-width: 0; flex: 1; }
+  .kova-stage-title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* ---------- Members panel ---------- */

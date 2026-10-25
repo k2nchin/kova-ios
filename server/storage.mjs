@@ -11,6 +11,7 @@ const BLOCKED_TYPES = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml|appl
 export const UPLOAD_KINDS = {
   avatar: { maxBytes: 8 * MB, accept: /^image\// },
   banner: { maxBytes: 8 * MB, accept: /^image\// },
+  icon: { maxBytes: 8 * MB, accept: /^image\// },
   story: { maxBytes: 25 * MB, accept: /^(image|video)\// },
   sound: { maxBytes: 2 * MB, accept: /^audio\// },
   attachment: { maxBytes: 25 * MB, accept: /.*/ },

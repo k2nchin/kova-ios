@@ -26,7 +26,7 @@ export type AuthResponse =
   | { user: any; token: string; twoFactorRequired?: false; challenge?: undefined }
   | { twoFactorRequired: true; challenge: string; methods: string[]; user?: undefined; token?: undefined };
 
-export type UploadKind = 'avatar' | 'banner' | 'story' | 'sound' | 'attachment';
+export type UploadKind = 'avatar' | 'banner' | 'icon' | 'story' | 'sound' | 'attachment';
 
 /**
  * Uploads a file through Kova: the API validates it and hands back a signed URL,

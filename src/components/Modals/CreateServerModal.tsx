@@ -1,342 +1,237 @@
-import React, { useState } from 'react';
-import {
-  X,
-  Users,
-  Gamepad2,
-  Globe,
-  Briefcase,
-  Sparkles,
-  ArrowLeft,
-  Link,
-  Check,
-  Upload,
-  Lock,
-  ShieldCheck,
-} from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Check, Copy, Hash, ImagePlus, Link, Loader2, Lock, Globe, Volume2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useApp } from '../../context/AppContext';
+import { api, uploadFile } from '../../services/apiClient';
+import { SPACE_TEMPLATES, type SpaceTemplateId } from '../../data/spaceTemplates';
+import type { Server } from '../../types';
+import { Avatar } from '../Common/Avatar';
+import '../../styles/createSpace.css';
 
-type ServerTemplate = 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro';
+type Step = 'template' | 'details' | 'invite' | 'join';
 
+/** Wizard to create a space (template → details → invite) or join one with a code. */
 export const CreateServerModal: React.FC = () => {
-  const {
-    isCreateServerOpen,
-    setIsCreateServerOpen,
-    createServer,
-    joinServerByInvite,
-    currentUser,
-  } = useApp();
+  const { isCreateServerOpen, setIsCreateServerOpen, createServer, joinServerByInvite, currentUser } = useApp();
 
-  const [mode, setMode] = useState<'create' | 'join'>('create');
-  const [name, setName] = useState(`Servidor de ${currentUser.displayName}`);
+  const [step, setStep] = useState<Step>('template');
+  const [template, setTemplate] = useState<SpaceTemplateId>('amigos');
+  const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [template, setTemplate] = useState<ServerTemplate>('amigos');
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
-  const [iconUrl, setIconUrl] = useState(
-    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80'
-  );
+  const [iconUrl, setIconUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<Server | null>(null);
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [copied, setCopied] = useState(false);
   const [inviteInput, setInviteInput] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Start fresh every time the dialog opens.
+  useEffect(() => {
+    if (!isCreateServerOpen) return;
+    setStep('template'); setTemplate('amigos'); setName(`Espacio de ${currentUser.displayName}`);
+    setDescription(''); setVisibility('private'); setIconUrl(''); setCreated(null);
+    setInviteUrl(''); setCopied(false); setInviteInput(''); setJoinError('');
+  }, [isCreateServerOpen, currentUser.displayName]);
+
+  useEffect(() => {
+    if (!isCreateServerOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) setIsCreateServerOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isCreateServerOpen, busy, setIsCreateServerOpen]);
 
   if (!isCreateServerOpen) return null;
 
-  const sampleIcons = [
-    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=150&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=150&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=150&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=150&auto=format&fit=crop&q=80',
-  ];
+  const close = () => { if (!busy) setIsCreateServerOpen(false); };
+  const selected = SPACE_TEMPLATES.find((item) => item.id === template)!;
 
-  const templates: Array<{
-    id: ServerTemplate;
-    title: string;
-    description: string;
-    icon: React.ReactNode;
-  }> = [
-    {
-      id: 'amigos',
-      title: 'Para mí y mis amigos',
-      description: '#general, #planes, #clips, 🔊 Sala de Charlas y Gaming',
-      icon: <Users size={18} className="text-purple-400" />,
-    },
-    {
-      id: 'comunidad',
-      title: 'Comunidad o Club',
-      description: '#reglas, #anuncios, #general, 🔊 Eventos',
-      icon: <Globe size={18} className="text-cyan-400" />,
-    },
-    {
-      id: 'gaming',
-      title: 'Gaming & Competitivo',
-      description: '#noticias, #lfg, 🔊 Squad 1, Squad 2 y Lounge',
-      icon: <Gamepad2 size={18} className="text-emerald-400" />,
-    },
-    {
-      id: 'trabajo',
-      title: 'Trabajo o Estudio',
-      description: '#objetivos, #proyectos, 🔊 Sala de Reuniones',
-      icon: <Briefcase size={18} className="text-amber-400" />,
-    },
-    {
-      id: 'otro',
-      title: 'Personalizado',
-      description: '#general y 🔊 General básico',
-      icon: <Sparkles size={18} className="text-pink-400" />,
-    },
-  ];
-
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
-    createServer(name.trim(), description.trim(), iconUrl.trim() || undefined, template, visibility);
-  };
-
-  const handleJoinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteInput.trim()) {
-      toast.error('Por favor ingresa un código o enlace de invitación');
-      return;
-    }
-    const success = joinServerByInvite(inviteInput.trim());
-    if (success) {
-      setInviteInput('');
+  const pickIcon = async (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Elige una imagen.'); return; }
+    setUploading(true);
+    try {
+      setIconUrl(await uploadFile(file, 'icon'));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen.');
+    } finally {
+      setUploading(false);
     }
   };
+
+  const submitCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || busy || uploading) return;
+    setBusy(true);
+    const space = await createServer(name.trim(), description.trim(), iconUrl || undefined, template, visibility);
+    if (space) {
+      setCreated(space);
+      setStep('invite');
+      api.createInvite(space.id, { expiresInMinutes: 7 * 24 * 60, maxUses: 0 })
+        .then((invite) => setInviteUrl(invite.url))
+        .catch(() => setInviteUrl(''));
+    }
+    setBusy(false);
+  };
+
+  const submitJoin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!inviteInput.trim() || busy) return;
+    setBusy(true); setJoinError('');
+    const result = await joinServerByInvite(inviteInput.trim());
+    setBusy(false);
+    if (result.ok) setIsCreateServerOpen(false);
+    else setJoinError(result.message);
+  };
+
+  const copyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error('No se pudo copiar. Selecciona el enlace y cópialo a mano.');
+    }
+  };
+
+  const stepIndex = step === 'template' ? 1 : step === 'details' ? 2 : 3;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150 select-none font-['Plus_Jakarta_Sans',sans-serif]"
-      onClick={() => setIsCreateServerOpen(false)}
-    >
-      <div
-        className="kova-create-space w-full max-w-lg rounded-[28px] bg-[#0d0e11] border border-white/15 shadow-[0_28px_90px_rgba(0,0,0,.7)] overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-[#111216] to-[#090a0d]">
-          <div className="flex items-center gap-2.5">
-            {mode === 'join' && (
-              <button
-                type="button"
-                onClick={() => setMode('create')}
-                className="p-1.5 rounded-xl hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer mr-1"
-                title="Volver a crear servidor"
-              >
-                <ArrowLeft size={16} />
-              </button>
-            )}
-            <div>
-              <h2 className="text-base font-bold text-white font-['Outfit']">
-                {mode === 'create' ? 'Crear tu servidor' : 'Unirse a un servidor'}
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                {mode === 'create'
-                  ? 'Tu servidor es donde tú y tus amigos o comunidad pasan el rato.'
-                  : 'Ingresa un enlace de invitación para unirte a un servidor existente.'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsCreateServerOpen(false)}
-            className="p-1.5 rounded-xl hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
-          >
-            <X size={16} />
-          </button>
-        </div>
+    <div className="kcs-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+      <div className="kcs-dialog" role="dialog" aria-modal="true" aria-labelledby="kcs-title">
+        <header className="kcs-head">
+          {(step === 'details' || step === 'join') && (
+            <button type="button" className="kcs-icon-btn" onClick={() => setStep('template')} aria-label="Volver"><ArrowLeft size={16} /></button>
+          )}
+          {step !== 'join' && (
+            <ol className="kcs-steps" aria-label={`Paso ${stepIndex} de 3`}>
+              {[1, 2, 3].map((n) => <li key={n} className={n <= stepIndex ? 'is-on' : ''} />)}
+            </ol>
+          )}
+          <button type="button" className="kcs-icon-btn kcs-close" onClick={close} aria-label="Cerrar"><X size={16} /></button>
+        </header>
 
-        {/* Body */}
-        {mode === 'create' ? (
-          <form
-            onSubmit={handleCreateSubmit}
-            className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1"
-          >
-            {/* 1. Server Icon Selector */}
-            <div className="flex flex-col items-center gap-2 pt-1">
-              <div className="relative group">
-                <img
-                  src={iconUrl}
-                  alt="Icono del servidor"
-                  className="w-20 h-20 rounded-3xl object-cover ring-2 ring-purple-500/50 shadow-xl glow-purple transition-all group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-black/40 rounded-3xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <Upload size={16} className="text-white" />
-                  <span className="text-[9px] font-bold text-white uppercase mt-0.5">Icono</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                {sampleIcons.map((img, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setIconUrl(img)}
-                    className={`w-7 h-7 rounded-xl overflow-hidden transition-all cursor-pointer ${
-                      iconUrl === img ? 'ring-2 ring-purple-400 scale-110' : 'opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <img src={img} alt="preset" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 2. Server Name */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
-                Nombre del Servidor *
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej. Cyberpunk Developers HQ"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-medium"
-              />
-            </div>
-
-            {/* 3. Purpose / Template Selection */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
-                ¿Para qué lo usarás?
-              </label>
-              <div className="grid grid-cols-1 gap-2">
-                {templates.map((t) => {
-                  const isSelected = template === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setTemplate(t.id)}
-                      className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer text-left ${
-                        isSelected
-                          ? 'bg-purple-600/15 border-purple-500 shadow-md glow-purple'
-                          : 'bg-purple-950/20 border-purple-900/20 hover:bg-purple-900/30'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`p-2 rounded-xl ${
-                            isSelected ? 'bg-purple-500/25' : 'bg-white/[0.05]'
-                          }`}
-                        >
-                          {t.icon}
-                        </div>
-                        <div>
-                          <div
-                            className={`text-xs font-bold ${
-                              isSelected ? 'text-purple-300' : 'text-slate-200'
-                            }`}
-                          >
-                            {t.title}
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {t.description}
-                          </div>
-                        </div>
-                      </div>
-                      <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          isSelected
-                            ? 'border-purple-400 bg-purple-500 text-white'
-                            : 'border-slate-600'
-                        }`}
-                      >
-                        {isSelected && <Check size={10} />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">Visibilidad del espacio</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setVisibility('private')} className={`p-3 rounded-2xl border text-left transition-all ${visibility === 'private' ? 'bg-white/10 border-white/35' : 'bg-black/30 border-white/10'}`}>
-                  <Lock size={17} className="mb-2 text-zinc-200" />
-                  <strong className="block text-xs text-white">Privado</strong>
-                  <span className="block mt-1 text-[10px] leading-4 text-zinc-400">Solo entra quien tenga invitación.</span>
-                </button>
-                <button type="button" onClick={() => setVisibility('public')} className={`p-3 rounded-2xl border text-left transition-all ${visibility === 'public' ? 'bg-cyan-400/10 border-cyan-300/45' : 'bg-black/30 border-white/10'}`}>
-                  <Globe size={17} className="mb-2 text-cyan-300" />
-                  <strong className="block text-xs text-white">Público</strong>
-                  <span className="block mt-1 text-[10px] leading-4 text-zinc-400">Visible para descubrir y unirse.</span>
-                </button>
-              </div>
-              <div className="flex items-center gap-2 text-[10px] text-zinc-400"><ShieldCheck size={13} className="text-emerald-400" /> Puedes cambiarlo después en Ajustes.</div>
-            </div>
-
-            {/* Actions & Footer */}
-            <div className="pt-3 border-t border-white/10 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setMode('join')}
-                className="text-[11px] font-semibold text-zinc-300 hover:text-white hover:underline cursor-pointer flex items-center gap-1.5"
-              >
-                <Link size={13} />
-                <span>¿Ya tienes una invitación?</span>
-              </button>
-
-              <div className="flex items-center gap-2">
+        {step === 'template' && (
+          <section className="kcs-body">
+            <h2 id="kcs-title">¿Para qué es tu espacio?</h2>
+            <p className="kcs-lead">Elige un punto de partida. Podrás cambiar los canales cuando quieras.</p>
+            <div className="kcs-templates">
+              {SPACE_TEMPLATES.map((item) => (
                 <button
+                  key={item.id}
                   type="button"
-                  onClick={() => setIsCreateServerOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className={`kcs-template ${template === item.id ? 'is-selected' : ''}`}
+                  onClick={() => setTemplate(item.id)}
+                  onDoubleClick={() => { setTemplate(item.id); setStep('details'); }}
+                  aria-pressed={template === item.id}
                 >
-                  Cancelar
+                  <strong>{item.title}</strong>
+                  <span>{item.description}</span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={!name.trim()}
-                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-zinc-100 to-zinc-400 hover:from-white hover:to-zinc-300 text-black text-xs font-extrabold transition-all shadow-lg disabled:opacity-40 cursor-pointer"
-                >
-                  Crear Servidor
-                </button>
+              ))}
+            </div>
+            <div className="kcs-preview" aria-label="Canales que se crearán">
+              {selected.sections.map((section) => (
+                <div key={section.name}>
+                  <h3>{section.name}</h3>
+                  <ul>
+                    {section.channels.map((channel) => (
+                      <li key={channel.name}>
+                        {channel.type === 'voice' ? <Volume2 size={13} /> : <Hash size={13} />}
+                        {channel.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <footer className="kcs-foot">
+              <button type="button" className="kcs-link" onClick={() => setStep('join')}><Link size={14} /> Tengo una invitación</button>
+              <button type="button" className="kcs-primary" onClick={() => setStep('details')}>Continuar</button>
+            </footer>
+          </section>
+        )}
+
+        {step === 'details' && (
+          <form className="kcs-body" onSubmit={submitCreate}>
+            <h2 id="kcs-title">Personalízalo</h2>
+            <p className="kcs-lead">Dale un nombre y una cara. Todo se puede cambiar después.</p>
+            <div className="kcs-identity">
+              <button type="button" className="kcs-icon-pick" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Subir icono">
+                {uploading ? <Loader2 size={20} className="animate-spin" /> : <Avatar src={iconUrl} name={name || 'K'} size={72} />}
+                <span><ImagePlus size={13} /></span>
+              </button>
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(event) => { pickIcon(event.target.files?.[0]); event.target.value = ''; }} />
+              <div>
+                <strong>Icono del espacio</strong>
+                <small>{iconUrl ? <button type="button" className="kcs-link" onClick={() => setIconUrl('')}>Quitar imagen</button> : 'Opcional. Si no subes una, usamos sus iniciales.'}</small>
               </div>
             </div>
+            <label className="kcs-field">
+              <span>Nombre</span>
+              <input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} autoFocus required />
+            </label>
+            <label className="kcs-field">
+              <span>Descripción <em>opcional</em></span>
+              <textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={200} rows={2} placeholder="¿De qué va este espacio?" />
+            </label>
+            <div className="kcs-visibility" role="radiogroup" aria-label="Visibilidad">
+              <button type="button" role="radio" aria-checked={visibility === 'private'} className={visibility === 'private' ? 'is-selected' : ''} onClick={() => setVisibility('private')}>
+                <Lock size={15} /><strong>Privado</strong><span>Solo con invitación</span>
+              </button>
+              <button type="button" role="radio" aria-checked={visibility === 'public'} className={visibility === 'public' ? 'is-selected' : ''} onClick={() => setVisibility('public')}>
+                <Globe size={15} /><strong>Público</strong><span>Aparece en Explorar</span>
+              </button>
+            </div>
+            <footer className="kcs-foot">
+              <span className="kcs-hint">{selected.title} · {selected.sections.reduce((n, s) => n + s.channels.length, 0)} canales</span>
+              <button type="submit" className="kcs-primary" disabled={!name.trim() || busy || uploading}>
+                {busy ? <><Loader2 size={15} className="animate-spin" /> Creando…</> : 'Crear espacio'}
+              </button>
+            </footer>
           </form>
-        ) : (
-          <form
-            onSubmit={handleJoinSubmit}
-            className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1"
-          >
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
-                Enlace o Código de Invitación *
-              </label>
-              <input
-                type="text"
-                required
-                value={inviteInput}
-                onChange={(e) => setInviteInput(e.target.value)}
-                placeholder="https://kova-k2nchin.vercel.app/invite/espacio o código"
-                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#07020e] border border-purple-900/30 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono"
-              />
-              <p className="text-[11px] text-slate-400">
-                Las invitaciones tienen un formato como{' '}
-                <span className="font-mono text-slate-200">https://kova-k2nchin.vercel.app/invite/espacio</span> o{' '}
-                <span className="font-mono text-purple-300">xyz</span>.
-              </p>
-            </div>
+        )}
 
-            <div className="pt-4 border-t border-purple-950/40 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setMode('create')}
-                className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                Volver
-              </button>
-              <button
-                type="submit"
-                disabled={!inviteInput.trim()}
-                className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shadow-lg glow-purple disabled:opacity-40 cursor-pointer"
-              >
-                Unirse al Servidor
+        {step === 'invite' && created && (
+          <section className="kcs-body kcs-done">
+            <Avatar src={created.icon} name={created.name} size={64} />
+            <h2 id="kcs-title">{created.name} está listo</h2>
+            <p className="kcs-lead">Comparte este enlace para que tu gente entre. Caduca en 7 días.</p>
+            <div className="kcs-invite">
+              <input readOnly value={inviteUrl || 'Generando enlace…'} onFocus={(event) => event.target.select()} aria-label="Enlace de invitación" />
+              <button type="button" className="kcs-primary" onClick={copyInvite} disabled={!inviteUrl}>
+                {copied ? <><Check size={15} /> Copiado</> : <><Copy size={15} /> Copiar</>}
               </button>
             </div>
+            <footer className="kcs-foot kcs-foot-end">
+              <button type="button" className="kcs-primary" onClick={() => setIsCreateServerOpen(false)}>Ir a mi espacio</button>
+            </footer>
+          </section>
+        )}
+
+        {step === 'join' && (
+          <form className="kcs-body" onSubmit={submitJoin}>
+            <h2 id="kcs-title">Unirse a un espacio</h2>
+            <p className="kcs-lead">Pega el enlace o el código que te pasaron.</p>
+            <label className="kcs-field">
+              <span>Invitación</span>
+              <input
+                value={inviteInput}
+                onChange={(event) => { setInviteInput(event.target.value); setJoinError(''); }}
+                placeholder="https://kova…/invite/abc123 o abc123"
+                aria-invalid={Boolean(joinError)}
+                autoFocus
+              />
+            </label>
+            {joinError && <p className="kcs-error" role="alert">{joinError}</p>}
+            <footer className="kcs-foot kcs-foot-end">
+              <button type="submit" className="kcs-primary" disabled={!inviteInput.trim() || busy}>
+                {busy ? <><Loader2 size={15} className="animate-spin" /> Entrando…</> : 'Unirme'}
+              </button>
+            </footer>
           </form>
         )}
       </div>

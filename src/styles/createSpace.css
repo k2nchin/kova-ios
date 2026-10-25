@@ -1,0 +1,117 @@
+/* Create / join space wizard — chrome console palette. */
+.kcs-overlay {
+  position: fixed; inset: 0; z-index: 80;
+  display: grid; place-items: center; padding: 16px;
+  background: rgb(5 5 6 / 0.72);
+}
+.kcs-dialog {
+  width: min(560px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto;
+  background: #141516; color: #f4f5f7;
+  border: 1px solid #2a2b2d; border-radius: 18px;
+  box-shadow: 0 30px 80px rgb(0 0 0 / 0.55), inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+.kcs-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px 0; }
+.kcs-steps { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.kcs-steps li { width: 22px; height: 3px; border-radius: 2px; background: #2a2b2d; }
+.kcs-steps li.is-on { background: linear-gradient(90deg, #797b7e, #f4f5f7); }
+.kcs-icon-btn {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+  color: #797b7e; background: transparent; border: 0; cursor: pointer;
+}
+.kcs-icon-btn:hover { color: #f4f5f7; background: #1e1f20; }
+.kcs-close { margin-left: auto; }
+
+.kcs-body { padding: 10px 24px 22px; }
+.kcs-body h2 { font-family: Outfit, system-ui, sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.kcs-lead { margin: 6px 0 18px; color: #9a9ca0; font-size: 14px; }
+
+.kcs-templates { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.kcs-template {
+  display: flex; flex-direction: column; gap: 4px; text-align: left;
+  padding: 12px 13px; border-radius: 12px; cursor: pointer;
+  background: #1a1b1c; border: 1px solid #2a2b2d; color: inherit;
+}
+.kcs-template strong { font-size: 14px; }
+.kcs-template span { font-size: 12px; color: #797b7e; line-height: 1.35; }
+.kcs-template:hover { border-color: #454749; }
+.kcs-template.is-selected { border-color: #c2c4c8; background: #1e1f20; box-shadow: inset 0 0 0 1px #c2c4c8; }
+
+.kcs-preview {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px;
+  margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #0e0f10; border: 1px dashed #2a2b2d;
+}
+.kcs-preview h3 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #797b7e; }
+.kcs-preview ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; }
+.kcs-preview li { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #c2c4c8; }
+.kcs-preview li svg { color: #5d5f62; }
+
+.kcs-identity { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.kcs-identity strong { display: block; font-size: 14px; }
+.kcs-identity small { font-size: 12px; color: #797b7e; }
+.kcs-icon-pick {
+  position: relative; display: grid; place-items: center; width: 76px; height: 76px; border-radius: 22px;
+  background: #1e1f20; border: 1px dashed #454749; cursor: pointer; padding: 0; color: #c2c4c8;
+}
+.kcs-icon-pick .kova-avatar { border-radius: 20px; }
+.kcs-icon-pick > span {
+  position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%; background: #f4f5f7; color: #0a0a0b;
+}
+
+.kcs-field { display: grid; gap: 6px; margin-bottom: 12px; }
+.kcs-field > span { font-size: 12px; font-weight: 600; color: #c2c4c8; }
+.kcs-field em { font-style: normal; font-weight: 400; color: #5d5f62; }
+.kcs-field input, .kcs-field textarea, .kcs-invite input {
+  width: 100%; padding: 10px 12px; border-radius: 10px; font: inherit; font-size: 14px; resize: none;
+  color: #f4f5f7; background: #0e0f10; border: 1px solid #2a2b2d; outline: none;
+}
+.kcs-field input:focus, .kcs-field textarea:focus, .kcs-invite input:focus { border-color: #797b7e; }
+.kcs-field input[aria-invalid='true'] { border-color: #c45a5a; }
+.kcs-error { margin: -4px 0 8px; font-size: 13px; color: #e08080; }
+
+.kcs-visibility { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kcs-visibility button {
+  display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; text-align: left;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer; color: inherit; background: #1a1b1c; border: 1px solid #2a2b2d;
+}
+.kcs-visibility svg { grid-row: span 2; color: #797b7e; }
+.kcs-visibility strong { font-size: 13px; }
+.kcs-visibility span { font-size: 11px; color: #797b7e; }
+.kcs-visibility .is-selected { border-color: #c2c4c8; background: #1e1f20; }
+.kcs-visibility .is-selected svg { color: #f4f5f7; }
+
+.kcs-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.kcs-foot-end { justify-content: flex-end; }
+.kcs-hint { font-size: 12px; color: #797b7e; }
+.kcs-primary {
+  display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border-radius: 10px; border: 0;
+  font-weight: 600; font-size: 14px; cursor: pointer; color: #0a0a0b;
+  background: linear-gradient(180deg, #f4f5f7, #b8babe);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8), 0 4px 14px rgb(0 0 0 / 0.35);
+}
+.kcs-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.kcs-link {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none;
+  color: #c2c4c8; font-size: 13px; cursor: pointer;
+}
+.kcs-link:hover { color: #f4f5f7; text-decoration: underline; }
+
+.kcs-done { text-align: center; padding-top: 18px; }
+.kcs-done > .kova-avatar { margin: 0 auto 12px; border-radius: 18px; }
+.kcs-invite { display: flex; gap: 8px; }
+.kcs-invite input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 13px; }
+
+@media (max-width: 480px) {
+  /* Bottom sheet on phones: full width, actions always reachable. */
+  .kcs-overlay { padding: 0; place-items: end stretch; }
+  .kcs-dialog { width: 100%; max-height: 92dvh; border-radius: 20px 20px 0 0; border-bottom: 0; }
+  .kcs-body { padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .kcs-body h2 { font-size: 21px; }
+  .kcs-templates { grid-template-columns: 1fr 1fr; }
+  .kcs-template { padding: 10px; }
+  .kcs-template span { display: none; }
+  .kcs-template.is-selected span { display: block; }
+  .kcs-foot { position: sticky; bottom: 0; margin: 16px -16px 0; padding: 12px 16px 0; background: #141516; border-top: 1px solid #2a2b2d; }
+  .kcs-visibility { grid-template-columns: 1fr; }
+  .kcs-invite { flex-direction: column; }
+}

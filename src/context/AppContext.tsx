@@ -18,6 +18,7 @@ import {
 } from '../types';
 import { DEFAULT_BOTS } from '../data/defaultBots';
 import { INITIAL_NOTES, CURRENT_USER } from '../data/defaults';
+import { buildSpaceStructure, type SpaceTemplateId } from '../data/spaceTemplates';
 import { soundFx } from '../utils/soundEffects';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
 import confetti from 'canvas-confetti';
@@ -222,10 +223,10 @@ interface AppContextType {
     name: string,
     description?: string,
     iconUrl?: string,
-    template?: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro',
+    template?: SpaceTemplateId,
     visibility?: 'public' | 'private'
-  ) => void;
-  joinServerByInvite: (inviteCodeOrId: string) => boolean;
+  ) => Promise<Server | null>;
+  joinServerByInvite: (inviteCodeOrId: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   createChannel: (name: string, type: ChannelType, categoryId?: string) => void;
   updateChannel: (channelId: string, updates: Partial<Channel>) => void;
   deleteServer: (serverId: string) => void;
@@ -2411,227 +2412,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Server, Channel & Category operations
-  const createServer = (
+  // Creates the space on the server first, so the caller can invite people
+  // right away. Resolves to the new space, or null (an error toast is shown).
+  const createServer = async (
     name: string,
     description?: string,
     iconUrl?: string,
-    template: 'amigos' | 'comunidad' | 'gaming' | 'trabajo' | 'otro' = 'amigos',
+    template: SpaceTemplateId = 'amigos',
     visibility: 'public' | 'private' = 'private'
-  ) => {
-    soundFx.playJoinVoice();
+  ): Promise<Server | null> => {
     const newServerId = `server_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
+    const { categories, channels } = buildSpaceStructure(template, newServerId);
+    const ownerMember: User = { ...currentUser, roles: [`role_owner_${newServerId}`] };
 
-    const defaultRoles = createDefaultRoles(newServerId);
-    const ownerRoleId = `role_owner_${newServerId}`;
-    const ownerMember: User = {
-      ...currentUser,
-      roles: [ownerRoleId],
-    };
-
-    let categories: ChannelCategory[];
-    let channels: Channel[];
-
-    if (template === 'amigos') {
-      const catInfo = `cat_info_${newServerId}`;
-      const catChat = `cat_chat_${newServerId}`;
-      const catVoice = `cat_voice_${newServerId}`;
-      const chReglas = `chan_reg_${newServerId}`;
-      const chAnuncios = `chan_anu_${newServerId}`;
-      const chGen = `chan_gen_${newServerId}`;
-      const chPlanes = `chan_pla_${newServerId}`;
-      const chMemes = `chan_mem_${newServerId}`;
-      const chVoice1 = `chan_v1_${newServerId}`;
-      const chVoice2 = `chan_v2_${newServerId}`;
-
-      categories = [
-        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chAnuncios] },
-        { id: catChat, name: 'CHAT', channelIds: [chGen, chPlanes, chMemes] },
-        { id: catVoice, name: 'VOICE', channelIds: [chVoice1, chVoice2] },
-      ];
-
-      channels = [
-        { id: chReglas, name: 'reglas', type: 'text', topic: 'Reglas y acuerdos del grupo', categoryId: catInfo },
-        { id: chAnuncios, name: 'anuncios', type: 'announcements', topic: 'Novedades y avisos', categoryId: catInfo },
-        { id: chGen, name: 'general', type: 'text', topic: 'Charla general de amigos', categoryId: catChat },
-        { id: chPlanes, name: 'planes', type: 'text', topic: 'Coordinar salidas y eventos', categoryId: catChat },
-        { id: chMemes, name: 'clips-y-memes', type: 'text', topic: 'Comparte risas y clips', categoryId: catChat },
-        { id: chVoice1, name: 'General', type: 'voice', topic: 'Voz libre para hablar', categoryId: catVoice },
-        { id: chVoice2, name: 'Gaming', type: 'voice', topic: 'Canal de voz para partidas', categoryId: catVoice },
-      ];
-    } else if (template === 'gaming') {
-      const catInfo = `cat_info_${newServerId}`;
-      const catChat = `cat_chat_${newServerId}`;
-      const catVoice = `cat_voice_${newServerId}`;
-      const chReglas = `chan_reg_${newServerId}`;
-      const chClips = `chan_cli_${newServerId}`;
-      const chGen = `chan_gen_${newServerId}`;
-      const chLfg = `chan_lfg_${newServerId}`;
-      const chSq1 = `chan_sq1_${newServerId}`;
-      const chSq2 = `chan_sq2_${newServerId}`;
-      const chLounge = `chan_lng_${newServerId}`;
-
-      categories = [
-        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chClips] },
-        { id: catChat, name: 'CHAT GAMING', channelIds: [chGen, chLfg] },
-        { id: catVoice, name: 'CANALES DE VOZ', channelIds: [chSq1, chSq2, chLounge] },
-      ];
-
-      channels = [
-        { id: chReglas, name: 'reglas', type: 'text', topic: 'Reglas de la comunidad gamer', categoryId: catInfo },
-        { id: chClips, name: 'mejores-jugadas', type: 'text', topic: 'Comparte tus clips y victorias', categoryId: catInfo },
-        { id: chGen, name: 'general', type: 'text', topic: 'Charla general de videojuegos', categoryId: catChat },
-        { id: chLfg, name: 'buscar-grupo-lfg', type: 'text', topic: 'Encuentra escuadra para jugar', categoryId: catChat },
-        { id: chSq1, name: 'Squad 1 (Dúo/Trío)', type: 'voice', topic: 'Voz baja latencia', categoryId: catVoice },
-        { id: chSq2, name: 'Squad 2 (Competitivo)', type: 'voice', topic: 'Voz táctica', categoryId: catVoice },
-        { id: chLounge, name: 'Sala de Espera', type: 'voice', topic: 'Chill & AFK', categoryId: catVoice },
-      ];
-    } else if (template === 'comunidad') {
-      const catInfo = `cat_info_${newServerId}`;
-      const catChat = `cat_chat_${newServerId}`;
-      const catVoice = `cat_voice_${newServerId}`;
-      const chReglas = `chan_reg_${newServerId}`;
-      const chAnuncios = `chan_anu_${newServerId}`;
-      const chGen = `chan_gen_${newServerId}`;
-      const chDebate = `chan_deb_${newServerId}`;
-      const chVoiceGen = `chan_vgen_${newServerId}`;
-      const chEventos = `chan_vev_${newServerId}`;
-
-      categories = [
-        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chAnuncios] },
-        { id: catChat, name: 'COMUNIDAD', channelIds: [chGen, chDebate] },
-        { id: catVoice, name: 'VOICE', channelIds: [chVoiceGen, chEventos] },
-      ];
-
-      channels = [
-        { id: chReglas, name: 'reglas', type: 'text', topic: 'Normas del servidor', categoryId: catInfo },
-        { id: chAnuncios, name: 'anuncios', type: 'announcements', topic: 'Anuncios oficiales', categoryId: catInfo },
-        { id: chGen, name: 'general', type: 'text', topic: 'Conversación general', categoryId: catChat },
-        { id: chDebate, name: 'charla-libre', type: 'text', topic: 'Temas varios y off-topic', categoryId: catChat },
-        { id: chVoiceGen, name: 'General', type: 'voice', topic: 'Voz comunitaria', categoryId: catVoice },
-        { id: chEventos, name: 'Eventos & Charlas', type: 'voice', topic: 'Transmisiones y eventos', categoryId: catVoice },
-      ];
-    } else if (template === 'trabajo') {
-      const catInfo = `cat_info_${newServerId}`;
-      const catEquipo = `cat_eq_${newServerId}`;
-      const catVoice = `cat_voice_${newServerId}`;
-      const chObj = `chan_obj_${newServerId}`;
-      const chAnu = `chan_anu_${newServerId}`;
-      const chGen = `chan_gen_${newServerId}`;
-      const chProy = `chan_proy_${newServerId}`;
-      const chRec = `chan_rec_${newServerId}`;
-      const chMeet = `chan_meet_${newServerId}`;
-      const chFocus = `chan_foc_${newServerId}`;
-
-      categories = [
-        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chObj, chAnu] },
-        { id: catEquipo, name: 'EQUIPO & TRABAJO', channelIds: [chGen, chProy, chRec] },
-        { id: catVoice, name: 'SALA DE REUNIONES', channelIds: [chMeet, chFocus] },
-      ];
-
-      channels = [
-        { id: chObj, name: 'objetivos', type: 'text', topic: 'Objetivos y roadmap', categoryId: catInfo },
-        { id: chAnu, name: 'anuncios', type: 'announcements', topic: 'Avisos importantes de equipo', categoryId: catInfo },
-        { id: chGen, name: 'general', type: 'text', topic: 'Comunicación diaria', categoryId: catEquipo },
-        { id: chProy, name: 'proyectos', type: 'text', topic: 'Seguimiento de tareas y entregas', categoryId: catEquipo },
-        { id: chRec, name: 'recursos', type: 'text', topic: 'Documentación y links útiles', categoryId: catEquipo },
-        { id: chMeet, name: 'Sala de Juntas (HD)', type: 'voice', topic: 'Reuniones de equipo', categoryId: catVoice },
-        { id: chFocus, name: 'Trabajo Silencioso', type: 'voice', topic: 'Concentración y estudio', categoryId: catVoice },
-      ];
-    } else {
-      // Default / Otro
-      const catInfo = `cat_info_${newServerId}`;
-      const catChat = `cat_chat_${newServerId}`;
-      const catVoice = `cat_voice_${newServerId}`;
-      const chReglas = `chan_reg_${newServerId}`;
-      const chAnuncios = `chan_anu_${newServerId}`;
-      const chGen = `chan_gen_${newServerId}`;
-      const chVoice = `chan_v_${newServerId}`;
-
-      categories = [
-        { id: catInfo, name: 'INFORMACIÓN', channelIds: [chReglas, chAnuncios] },
-        { id: catChat, name: 'CHAT', channelIds: [chGen] },
-        { id: catVoice, name: 'VOICE', channelIds: [chVoice] },
-      ];
-
-      channels = [
-        { id: chReglas, name: 'reglas', type: 'text', topic: 'Reglas del servidor', categoryId: catInfo },
-        { id: chAnuncios, name: 'anuncios', type: 'announcements', topic: 'Anuncios y avisos', categoryId: catInfo },
-        { id: chGen, name: 'general', type: 'text', topic: 'Canal general', categoryId: catChat },
-        { id: chVoice, name: 'General', type: 'voice', topic: 'Audio WebRTC 96kHz', categoryId: catVoice },
-      ];
+    if (getAuthToken()) {
+      try {
+        await api.createServer({ id: newServerId, name, description, iconUrl, visibility, categories: categories.map(({ id, name: categoryName }) => ({ id, name: categoryName })), channels });
+      } catch (error) {
+        toast.error(error instanceof Error ? `No se pudo crear el espacio: ${error.message}` : 'No se pudo crear el espacio.');
+        return null;
+      }
     }
-
-    const defaultChannelId = channels.find((c) => c.name === 'general')?.id || channels[0]?.id || '';
 
     const newServer: Server = {
       id: newServerId,
       name,
       acronym: name.slice(0, 2).toUpperCase(),
       icon: iconUrl || '',
-      description: description || `Servidor de ${template}`,
+      description: description || '',
       ownerId: currentUser.id,
       visibility,
       themeGradient: 'from-zinc-700 to-zinc-950',
       categories,
       channels,
-      roles: defaultRoles,
+      roles: createDefaultRoles(newServerId),
       members: [ownerMember],
     };
-
     setServers((prev) => [...prev, newServer]);
     setActiveServerId(newServerId);
-    if (defaultChannelId) {
-      setActiveChannelId(defaultChannelId);
-    }
+    const firstText = channels.find((channel) => channel.type !== 'voice');
+    if (firstText) setActiveChannelId(firstText.id);
     setIsDMViewActive(false);
-    setIsCreateServerOpen(false);
-
-    // Sync with backend database in background
-    if (getAuthToken()) {
-      api.createServer({ id: newServerId, name, description, iconUrl, visibility, categories: categories.map(({ id, name: categoryName }) => ({ id, name: categoryName })), channels })
-        .catch((err) => {
-          console.warn('[Backend Sync Server Notice]:', err);
-          setServers((previous) => previous.filter((server) => server.id !== newServerId));
-          setIsDMViewActive(true);
-          toast.error(err instanceof Error ? `No se pudo guardar el servidor: ${err.message}` : 'No se pudo guardar el servidor.');
-        });
-    }
-
-    toast.success(`¡Servidor "${name}" creado con éxito!`);
+    soundFx.playJoinVoice();
+    return newServer;
   };
 
-  const joinServerByInvite = (inviteCodeOrId: string): boolean => {
+  // Resolves to true once the invite worked; errors come back as a message
+  // so the dialog can show them next to the field.
+  const joinServerByInvite = async (inviteCodeOrId: string): Promise<{ ok: true } | { ok: false; message: string }> => {
     const cleanCode = inviteCodeOrId.replace(/^.*\/invite\//, '').split(/[/?#]/)[0].trim();
-    if (!cleanCode) return false;
+    if (!cleanCode) return { ok: false, message: 'Pega un enlace o un código de invitación.' };
 
-    // Check if server already in local server list
-    const existing = servers.find(
-      (s) => s.id === cleanCode || s.name.toLowerCase() === cleanCode.toLowerCase()
-    );
+    const existing = servers.find((server) => server.id === cleanCode);
     if (existing) {
       setActiveServerId(existing.id);
-      setActiveChannelId(existing.channels[0]?.id || '');
+      setActiveChannelId(existing.channels.find((channel) => channel.type !== 'voice')?.id || existing.channels[0]?.id || '');
       setIsDMViewActive(false);
-      setIsCreateServerOpen(false);
       toast.success(`Ya estás en ${existing.name}`);
-      return true;
+      return { ok: true };
     }
 
-    // Try joining via backend API
-    api.joinServer(cleanCode)
-      .then((joinedServer) => {
-        setServers((prev) => prev.some((s) => s.id === joinedServer.id) ? prev : [...prev, joinedServer]);
-        setActiveServerId(joinedServer.id);
-        setActiveChannelId(joinedServer.channels?.[0]?.id || '');
-        setIsDMViewActive(false);
-        toast.success(`Te has unido a ${joinedServer.name}`);
-      })
-      .catch((err) => {
-        console.warn('[Join Server Notice]', err);
-        toast.error(err?.message || 'No se pudo usar esta invitación');
-      });
-    setIsCreateServerOpen(false);
-    return true;
+    try {
+      const joined = await api.joinServer(cleanCode);
+      const space = ensureServerRoles([joined as Server], currentUser)[0];
+      setServers((prev) => (prev.some((server) => server.id === space.id) ? prev : [...prev, space]));
+      setActiveServerId(space.id);
+      setActiveChannelId(space.channels.find((channel) => channel.type !== 'voice')?.id || space.channels[0]?.id || '');
+      setIsDMViewActive(false);
+      toast.success(`Te uniste a ${space.name}`);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : 'Esa invitación no es válida.' };
+    }
   };
 
   const createChannel = (name: string, type: ChannelType, categoryId?: string) => {

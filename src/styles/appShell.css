@@ -220,6 +220,9 @@ button.kova-avatar { cursor: pointer; }
   [data-theme="oled"] .kova-workspace-shell { padding: 0; gap: 0; }
   [data-theme="oled"] .kova-panel { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
   [data-theme="oled"] .kova-composer-extra { display: none !important; }
+  /* Panels overlap on phones (drawer over the chat), so they must be opaque. */
+  [data-theme="oled"] .kova-panel { background: #0e0f10 !important; box-shadow: none !important; }
+  [data-theme="oled"] .kova-panel-left { box-shadow: 12px 0 40px rgba(0, 0, 0, 0.6) !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {

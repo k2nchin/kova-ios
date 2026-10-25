@@ -111,6 +111,12 @@ const spaceMembers = async (spaceId, ownerId) => {
   const rows = await db.prepare('SELECT u.* FROM users u WHERE u.id = ? OR u.id IN (SELECT user_id FROM space_members WHERE space_id = ?)').all(ownerId, spaceId);
   return rows.map((row) => ({ ...publicUser(userFromRow(row)), email: undefined, status: 'offline' }));
 };
+// Space icons/banners must be hosted images (Kova uploads or https), never
+// inline data: URLs stored in the database. Anything else becomes ''.
+const hostedImageUrl = (value) => {
+  const url = String(value || '').trim();
+  return url.length <= 2048 && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/)/i.test(url) ? url : '';
+};
 const readBody = async (req) => {
   let raw = '';
   for await (const chunk of req) {
@@ -598,7 +604,7 @@ const handleRequest = async (req, res) => {
     const categories = Array.isArray(body.categories) ? body.categories.slice(0, 50) : [];
     const channels = Array.isArray(body.channels) ? body.channels.slice(0, 100) : [];
     await runInTransaction(async (tx) => {
-      await tx.prepare('INSERT INTO spaces (id, owner_id, name, description, visibility, icon_url, banner_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, session.user_id, name, String(body.description || '').slice(0, 1000), visibility, String(body.iconUrl || '').slice(0, 700_000), String(body.bannerUrl || '').slice(0, 700_000), new Date().toISOString());
+      await tx.prepare('INSERT INTO spaces (id, owner_id, name, description, visibility, icon_url, banner_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, session.user_id, name, String(body.description || '').slice(0, 1000), visibility, hostedImageUrl(body.iconUrl), hostedImageUrl(body.bannerUrl), new Date().toISOString());
       for (const [position, category] of categories.entries()) {
         const categoryId = String(category.id || `category_${crypto.randomUUID()}`);
         const categoryName = String(category.name || '').trim().slice(0, 64);
@@ -610,7 +616,7 @@ const handleRequest = async (req, res) => {
         await tx.prepare('INSERT INTO signals (id, space_id, name, type, topic, category_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(channelId, id, String(channel.name || 'general').slice(0, 100), String(channel.type || 'text'), String(channel.topic || '').slice(0, 500), categoryId, new Date().toISOString());
       }
     });
-    return send(res, 201, { id, name, description: String(body.description || ''), visibility, icon: String(body.iconUrl || ''), banner: String(body.bannerUrl || ''), ownerId: session.user_id, categories, channels });
+    return send(res, 201, { id, name, description: String(body.description || ''), visibility, icon: hostedImageUrl(body.iconUrl), banner: hostedImageUrl(body.bannerUrl), ownerId: session.user_id, categories, channels });
   }
   const serverUpdateMatch = requestPath.match(/^\/api\/servers\/([^/]+)$/);
   if (serverUpdateMatch && req.method === 'PATCH') {
@@ -623,8 +629,8 @@ const handleRequest = async (req, res) => {
     const description = body.description === undefined ? space.description : String(body.description).trim().slice(0, 1000);
     const visibility = body.visibility === undefined ? space.visibility : (body.visibility === 'public' ? 'public' : 'private');
     if (!name) return send(res, 400, { message: 'El nombre del espacio no puede quedar vacío.' });
-    const icon = body.icon === undefined ? space.icon_url || '' : String(body.icon || '').slice(0, 700_000);
-    const banner = body.banner === undefined ? space.banner_url || '' : String(body.banner || '').slice(0, 700_000);
+    const icon = body.icon === undefined ? space.icon_url || '' : hostedImageUrl(body.icon);
+    const banner = body.banner === undefined ? space.banner_url || '' : hostedImageUrl(body.banner);
     await db.prepare('UPDATE spaces SET name = ?, description = ?, visibility = ?, icon_url = ?, banner_url = ? WHERE id = ? AND owner_id = ?').run(name, description, visibility, icon, banner, serverId, session.user_id);
     return send(res, 200, { id: serverId, name, description, visibility, icon, banner, ownerId: session.user_id });
   }
