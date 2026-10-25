@@ -222,6 +222,7 @@ export const ChatArea: React.FC = () => {
     isMemberListOpen,
     setIsMemberListOpen,
     setIsPinnedDrawerOpen,
+    openInviteModal,
     setIsSoundboardOpen,
     messages,
     sendMessage,
@@ -1017,13 +1018,13 @@ export const ChatArea: React.FC = () => {
               <div className="pt-2 border-t border-white/[0.06]">
                 <button
                   onClick={() => {
-                    navigator.clipboard.writeText(`https://kova-k2nchin.vercel.app/invite/${encodeURIComponent(activeServer.id)}?channel=${encodeURIComponent(activeChannel.id)}`);
-                    toast.success('Enlace de invitación copiado al portapapeles');
+                    setIsChannelInfoOpen(false);
+                    openInviteModal(activeServer.id);
                   }}
                   className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/30 transition-all font-semibold cursor-pointer"
                 >
                   <Share2 size={13} />
-                  <span>Copiar enlace de invitación</span>
+                  <span>Invitar personas</span>
                 </button>
               </div>
             </div>

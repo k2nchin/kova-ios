@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { StoriesBar } from '../Stories/StoriesBar';
+import '../../styles/friends.css';
 
 export const DirectMessagesView: React.FC = () => {
   const {
@@ -68,17 +69,17 @@ export const DirectMessagesView: React.FC = () => {
   };
 
   return (
-    <div className="kova-direct-view flex-1 h-full flex overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif] bg-[#07020f]">
+    <div className={`kova-direct-view ${activeUser ? 'has-chat' : ''} ${dmConversations.length === 0 ? 'no-dms' : ''} flex-1 h-full flex overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif] bg-[#07020f]`}>
       {/* 1. Left DMs / Friends Navigation Column */}
-      <div className="w-64 border-r border-purple-950/40 bg-[#090414] flex flex-col justify-between shrink-0">
+      <div className="kova-dm-nav w-64 border-r border-purple-950/40 bg-[#090414] flex flex-col justify-between shrink-0">
         <div className="p-3 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-          <button type="button" onClick={() => { setActiveDMUserId(null); setIsDMViewActive(true); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold text-zinc-300 border border-white/10 bg-white/[0.04] hover:bg-white/[0.1] hover:text-white transition-colors">
+          <button type="button" onClick={() => { setActiveDMUserId(null); setIsDMViewActive(true); }} className="kova-dm-back w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold text-zinc-300 border border-white/10 bg-white/[0.04] hover:bg-white/[0.1] hover:text-white transition-colors">
             <ArrowLeft size={14} /> Volver a Bandeja de Kova
           </button>
           {/* Top 'Amigos' button */}
           <button
             onClick={() => setActiveDMUserId(null)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`kova-dm-friends w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeDMUserId === null
                 ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                 : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
@@ -88,12 +89,12 @@ export const DirectMessagesView: React.FC = () => {
             <span>Amigos</span>
           </button>
 
-          <div className="flex items-center justify-between text-[11px] font-bold text-purple-400 uppercase tracking-wider px-1 pt-2">
+          <div className="kova-dm-label flex items-center justify-between text-[11px] font-bold text-purple-400 uppercase tracking-wider px-1 pt-2">
             <span>MENSAJES DIRECTOS</span>
           </div>
 
           {/* DM Conversations List */}
-          <div className="space-y-1">
+          <div className="kova-dm-list space-y-1">
             {dmConversations.length === 0 ? (
               <div className="p-3 text-center">
                 <p className="text-[11px] text-slate-500 italic">Sin mensajes directos aún</p>
@@ -165,7 +166,10 @@ export const DirectMessagesView: React.FC = () => {
         <div className="flex-1 flex flex-col justify-between overflow-hidden bg-[#07020f]">
           {/* Header */}
           <div className="h-14 px-5 border-b border-purple-950/40 bg-[#090414] flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <button type="button" className="kova-dm-mobile-back" onClick={() => setActiveDMUserId(null)} aria-label="Volver a amigos">
+                <ArrowLeft size={18} />
+              </button>
               <div className="relative">
                 <img
                   src={activeUser.avatar}
@@ -310,10 +314,10 @@ export const DirectMessagesView: React.FC = () => {
         /* Friends Dashboard View */
         <div className="flex-1 flex flex-col overflow-hidden bg-[#07020f]">
           {/* Header Tabs */}
-          <div className="h-14 px-6 border-b border-purple-950/40 bg-[#090414] flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <Users size={18} className="text-purple-400" />
-              <span className="font-bold text-sm text-white font-['Outfit'] pr-3 border-r border-purple-900/40">
+          <div className="kova-friends-head h-14 px-6 border-b border-purple-950/40 bg-[#090414] flex items-center justify-between shrink-0">
+            <div className="kova-friends-tabs flex items-center gap-2">
+              <Users size={18} className="kova-friends-title text-purple-400" />
+              <span className="kova-friends-title font-bold text-sm text-white font-['Outfit'] pr-3 border-r border-purple-900/40">
                 Amigos
               </span>
 
@@ -477,7 +481,7 @@ export const DirectMessagesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setActiveTab('add')}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer glow-purple"
+                    className="kova-cta flex items-center gap-2 px-4 py-2 text-xs font-bold transition-all cursor-pointer"
                   >
                     <UserPlus size={14} />
                     <span>Añadir un amigo</span>

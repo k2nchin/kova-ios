@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
+import '../../styles/settings.css';
+import { Avatar } from '../Common/Avatar';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { isDesktopApp } from '../../utils/platform';
 import { checkForKovaUpdate } from '../../services/updateService';
@@ -82,6 +84,22 @@ function SettingsSection({
     </div>
   );
 }
+
+const SETTINGS_SECTIONS = [
+  { title: 'Tu cuenta', items: [
+    { id: 'perfil', label: 'Perfil', icon: UserRound },
+    { id: 'apariencia', label: 'Apariencia', icon: Monitor },
+  ] },
+  { title: 'App', items: [
+    { id: 'voz', label: 'Voz y vídeo', icon: Headphones },
+    { id: 'notificaciones', label: 'Notificaciones', icon: Bell },
+    { id: 'privacidad', label: 'Privacidad y seguridad', icon: ShieldCheck },
+    { id: 'atajos', label: 'Atajos de teclado', icon: Keyboard },
+  ] },
+  { title: 'Espacios', items: [
+    { id: 'espacios', label: 'Mis espacios', icon: FolderKanban },
+  ] },
+] as const;
 
 export const SettingsModal: React.FC = () => {
   const {
@@ -273,129 +291,49 @@ export const SettingsModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150 select-none font-['Plus_Jakarta_Sans',sans-serif]"
+      className="kset-overlay"
       role="presentation"
       onMouseDown={(e) => {
         if (e.currentTarget === e.target) setIsSettingsOpen(false);
       }}
     >
       <section
-        className="kova-settings-modal w-full max-w-4xl h-[88vh] rounded-3xl bg-[#0d071c] border border-purple-500/25 shadow-[0_0_40px_rgba(147,51,234,0.2)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+        className="kova-settings-modal kset"
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
       >
-        {/* Modal Header */}
-        <header className="px-6 py-4 border-b border-purple-950/40 flex items-center justify-between shrink-0 bg-[#090414]">
-          <div>
-            <span className="text-[10px] font-mono tracking-widest text-purple-400 uppercase font-bold">
-              AJUSTES DE USUARIO & CONFIGURACIÓN
-            </span>
-            <h2 id="settings-title" className="text-base font-bold text-white font-['Outfit']">
-              Preferencias de Kova
-            </h2>
-          </div>
-          <button
-            className="p-2 rounded-xl hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
-            aria-label="Cerrar configuración"
-            onClick={() => setIsSettingsOpen(false)}
-          >
+        <header className="kset-head">
+          <h2 id="settings-title">Ajustes</h2>
+          <button type="button" className="kset-close" aria-label="Cerrar ajustes" onClick={() => setIsSettingsOpen(false)}>
             <X size={18} />
           </button>
         </header>
 
         {/* Modal Layout */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left Navigation Sidebar */}
-          <nav
-            className="w-56 border-r border-purple-950/40 bg-[#080312] p-3 space-y-1 overflow-y-auto custom-scrollbar shrink-0"
-            aria-label="Secciones de configuración"
-          >
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 py-1.5">
-              MI CUENTA
-            </div>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'perfil'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('perfil')}
-            >
-              <UserRound size={15} /> Perfil & Avatar
-            </button>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'apariencia'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('apariencia')}
-            >
-              <Monitor size={15} /> Apariencia & Temas
-            </button>
-
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1.5">
-              AJUSTES DE APLICACIÓN
-            </div>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'voz'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('voz')}
-            >
-              <Headphones size={15} /> Voz y vídeo HD
-            </button>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'notificaciones'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('notificaciones')}
-            >
-              <Bell size={15} /> Notificaciones
-            </button>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'privacidad'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('privacidad')}
-            >
-              <ShieldCheck size={15} /> Privacidad y seguridad
-            </button>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'atajos'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('atajos')}
-            >
-              <Keyboard size={15} /> Atajos de teclado
-            </button>
-
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1.5">
-              ESPACIOS
-            </div>
-            <button
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === 'espacios'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
-              }`}
-              onClick={() => setActiveTab('espacios')}
-            >
-              <FolderKanban size={15} /> Mis Espacios ({servers.length})
-            </button>
+        <div className="kset-body">
+          <nav className="kset-nav custom-scrollbar" aria-label="Secciones de configuración">
+            {SETTINGS_SECTIONS.map((group) => (
+              <div key={group.title} className="kset-group">
+                <span className="kset-group-title">{group.title}</span>
+                {group.items.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`kset-tab ${activeTab === item.id ? 'is-active' : ''}`}
+                    aria-current={activeTab === item.id ? 'page' : undefined}
+                    onClick={() => setActiveTab(item.id)}
+                  >
+                    <item.icon size={16} />
+                    <span>{item.id === 'espacios' ? `${item.label} (${servers.length})` : item.label}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
           </nav>
 
           {/* Right Content Area */}
-          <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-[#0d071c]">
+          <div className="kset-content custom-scrollbar">
             {/* TAB: PERFIL */}
             {activeTab === 'perfil' && (
               <div className="space-y-6 max-w-2xl">
@@ -421,22 +359,16 @@ export const SettingsModal: React.FC = () => {
 
                   {/* Profile Avatar & Actions */}
                   <div className="px-6 pb-6 pt-0 relative">
-                    <div className="flex items-end justify-between -mt-12 mb-3">
+                    <div className="kset-identity flex items-end justify-between -mt-12 mb-3">
                       <div className="relative group">
-                        <div className="w-24 h-24 rounded-3xl p-1 bg-[#090414] ring-4 ring-[#090414] shadow-2xl overflow-hidden">
-                          {avatar ? (
-                            <img src={avatar} alt={name} className="w-full h-full rounded-2xl object-cover" />
-                          ) : (
-                            <div className="w-full h-full rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-white text-2xl">
-                              {(name || 'U').charAt(0).toUpperCase()}
-                            </div>
-                          )}
+                        <div className="kset-avatar">
+                          <Avatar src={avatar} name={name || currentUser.username || 'U'} size={88} />
                         </div>
                         {/* Camera upload badge */}
                         <button
                           type="button"
                           onClick={() => avatarFileInputRef.current?.click()}
-                          className="absolute bottom-0 right-0 p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg hover:scale-110 transition-transform cursor-pointer ring-2 ring-[#090414]"
+                          className="kset-avatar-cam"
                           title="Cargar foto desde tu ordenador"
                         >
                           <Camera size={14} />
@@ -464,7 +396,7 @@ export const SettingsModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => avatarFileInputRef.current?.click()}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+                          className="kset-btn-metal"
                         >
                           <Upload size={14} />
                           <span>Subir foto</span>
@@ -473,9 +405,9 @@ export const SettingsModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setIsAvatarPickerOpen(!isAvatarPickerOpen)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-950/30 hover:bg-purple-900/40 text-purple-300 hover:text-white text-xs font-semibold border border-purple-500/20 transition-all cursor-pointer"
+                          className="kset-btn-ghost"
                         >
-                          <Sparkles size={14} className="text-purple-400" />
+                          <Sparkles size={14} />
                           <span>Presets</span>
                         </button>
                       </div>
@@ -1097,7 +1029,7 @@ export const SettingsModal: React.FC = () => {
         </div>
 
         {/* Modal Footer */}
-        <footer className="px-6 py-4 border-t border-purple-950/40 flex items-center justify-between shrink-0 bg-[#090414]">
+        <footer className="kset-foot">
           <button
             type="button"
             onClick={() => {
@@ -1105,7 +1037,7 @@ export const SettingsModal: React.FC = () => {
               logout();
               toast.info('Sesión cerrada');
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-semibold border border-rose-500/25 transition-all cursor-pointer"
+            className="kset-logout"
           >
             <LogOut size={13} />
             <span>Cerrar sesión</span>
@@ -1113,14 +1045,14 @@ export const SettingsModal: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="px-4 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="kset-btn-ghost kset-desktop-only"
               onClick={() => setIsSettingsOpen(false)}
             >
               Cerrar
             </button>
             <button
               type="button"
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg transition-all cursor-pointer glow-purple"
+              className="kset-btn-metal"
               onClick={saveSettings}
             >
               {saved ? (

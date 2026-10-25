@@ -45,7 +45,7 @@ export const CommandPalette: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-150"
+      className="kova-palette-overlay fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-150"
       onClick={() => setIsCommandPaletteOpen(false)}
     >
       <div
@@ -60,7 +60,7 @@ export const CommandPalette: React.FC = () => {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="¿A dónde quieres ir? (Escribe para buscar canales, servidores o comandos)..."
+            placeholder="Buscar canales, espacios o comandos"
             className="flex-1 bg-transparent text-sm text-purple-100 placeholder-purple-400/40 focus:outline-none"
           />
           <kbd className="text-[10px] px-2 py-0.5 rounded-lg bg-purple-950/40 border border-purple-900/40 text-purple-300/70 font-mono">
@@ -87,7 +87,7 @@ export const CommandPalette: React.FC = () => {
                       <Hash className="w-3.5 h-3.5 text-purple-400" />
                       <span>{c.name}</span>
                     </div>
-                    <span className="text-[10px] text-purple-400/50 uppercase font-mono">{c.type}</span>
+                    <span className="text-[10px] text-purple-400/50 uppercase font-mono">{({ text: "Texto", voice: "Voz", announcements: "Anuncios", notes: "Notas" } as Record<string, string>)[c.type] || c.type}</span>
                   </button>
                 ))}
               </div>
@@ -98,7 +98,7 @@ export const CommandPalette: React.FC = () => {
           {matchingServers.length > 0 && (
             <div>
               <div className="text-[10px] font-bold text-purple-400/80 uppercase tracking-wider px-2 mb-1.5 font-mono">
-                Servidores
+                Espacios
               </div>
               <div className="space-y-0.5">
                 {matchingServers.map((s) => (

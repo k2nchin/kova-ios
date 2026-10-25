@@ -105,8 +105,13 @@ export const api = {
   discoverServers: (query = '') => request<any[]>(`/servers/discover${query ? `?q=${encodeURIComponent(query)}` : ''}`, { method: 'GET' }),
   createServer: (data: { id?: string; name: string; description?: string; iconUrl?: string; visibility?: 'public' | 'private'; categories?: Array<{ id: string; name: string }>; channels?: Array<{ id: string; name: string; type: string; topic?: string; categoryId?: string }> }) =>
     request<any>('/servers', { method: 'POST', data }),
-  createInvite: (serverId: string, options: { expiresInMinutes: number; maxUses: number }) =>
-    request<{ code: string; serverId: string; expiresAt: string | null; maxUses: number; url: string }>(`/servers/${encodeURIComponent(serverId)}/invites`, { method: 'POST', data: options }),
+  createInvite: async (serverId: string, options: { expiresInMinutes: number; maxUses: number }) => {
+    const invite = await request<{ code: string; serverId: string; expiresAt: string | null; maxUses: number; url: string }>(`/servers/${encodeURIComponent(serverId)}/invites`, { method: 'POST', data: options });
+    // On the web, share the address the person is using (some networks block the
+    // default domain); the desktop app keeps the public URL from the server.
+    const webOrigin = !isTauri && typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol) ? window.location.origin : '';
+    return webOrigin ? { ...invite, url: `${webOrigin}/invite/${encodeURIComponent(invite.code)}` } : invite;
+  },
   joinServer: (inviteCode: string) => request<any>('/servers/join', { method: 'POST', data: { inviteCode } }),
   deleteServer: (serverId: string) => request<{ ok: boolean }>(`/servers/${encodeURIComponent(serverId)}`, { method: 'DELETE' }),
   updateServer: (serverId: string, data: { name?: string; description?: string; visibility?: 'public' | 'private'; icon?: string; banner?: string }) =>

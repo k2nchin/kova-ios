@@ -12,7 +12,7 @@ export const MobileTabBar: React.FC<MobileTabBarProps> = ({ onOpenNav }) => {
   const tabs = [
     { id: 'home', label: 'Inicio', icon: Home, onClick: () => { setActiveDMUserId(null); setIsDMViewActive(true); } },
     { id: 'spaces', label: 'Espacios', icon: MessagesSquare, onClick: onOpenNav },
-    { id: 'members', label: 'Miembros', icon: Users, onClick: () => setIsMemberListOpen(true) },
+    { id: 'members', label: 'Miembros', icon: Users, onClick: () => { setIsDMViewActive(false); setIsMemberListOpen(true); } },
     { id: 'search', label: 'Buscar', icon: Search, onClick: () => setIsCommandPaletteOpen(true) },
     { id: 'settings', label: 'Ajustes', icon: Settings, onClick: () => setIsSettingsOpen(true) },
   ];

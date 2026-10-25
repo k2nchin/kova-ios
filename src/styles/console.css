@@ -192,7 +192,7 @@
 
 .kova-channel-peers { margin: 2px 0 6px 30px; padding: 0; list-style: none; }
 .kova-channel-peers li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; font-size: 13px; color: #b4b6ba; }
-.kova-channel-peers li span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kova-channel-peers li > span:not(.kova-avatar) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kova-channel-peers li .kova-avatar { transition: box-shadow 0.15s; }
 .kova-channel-peers li.is-speaking .kova-avatar { box-shadow: 0 0 0 2px var(--c-obsidian), 0 0 0 3px var(--c-mirror); }
 
@@ -358,3 +358,22 @@
 .kova-member-text small { display: block; overflow: hidden; font-size: 12px; color: #797b7e; white-space: nowrap; text-overflow: ellipsis; }
 .kova-members-empty, .kova-members-note { padding: 10px; font-size: 12px; color: #797b7e; }
 .kova-members-note { margin-top: 12px; border-top: 1px solid rgba(194, 196, 200, 0.08); }
+
+/* Members on narrow screens: a sheet over the chat instead of a hidden column. */
+.kova-members-backdrop { display: none; }
+@media (max-width: 1100px) {
+  .kova-workspace-shell > .kova-panel-right {
+    display: flex !important;
+    position: absolute !important;
+    top: 0; right: 0; bottom: 0; left: auto !important;
+    z-index: 65 !important;
+    width: min(320px, 88vw) !important;
+    border-radius: 20px 0 0 20px !important;
+    background: #0e0f10 !important;
+    box-shadow: -24px 0 60px rgba(0, 0, 0, 0.6) !important;
+  }
+  .kova-workspace-shell > .kova-panel-right .kova-members { width: 100%; }
+  .kova-members-backdrop {
+    display: block; position: absolute; inset: 0; z-index: 64; border: 0; background: rgba(0, 0, 0, 0.55);
+  }
+}

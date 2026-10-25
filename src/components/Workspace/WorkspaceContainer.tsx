@@ -27,6 +27,7 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
     activeServer,
     activeChannel,
     isMemberListOpen,
+    setIsMemberListOpen,
     isDMViewActive,
   } = useApp();
 
@@ -72,6 +73,9 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
       </div>
 
       {/* 3. Right Widgets Panel (Miembros en línea, Canales de voz, Emitiendo ahora, Servidores) */}
+      {isMemberListOpen && !isDMViewActive && !isServerEmpty && activeChannel?.type !== 'voice' && (
+        <button type="button" className="kova-members-backdrop" onClick={() => setIsMemberListOpen(false)} aria-label="Cerrar miembros" />
+      )}
       {isMemberListOpen && !isDMViewActive && !isServerEmpty && activeChannel?.type !== 'voice' && (
         <div className="kova-panel kova-panel-right h-full rounded-2xl bg-[#070210] border border-purple-950/40 overflow-hidden flex flex-col shadow-xl shrink-0">
           <RightWidgetsSidebar />

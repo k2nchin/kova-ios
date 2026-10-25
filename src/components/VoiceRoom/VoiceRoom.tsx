@@ -7,7 +7,7 @@ import { isDesktopApp as detectDesktopApp, isMobileApp, isTauriApp } from '../..
 import { api } from '../../services/apiClient';
 import { VoiceRadar } from './VoiceRadar';
 import { VoiceHeader, type VoiceConnectionState } from './VoiceHeader';
-import { KovaVoicePulse } from './KovaVoicePulse';
+import '../../styles/voiceRoom.css';
 import { VoiceParticipantCard, type VoiceParticipant } from './VoiceParticipantCard';
 import { VoiceControlDock } from './VoiceControlDock';
 import { VoiceEmptyState } from './VoiceEmptyState';
@@ -768,18 +768,8 @@ export const VoiceRoom: React.FC = () => {
 
   const totalParticipants = 1 + otherParticipants.length;
 
-  // Organic, participant-count-driven composition — never a rigid Discord grid.
-  const compositionClass =
-    totalParticipants === 1
-      ? 'flex flex-col items-center gap-8'
-      : totalParticipants === 2
-        ? 'flex flex-wrap items-center justify-center gap-5'
-        : totalParticipants <= 4
-          ? 'grid grid-cols-2 place-items-center gap-5'
-          : 'grid grid-cols-2 place-items-center gap-4 md:grid-cols-3 xl:grid-cols-4';
-
   return (
-    <div className="kova-voice-space relative flex h-full w-full select-none flex-col overflow-hidden">
+    <div className="kova-voice-space kvr">
       <VoiceHeader
         channelName={activeChannel.name}
         serverName={activeServer.name}
@@ -787,6 +777,7 @@ export const VoiceRoom: React.FC = () => {
         noiseSuppression={antirruido}
         latencyMs={latencyMs}
         audioDetails={deviceInfo}
+        peopleCount={totalParticipants}
         onOpenSoundboard={() => setIsSoundboardOpen((v) => !v)}
         onOpenChat={() => setIsChatOpen((v) => !v)}
         onToggleRadar={() => setRadarVisible((v) => !v)}
@@ -799,58 +790,36 @@ export const VoiceRoom: React.FC = () => {
         radarVisible={radarVisible}
       />
 
-      <main className="relative min-h-0 flex-1">
-        {/* VOICE SPACE / STAGE — the room IS the screen */}
+      <main className="relative min-h-0 flex-1 flex flex-col">
         <div
           ref={stageRef}
-          className="absolute inset-0 flex items-center justify-center overflow-hidden transition-[padding] duration-300 ease-out"
+          className="kvr-stage"
           style={{ paddingRight: isChatOpen ? 'min(360px, 62vw)' : undefined }}
         >
-          {!screenStream && <KovaVoicePulse />}
-
           {screenStream ? (
-            /* Live screen share fills the stage */
-            <div className="relative m-4 h-[calc(100%-24px)] w-[calc(100%-24px)] overflow-hidden rounded-[24px] border border-white/[0.08] bg-black">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="h-full w-full object-contain"
-              />
-              <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
-                <span className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/70 px-3.5 py-1.5 text-[11px] font-medium text-[#f5f7fa] backdrop-blur-md">
-                  <span className="voice-dot-live h-1.5 w-1.5 rounded-full bg-[#21ddb2]" aria-hidden />
-                  Transmitiendo en vivo
-                  <span className="text-[#646a76]">· {isSimulatedScreen ? 'Kova Desktop Stream' : 'Pantalla nativa'}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={handleScreenShareToggle}
-                  className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-black/70 px-4 py-1.5 text-[11px] font-semibold text-[#ff3c72] backdrop-blur-md transition hover:bg-[rgba(255,33,96,.18)]"
-                >
-                  <X size={12} />
-                  Detener pantalla
+            <div className="kvr-screen">
+              <video ref={videoRef} autoPlay playsInline muted />
+              <div className="kvr-screen-bar">
+                <span>{isSimulatedScreen ? 'Compartiendo la ventana de Kova' : 'Compartiendo tu pantalla'}</span>
+                <button type="button" className="kvr-btn-ghost" onClick={handleScreenShareToggle}>
+                  <X size={13} /> Dejar de compartir
                 </button>
               </div>
             </div>
           ) : (
-            /* Participants — dynamic composition */
-            <div className={`relative z-10 flex w-full max-w-[min(100%,1080px)] flex-col items-center gap-10 px-6 ${compositionClass}`}>
+            <div className="kvr-grid" data-count={Math.min(totalParticipants + (totalParticipants === 1 ? 1 : 0), 3)}>
               <VoiceParticipantCard
                 member={meParticipant}
                 cardRef={myCardRef}
                 cameraVideoRef={cameraVideoRef}
                 showCamera={Boolean(cameraStream)}
                 onOpenProfile={() => openUserProfile(currentUser)}
-                smaller={totalParticipants > 4}
               />
 
               {otherParticipants.map((participant, index) => (
                 <VoiceParticipantCard
                   key={participant.id}
                   member={participant}
-                  smaller={totalParticipants > 4}
                   onOpenProfile={() => openUserProfile(otherVoiceMembers[index])}
                   onContextMenu={(event) => {
                     event.preventDefault();
@@ -900,7 +869,6 @@ export const VoiceRoom: React.FC = () => {
           onToggleDeafen={toggleDeafen}
           onToggleCamera={handleCameraToggle}
           onToggleScreenShare={handleScreenShareToggle}
-          onToggleSoundboard={() => setIsSoundboardOpen((v) => !v)}
           onToggleChat={() => setIsChatOpen((v) => !v)}
           onLeave={handleVoiceToggle}
           dockRef={dockRef}

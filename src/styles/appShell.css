@@ -276,3 +276,15 @@ button.kova-avatar { cursor: pointer; }
   }
   [data-theme="oled"] .kova-panel-center:has(+ .kova-panel-right) .kova-channel-main { padding-right: 0; }
 }
+
+/* overflow:hidden still lets focus/scrollIntoView shift these containers,
+   which cut off the top of the voice room. clip can't be scrolled. */
+.kova-app-shell,
+.kova-workspace-shell,
+.kova-panel,
+.kova-voice-space { overflow: clip !important; }
+
+/* Search sits above the bottom tab bar on phones. */
+@media (max-width: 767px) {
+  .kova-palette-overlay { z-index: 95 !important; padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important; }
+}

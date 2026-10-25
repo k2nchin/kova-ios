@@ -33,17 +33,7 @@ export const StoriesBar: React.FC = () => {
             title={myStories.length > 0 ? 'Ver mi historia' : 'Subir una nueva historia'}
           >
             <div className="w-full h-full rounded-[14px] overflow-hidden bg-[#111420] ring-2 ring-[#0e111a]">
-              {currentUser.avatar ? (
-                <img
-                  src={currentUser.avatar}
-                  alt={currentUser.displayName}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center font-bold text-white text-xs">
-                  {(currentUser.displayName || 'U').charAt(0)}
-                </div>
-              )}
+              <Avatar src={currentUser.avatar} name={currentUser.displayName || currentUser.username} size={44} className="!w-full !h-full !rounded-[14px]" />
             </div>
           </button>
 
@@ -54,7 +44,7 @@ export const StoriesBar: React.FC = () => {
               e.stopPropagation();
               setIsCreateStoryOpen(true);
             }}
-            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#72e4d0] text-[#0b0d12] flex items-center justify-center shadow-md font-bold text-xs ring-2 ring-[#0e111a] hover:scale-110 transition-transform cursor-pointer"
+            className="kova-story-add absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#72e4d0] text-[#0b0d12] flex items-center justify-center shadow-md font-bold text-xs ring-2 ring-[#0e111a] hover:scale-110 transition-transform cursor-pointer"
             title="Crear nueva historia"
           >
             <Plus size={13} strokeWidth={3} />

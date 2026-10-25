@@ -1,0 +1,70 @@
+/* Friends & direct messages — chrome palette fixes and phone layout. */
+.kova-cta {
+  border: 0;
+  border-radius: 12px !important;
+  color: #0a0a0b;
+  background: linear-gradient(180deg, #ffffff 0%, #c9cbcf 55%, #a7aaae 100%);
+  box-shadow: inset 0 1px 0 #fff, 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+.kova-cta:hover { filter: brightness(1.06); }
+
+.kova-direct-view .kova-story-add {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0;
+  border-radius: 999px !important;
+  color: #0a0a0b;
+  background: #f4f5f7;
+  box-shadow: 0 0 0 2px #0e0f10;
+}
+
+.kova-dm-mobile-back { display: none; }
+
+@media (max-width: 767px) {
+  .kova-direct-view { flex-direction: column; }
+
+  /* Direct messages become a compact strip above the friends list. */
+  .kova-direct-view > .kova-dm-nav {
+    width: auto !important;
+    max-height: 132px;
+    margin: 8px 10px 0 !important;
+    border-right: 0;
+  }
+  .kova-direct-view > .kova-dm-nav > div { padding: 8px 10px; }
+  .kova-dm-back,
+  .kova-dm-friends { display: none !important; }
+  .kova-dm-label { padding-top: 0 !important; font-size: 10px; }
+  .kova-direct-view .kova-dm-list { display: flex; gap: 8px; overflow-x: auto; }
+  .kova-direct-view .kova-dm-list > button {
+    flex-direction: column;
+    width: 68px;
+    flex: 0 0 68px;
+    padding: 4px 2px;
+    text-align: center;
+  }
+  .kova-direct-view .kova-dm-list > button > div:last-child:not(:first-child) { width: 100%; }
+  .kova-direct-view .kova-dm-list > button span.font-mono,
+  .kova-direct-view .kova-dm-list > button .mt-0\.5 { display: none; }
+  .kova-direct-view.no-dms > .kova-dm-nav,
+  .kova-direct-view.has-chat > .kova-dm-nav { display: none; }
+
+  /* Friends tabs: one scrollable row, nothing cut off. */
+  .kova-direct-view > div:last-child > .kova-friends-head { margin: 8px 10px !important; padding: 0 6px; min-height: 52px; }
+  .kova-friends-head .kova-friends-title { display: none; }
+  .kova-friends-tabs { width: 100%; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .kova-friends-tabs::-webkit-scrollbar { display: none; }
+  .kova-friends-tabs > div { flex-wrap: nowrap; }
+  .kova-friends-tabs button { white-space: nowrap; flex-shrink: 0; }
+
+  .kova-dm-mobile-back {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-left: -10px;
+    color: #c2c4c8;
+    flex-shrink: 0;
+  }
+}

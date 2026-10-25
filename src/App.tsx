@@ -188,7 +188,7 @@ export const MainLayout: React.FC = () => {
     const code = match ? decodeURIComponent(match[1]) : (queryCode || pendingCode);
     if (!code) return;
     inviteHandledRef.current = true;
-    joinServerByInvite(code);
+    void joinServerByInvite(code).then((result) => { if (!result.ok) toast.error(result.message); });
     if (!isNative) {
       window.sessionStorage.removeItem('kova.pendingInvite');
       window.history.replaceState({}, '', '/app');
@@ -201,7 +201,9 @@ export const MainLayout: React.FC = () => {
     let dispose: (() => void) | undefined;
     const handle = (url: string) => {
       const match = url.match(/(?:kova:\/\/invite\/|\/invite\/)([^/?#]+)/i);
-      if (match && isAuthenticated) joinServerByInvite(decodeURIComponent(match[1]));
+      if (match && isAuthenticated) {
+        void joinServerByInvite(decodeURIComponent(match[1])).then((result) => { if (!result.ok) toast.error(result.message); });
+      }
     };
     void import('@tauri-apps/plugin-deep-link').then(async ({ getCurrent, onOpenUrl }) => {
       const current = await getCurrent();
