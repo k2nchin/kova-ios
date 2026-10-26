@@ -236,6 +236,11 @@ interface AppContextType {
   ) => Promise<Server | null>;
   setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
   removeFromSpace: (serverId: string, userId: string, ban?: boolean) => Promise<boolean>;
+  voiceOccupancy: Record<string, Array<{ id: string; name: string; avatar: string }>>;
+  blockedUsers: Array<{ id: string; username: string; displayName: string; avatar: string }>;
+  blockedUserIds: Set<string>;
+  blockUser: (user: { id: string; username?: string; displayName?: string; avatar?: string }) => Promise<boolean>;
+  unblockUser: (userId: string) => Promise<void>;
   unreadByChannel: Record<string, { unread: number; mentions: number }>;
   markChannelRead: (channelId: string) => void;
   loadOlderMessages: (channelId: string) => Promise<number>;
@@ -401,6 +406,7 @@ const messageFromApi = (item: any, fallbackUser: User): Message => {
     timestamp: `Hoy a las ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
     edited: Boolean(item.edited),
     pinned: Boolean(item.pinned),
+    threadCount: Number(item.threadCount) || 0,
     replyTo: item.replyTo?.id ? { id: item.replyTo.id, authorName: item.replyTo.authorName || '', content: item.replyTo.content || '' } : undefined,
     reactions: Array.isArray(item.reactions) ? item.reactions : [],
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
@@ -1165,6 +1171,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
+  const preferencesRef = useRef(preferences);
+  useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
+  // Noise suppression also updates the live call's microphone.
+  useEffect(() => {
+    void voiceSessionRef.current?.setNoiseSuppression(preferences.noiseSuppression).catch(() => undefined);
+  }, [preferences.noiseSuppression]);
   const updatePreference = <K extends keyof AppPreferences>(key: K, value: AppPreferences[K]) => {
     setPreferences((prev) => {
       const updated = { ...prev, [key]: value };
@@ -1618,6 +1630,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la solicitud.'); }
   };
 
+  // ---- Who is in each voice room (seen from outside) ----
+  const [voiceOccupancy, setVoiceOccupancy] = useState<Record<string, Array<{ id: string; name: string; avatar: string }>>>({});
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken() || !activeServerId) { setVoiceOccupancy({}); return; }
+    let cancelled = false;
+    const load = () => api.getVoiceOccupancy(activeServerId).then((rooms) => { if (!cancelled) setVoiceOccupancy(rooms); }).catch(() => undefined);
+    void load();
+    const timer = window.setInterval(load, 20_000);
+    const socket = getSocket();
+    let again: number | undefined;
+    const onVoice = ({ serverId }: { serverId: string }) => {
+      if (serverId !== activeServerId) return;
+      void load();
+      window.clearTimeout(again);
+      again = window.setTimeout(load, 3000); // LiveKit lists a newcomer a moment later
+    };
+    socket.on('voice:changed', onVoice);
+    return () => { cancelled = true; window.clearInterval(timer); window.clearTimeout(again); socket.off('voice:changed', onVoice); };
+  }, [isAuthenticated, activeServerId]);
+
+  // ---- Blocked people ----
+  const [blockedUsers, setBlockedUsers] = useState<Array<{ id: string; username: string; displayName: string; avatar: string }>>([]);
+  const blockedUserIds = React.useMemo(() => new Set(blockedUsers.map((user) => user.id)), [blockedUsers]);
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken()) { setBlockedUsers([]); return; }
+    api.getBlockedUsers().then((data) => setBlockedUsers(data.users || data.blockedUserIds.map((id) => ({ id, username: '', displayName: 'Cuenta bloqueada', avatar: '' })))).catch(() => undefined);
+  }, [isAuthenticated, currentUser.id]);
+
+  const blockUser = async (user: { id: string; username?: string; displayName?: string; avatar?: string }) => {
+    try {
+      await api.blockUser(user.id);
+      setBlockedUsers((prev) => (prev.some((item) => item.id === user.id) ? prev : [{ id: user.id, username: user.username || '', displayName: user.displayName || user.username || 'Usuario', avatar: user.avatar || '' }, ...prev]));
+      setFriends((prev) => prev.filter((friend) => friend.id !== user.id));
+      toast.success(`Bloqueaste a ${user.displayName || user.username || 'esta cuenta'}.`);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo bloquear.');
+      return false;
+    }
+  };
+
+  const unblockUser = async (userId: string) => {
+    try {
+      await api.unblockUser(userId);
+      setBlockedUsers((prev) => prev.filter((item) => item.id !== userId));
+      toast.success('Cuenta desbloqueada');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo desbloquear.');
+    }
+  };
+
   // ---- Unread counts & @mentions ----
   const [unreadByChannel, setUnreadByChannel] = useState<Record<string, { unread: number; mentions: number }>>({});
   const viewingChannelId = !isDMViewActive ? activeChannelId : '';
@@ -1673,7 +1736,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const current = prev[event.channelId] || { unread: 0, mentions: 0 };
         return { ...prev, [event.channelId]: { unread: current.unread + 1, mentions: current.mentions + (mentioned ? 1 : 0) } };
       });
-      if (mentioned) {
+      if (mentioned && preferencesRef.current.directMentions) {
         const space = serversRef.current.find((server) => server.id === event.spaceId);
         const channel = space?.channels.find((item) => item.id === event.channelId);
         const where = channel ? `#${channel.name}${space ? ` · ${space.name}` : ''}` : 'Kova';
@@ -1784,7 +1847,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Notes state
-  const [notes, setNotes] = useState<NoteDocument[]>(INITIAL_NOTES);
+  const [notes, setNotes] = useState<NoteDocument[]>([]);
 
   // AI Assistant state
   const [aiHistory, setAiHistory] = useState<AIMessage[]>([
@@ -1985,6 +2048,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         token,
         micEnabled: !muted,
         deafened: Boolean(currentUser.isDeafened),
+        noiseSuppression: preferences.noiseSuppression,
         onPeers: (peers) => {
           // Someone new arrived: play their own join sound (or the default chime).
           const known = knownPeerIdsRef.current;
@@ -2036,6 +2100,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const leaveVoiceChannel = () => {
     soundFx.playLeaveVoice();
+    if (activeVoiceChannelId && getAuthToken()) void api.voiceLeft(activeVoiceChannelId).catch(() => undefined);
     nativeShareRef.current?.stop();
     nativeShareRef.current = null;
     void voiceSessionRef.current?.disconnect();
@@ -2237,15 +2302,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Thread controls
+  const threadReplyFromApi = (item: any): Message => ({
+    id: item.id,
+    channelId: item.channelId,
+    author: item.author?.id === currentUser.id ? currentUser : { id: item.author?.id, username: item.author?.username || 'usuario', displayName: item.author?.displayName || item.author?.username || 'Usuario', avatar: item.author?.avatar || '', tag: '0000', status: 'online', verified: Boolean(item.author?.verified) },
+    content: item.content,
+    timestamp: `Hoy a las ${new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+    reactions: [],
+  });
+  const countParticipants = (messages: Message[]) => new Set(messages.map((message) => message.author.id)).size;
+  const setParentThreadCount = (channelId: string, parentId: string, count: number) =>
+    setAllMessages((prev) => ({ ...prev, [channelId]: (prev[channelId] || []).map((message) => (message.id === parentId ? { ...message, threadCount: count } : message)) }));
+
   const openThread = (message: Message) => {
     setActiveThread({
       id: `thread_${message.id}`,
       parentMessageId: message.id,
       channelId: message.channelId,
-      title: `Hilo: ${message.content.slice(0, 30)}...`,
+      title: message.content.length > 40 ? `${message.content.slice(0, 40)}…` : message.content || 'Hilo',
       messages: [message],
-      participantCount: 2,
+      participantCount: 1,
     });
+    if (!message.id.startsWith('message_')) return; // not saved yet: nothing to load
+    api.getThread(message.id).then((replies) => {
+      setActiveThread((prev) => {
+        if (!prev || prev.parentMessageId !== message.id) return prev;
+        const messages = [message, ...replies.map(threadReplyFromApi)];
+        return { ...prev, messages, participantCount: countParticipants(messages) };
+      });
+    }).catch(() => toast.error('No se pudo cargar el hilo.'));
   };
 
   const closeThread = () => {
@@ -2254,17 +2339,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sendThreadMessage = (content: string) => {
     if (!activeThread || !content.trim()) return;
+    const thread = activeThread;
+    if (!thread.parentMessageId.startsWith('message_')) { toast.error('Espera a que se envíe el mensaje para responder en su hilo.'); return; }
     soundFx.playMessageSent();
-    const newMsg: Message = {
-      id: `thread_msg_${Date.now()}`,
-      channelId: activeThread.channelId,
-      author: currentUser,
-      content,
-      timestamp: 'Hoy a las ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      reactions: [],
-    };
-    setActiveThread((prev) => prev ? ({ ...prev, messages: [...prev.messages, newMsg] }) : null);
+    api.replyInThread(thread.parentMessageId, content.trim()).then((saved) => {
+      const reply = threadReplyFromApi(saved);
+      setActiveThread((prev) => {
+        if (!prev || prev.parentMessageId !== thread.parentMessageId || prev.messages.some((m) => m.id === reply.id)) return prev;
+        const messages = [...prev.messages, reply];
+        return { ...prev, messages, participantCount: countParticipants(messages) };
+      });
+      setParentThreadCount(thread.channelId, thread.parentMessageId, Number(saved.threadCount) || 0);
+    }).catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudo responder en el hilo.'));
   };
+
+  // Live thread replies from others.
+  const activeThreadRef = useRef(activeThread);
+  useEffect(() => { activeThreadRef.current = activeThread; }, [activeThread]);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    const onThread = (payload: any) => {
+      setParentThreadCount(payload.channelId, payload.parentId, Number(payload.threadCount) || 0);
+      const open = activeThreadRef.current;
+      if (!open || open.parentMessageId !== payload.parentId || payload.author?.id === currentUser.id) return;
+      const reply = threadReplyFromApi(payload);
+      setActiveThread((prev) => {
+        if (!prev || prev.messages.some((m) => m.id === reply.id)) return prev;
+        const messages = [...prev.messages, reply];
+        return { ...prev, messages, participantCount: countParticipants(messages) };
+      });
+    };
+    socket.on('thread:message', onThread);
+    return () => { socket.off('thread:message', onThread); };
+  }, [isAuthenticated, currentUser.id]);
 
   // AI Assistant methods powered by Google Gemini
   const askKovaAI = async (prompt: string) => {
@@ -2580,25 +2688,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else if (matchedAuto) {
         reply = matchedAuto.response;
       } else if (bot.id === 'bot_lofi') {
-        if (content.includes('!play') || content.includes('!music')) {
-          const song = content.replace(/!play|!music/gi, '').trim() || 'beats to relax/study to';
-          reply = `🎶 **Kova Lofi** empezó a reproducir: *${song}* ☕ 📻\n[▶ Transmitiendo en vivo en la sala de voz | 320kbps High-Fi Audio]`;
-        } else if (content.includes('!pause') || content.includes('!stop')) {
-          reply = '⏸️ **Kova Lofi**: Música en pausa en la sala de voz.';
-        } else if (content.includes('!queue') || content.includes('!cola')) {
-          reply = '📜 **Kova Lofi Playlist Activa**:\n1. 🎵 *Kupla - Sleepy Bees* (2:45)\n2. 🎵 *Idealism - Phantasm* (3:12)\n3. 🎵 *Jinsang - Bliss* (2:30)';
-        } else {
-          reply = '🎧 **Kova Lofi**: Usa `!play <canción>`, `!pause`, o `!queue` para controlar la música.';
-        }
+        reply = '🎧 **Kova Lofi**: La música en las salas de voz todavía no está disponible en Kova. Mientras tanto puedes usar los sonidos de la sala.';
       } else if (bot.id === 'bot_sentinel') {
         if (content.includes('!level') || content.includes('!rank')) {
-          reply = `🏆 **Kova Sentinel**:\n👤 Usuario: **${currentUser.displayName}**\n⭐ Nivel: **18** | Total XP: **4,850** | Posición: **#1 en ${activeServer.name}** 🥇`;
-        } else if (content.includes('!clear') || content.includes('!clean')) {
-          reply = '🧹 **Kova Sentinel**: 5 mensajes eliminados por petición del moderador. Canal limpio y ordenado.';
-        } else if (content.includes('!warn')) {
-          reply = '⚠️ **Kova Sentinel**: Advertencia registrada en el registro de auditoría del espacio.';
+          const mine = (allMessages[channelId] || []).filter((message) => message.author.id === currentUser.id).length;
+          reply = `🏆 **Kova Sentinel**: Has escrito **${mine}** mensajes recientes en este canal. Los niveles y la experiencia todavía no existen en Kova.`;
+        } else if (content.includes('!clear') || content.includes('!clean') || content.includes('!warn')) {
+          reply = '🛡️ **Kova Sentinel**: Para moderar usa el menú de cada mensaje (borrar) o Ajustes del espacio → Miembros (expulsar o vetar). Necesitas los permisos de moderación.';
         } else {
-          reply = '🛡️ **Kova Sentinel**: Usa `!level` para ver tu tarjeta de rango o `!clear` para moderar.';
+          reply = '🛡️ **Kova Sentinel**: Usa `!level` para ver tu actividad en este canal.';
         }
       } else if (bot.id === 'bot_memes') {
         if (content.includes('!meme')) {
@@ -2610,20 +2708,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           reply = memes[Math.floor(Math.random() * memes.length)];
         } else if (content.includes('!coin') || content.includes('!flip')) {
           reply = `🪙 **Kova Memes**: Lanzando la moneda al aire... ¡Salió **${Math.random() > 0.5 ? 'CARA 🌕' : 'CRUZ 🌑'}**!`;
-        } else if (content.includes('!daily')) {
-          reply = '💰 **Kova Memes**: ¡Has reclamado tus **5,000 Kova Coins** diarias! Tu balance actual: **24,500 🪙**';
         } else {
-          reply = '🤣 **Kova Memes**: ¡Comandos disponibles: `!meme`, `!coin`, `!daily`!';
-        }
-      } else if (bot.id === 'bot_imagen') {
-        if (content.includes('!imagine')) {
-          const prompt = content.replace(/!imagine/i, '').replace(`@${bot.name}`, '').trim() || 'Cyberpunk neon city 8k resolution';
-          reply = `🎨 **Kova Imagine**:\n> *Prompt: "${prompt}"*\n\n🖼️ Generando arte conceptual fotorrealista...\n✨ ¡Render completado con éxito! [Kova Cyberpunk Style | 4096x4096px]`;
-        } else {
-          reply = '🎨 **Kova Imagine**: Usa `!imagine <tu descripción visual>` para generar arte conceptual.';
+          reply = '🤣 **Kova Memes**: ¡Comandos disponibles: `!meme` y `!coin`!';
         }
       } else if (bot.id === 'bot_stats') {
-        reply = `📊 **Estadísticas Oficiales de ${activeServer.name}**:\n• 👥 **Miembros totales**: ${activeServer.members.length}\n• 💬 **Canales de texto/voz**: ${activeServer.channels.length}\n• 🛡️ **Roles configurados**: ${activeServer.roles.length}\n• 🟢 **Latencia de servidor**: 22ms | 🌐 **Región**: Cloud Global (Kova DC-1)`;
+        const onlineNow = activeServer.members.filter((member) => presenceByUser[member.id] === 'online').length;
+        reply = `📊 **Estadísticas de ${activeServer.name}**:\n• 👥 **Miembros**: ${activeServer.members.length}${onlineNow ? ` (${onlineNow} en línea)` : ''}\n• 💬 **Canales**: ${activeServer.channels.filter((c) => c.type !== 'voice').length} de texto y ${activeServer.channels.filter((c) => c.type === 'voice').length} de voz\n• 🛡️ **Roles**: ${activeServer.roles.length}`;
       } else if (bot.id === 'bot_gemini' || bot.systemPrompt) {
         const query = content.replace(bot.prefix || '', '').replace(`@${bot.name}`, '').trim();
         if (!query) {
@@ -2667,7 +2757,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               description: reply,
               tone: /error|advertencia|no reconocido/i.test(reply) ? 'warning' : /éxito|activo|conectado|completado/i.test(reply) ? 'success' : 'ai',
               suggestions: bot.id === 'bot_kova' ? ['!ayuda', '!roles', '!bot'] : [bot.prefix ? `${bot.prefix}help` : '!ayuda'],
-              footer: 'Puedes tocar una sugerencia para continuar.',
+              footer: 'Solo tú puedes ver esta respuesta.',
             },
           };
 
@@ -2683,27 +2773,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  // Notes operations
-  const addNote = (title: string, content: string, tags: string[]) => {
-    soundFx.playReactionAdded();
-    const newDoc: NoteDocument = {
-      id: `note_${Date.now()}`,
-      title,
-      content,
-      tags,
-      lastEdited: 'Ahora por ' + currentUser.displayName,
+  // Notes: one set per notes channel, saved on the server for everyone.
+  const notesChannelId = activeChannel?.type === 'notes' ? activeChannel.id : '';
+  const noteFromApi = (item: any): NoteDocument => ({
+    id: item.id,
+    title: item.title,
+    content: item.content || '',
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    lastEdited: item.updatedBy ? `${new Date(item.updatedAt).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${item.updatedBy}` : 'Ahora',
+  });
+  useEffect(() => {
+    if (!notesChannelId || !getAuthToken()) { setNotes([]); return; }
+    let cancelled = false;
+    const load = () => api.getNotes(notesChannelId).then((items) => { if (!cancelled) setNotes(items.map(noteFromApi)); }).catch(() => undefined);
+    void load();
+    const socket = getSocket();
+    // Someone else edited: refresh (our own edits are already on screen).
+    const onNotes = (event: { channelId: string; editorId?: string }) => {
+      if (event.channelId === notesChannelId && event.editorId !== currentUser.id) void load();
     };
-    setNotes((prev) => [newDoc, ...prev]);
+    socket.on('notes:changed', onNotes);
+    return () => { cancelled = true; socket.off('notes:changed', onNotes); };
+  }, [notesChannelId, currentUser.id]);
+
+  const addNote = (title: string, content: string, tags: string[]) => {
+    if (!notesChannelId) return;
+    soundFx.playReactionAdded();
+    api.createNote(notesChannelId, { title, content, tags })
+      .then((saved) => setNotes((prev) => [noteFromApi({ ...saved, updatedBy: currentUser.displayName }), ...prev]))
+      .catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudo crear la nota.'));
   };
 
+  // Typing updates the note at once; it saves half a second after you stop.
+  const noteSaveTimers = useRef<Record<string, number>>({});
   const updateNote = (id: string, title: string, content: string) => {
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.id === id
-          ? { ...n, title, content, lastEdited: 'Ahora por ' + currentUser.displayName }
-          : n
-      )
-    );
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, title, content, lastEdited: `Editando · ${currentUser.displayName}` } : n)));
+    window.clearTimeout(noteSaveTimers.current[id]);
+    noteSaveTimers.current[id] = window.setTimeout(() => {
+      api.updateNote(id, { title, content })
+        .then(() => setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, lastEdited: `Guardado · ${currentUser.displayName}` } : n))))
+        .catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudo guardar la nota.'));
+    }, 500);
   };
 
   // Server, Channel & Category operations
@@ -3265,6 +3375,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinServerByInvite,
         setSpaceNickname,
         removeFromSpace,
+        voiceOccupancy,
+        blockedUsers,
+        blockedUserIds,
+        blockUser,
+        unblockUser,
         unreadByChannel,
         markChannelRead,
         loadOlderMessages,

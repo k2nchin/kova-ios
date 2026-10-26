@@ -46,6 +46,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
     editMessage,
     openUserProfile,
     sendMessage,
+    blockedUserIds,
   } = useApp();
   const [copiedCode, setCopiedCode] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -55,6 +56,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
   const [isEditing, setIsEditing] = useState(false);
   // Touch screens have no hover: tapping a message shows its actions.
   const [showActions, setShowActions] = useState(false);
+  const [revealBlocked, setRevealBlocked] = useState(false);
   const toggleActionsOnTouch = (event: React.MouseEvent) => {
     if (!window.matchMedia('(hover: none)').matches) return;
     if ((event.target as HTMLElement).closest('a, button, input, textarea, video, audio, img')) return;
@@ -86,6 +88,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
     }, 150);
   };
 
+  const isBlockedAuthor = blockedUserIds.has(message.author.id);
   const authorMember = activeServer?.members?.find((member) => member.id === message.author.id);
   const authorName = authorMember?.nickname || message.author.displayName || message.author.username;
   const isBotMessage = message.author.tag === 'BOT' || message.aiGenerated || /kova\s*bot|kova\s*ia/i.test(message.author.displayName || '');
@@ -102,6 +105,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
   // Only real role colors tint names; everyone else reads in chrome.
   const authorColor = authorHighestRole?.color;
   const isOwner = message.author.id === activeServer?.ownerId;
+
+  if (isBlockedAuthor && !revealBlocked) {
+    return (
+      <div className="kova-message-blocked">
+        <span>Mensaje de una cuenta bloqueada</span>
+        <button type="button" onClick={() => setRevealBlocked(true)}>Mostrar</button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -391,7 +403,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
         </div>
 
         {/* Thread indicator */}
-        {message.threadCount && (
+        {(message.threadCount || 0) > 0 && (
           <button
             onClick={() => openThread(message)}
             className="flex items-center gap-1.5 mt-1.5 text-xs text-cyan-400 hover:text-cyan-300 font-semibold bg-cyan-950/20 hover:bg-cyan-950/40 px-2 py-0.5 rounded-lg border border-cyan-500/20 transition-colors"

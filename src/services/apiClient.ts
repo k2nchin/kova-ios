@@ -165,7 +165,7 @@ export const api = {
   sendDirectMessage: (userId: string, content: string) => request<any>(`/dms/${encodeURIComponent(userId)}/messages`, { method: 'POST', data: { content } }),
 
   // Safety
-  getBlockedUsers: () => request<{ blockedUserIds: string[] }>('/safety/blocks', { method: 'GET' }),
+  getBlockedUsers: () => request<{ blockedUserIds: string[]; users?: Array<{ id: string; username: string; displayName: string; avatar: string }> }>('/safety/blocks', { method: 'GET' }),
   blockUser: (userId: string) => request<{ ok: true; userId: string }>('/safety/blocks', { method: 'POST', data: { userId } }),
   unblockUser: (userId: string) => request<{ ok: true }>(`/safety/blocks/${userId}`, { method: 'DELETE' }),
   reportUser: (userId: string, reason: string, details = '') => request<{ id: string; ok: true }>('/safety/reports', { method: 'POST', data: { userId, reason, details } }),
@@ -204,6 +204,15 @@ export const api = {
   deleteMessage: (messageId: string) => request<any>(`/messages/${messageId}`, { method: 'DELETE' }),
 
   // Voice
+  getThread: (messageId: string) => request<any[]>(`/messages/${encodeURIComponent(messageId)}/thread`, { method: 'GET' }),
+  replyInThread: (messageId: string, content: string) => request<any>(`/messages/${encodeURIComponent(messageId)}/thread`, { method: 'POST', data: { content } }),
+  getNotes: (channelId: string) => request<Array<{ id: string; title: string; content: string; tags: string[]; updatedBy: string; updatedAt: string }>>(`/channels/${encodeURIComponent(channelId)}/notes`, { method: 'GET' }),
+  createNote: (channelId: string, data: { title: string; content: string; tags: string[] }) => request<any>(`/channels/${encodeURIComponent(channelId)}/notes`, { method: 'POST', data }),
+  updateNote: (noteId: string, data: { title?: string; content?: string; tags?: string[] }) => request<any>(`/notes/${encodeURIComponent(noteId)}`, { method: 'PATCH', data }),
+  deleteNote: (noteId: string) => request<{ ok: true }>(`/notes/${encodeURIComponent(noteId)}`, { method: 'DELETE' }),
+  getVoiceOccupancy: (serverId: string) =>
+    request<Record<string, Array<{ id: string; name: string; avatar: string }>>>(`/servers/${encodeURIComponent(serverId)}/voice`, { method: 'GET' }),
+  voiceLeft: (channelId: string) => request<{ ok: true }>('/voice/left', { method: 'POST', data: { channelId } }),
   getVoiceToken: (channelId: string) =>
     request<{ token: string; url: string; room: string }>('/voice/token', { method: 'POST', data: { channelId } }),
 

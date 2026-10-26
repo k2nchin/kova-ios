@@ -10,8 +10,9 @@ import { fileURLToPath } from 'node:url';
 const updatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'updater-static', 'updates');
 import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
 import { askKovaAI, AiError } from './ai.mjs';
-import { createVoiceToken, VoiceError } from './voice.mjs';
+import { createVoiceToken, VoiceError, voiceOccupancy, forgetVoiceOccupancy } from './voice.mjs';
 import { contentSchema, contentUserColumns, handleContentRoute } from './content.mjs';
+import { threadsSchema, handleThreadRoutes, threadCounts } from './threads.mjs';
 import { activitySchema, handleActivityRoutes, mentionedUserIds } from './activity.mjs';
 import { spacesSchema, handleSpaceRoutes, can, rolesOf, memberRoleMap, ensureRoles, spaceAudience, deleteSpaceExtras } from './spaces.mjs';
 import { uploadsSchema, createUploadTicket, receiveLocalUpload, serveLocalFile, UploadError } from './storage.mjs';
@@ -80,6 +81,7 @@ await db.exec(twoFactorSchema);
 await db.exec(contentSchema);
 await db.exec(spacesSchema);
 await db.exec(activitySchema);
+await db.exec(threadsSchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -132,6 +134,11 @@ const replyPreview = async (replyToId) => {
   if (!replyToId) return undefined;
   const row = await db.prepare('SELECT m.id, m.content, u.display_name, u.username FROM messages m JOIN users u ON u.id = m.author_id WHERE m.id = ?').get(replyToId);
   return row ? { id: row.id, authorName: row.display_name || row.username, content: String(row.content || '').slice(0, 140) } : { id: replyToId, authorName: '', content: 'Mensaje eliminado' };
+};
+// Voice rooms changed in a space: clients refetch who is in each room.
+const notifyVoice = async (spaceId) => {
+  const audience = await spaceAudience(db, spaceId);
+  if (audience.length) await emitToUsers(audience, 'voice:changed', { serverId: spaceId });
 };
 // Tells everyone in a space that something changed; clients refetch it.
 const notifySpace = async (spaceId, kind) => {
@@ -446,6 +453,7 @@ const handleRequest = async (req, res) => {
       throw error;
     }
   }
+  if (await handleThreadRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, can, publicUser, userFromRow, emitToChannel })) return;
   if (await handleActivityRoutes({ db, req, res, requestPath, session, send, canAccessSpace, isVerifiedEmail })) return;
   if (await handleSpaceRoutes({ db, req, res, requestPath, session, send, readBody, notifySpace, emitToUsers })) return;
   if (await handleContentRoute({ req, res, requestPath, session, db, send, readBody, userFromRow, publicUser, canAccessSpace })) return;
@@ -458,10 +466,40 @@ const handleRequest = async (req, res) => {
     if (channel.type !== 'voice') return send(res, 400, { message: 'Ese canal no es de voz.', code: 'NOT_VOICE_CHANNEL' });
     try {
       const user = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
-      return send(res, 200, createVoiceToken({ user, channelId }));
+      const token = createVoiceToken({ user, channelId });
+      // Others refresh who's in each room (the app re-asks a moment later too).
+      forgetVoiceOccupancy();
+      await notifyVoice(channel.space_id);
+      return send(res, 200, token);
     } catch (error) {
       if (error instanceof VoiceError) return send(res, error.status, { message: error.message, code: error.code });
       throw error;
+    }
+  }
+  // Someone left a room: tell the space so the sidebar updates.
+  if (requestPath === '/api/voice/left' && req.method === 'POST') {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const body = await readBody(req);
+    const channel = await db.prepare('SELECT space_id FROM signals WHERE id = ?').get(String(body.channelId || ''));
+    if (channel && await canAccessSpace(channel.space_id, session.user_id)) {
+      forgetVoiceOccupancy();
+      await notifyVoice(channel.space_id);
+    }
+    return send(res, 200, { ok: true });
+  }
+  // Who is in each voice room of a space, without joining.
+  const voiceOccupancyMatch = requestPath.match(/^\/api\/servers\/([^/]+)\/voice$/);
+  if (voiceOccupancyMatch && req.method === 'GET') {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const serverId = decodeURIComponent(voiceOccupancyMatch[1]);
+    if (!await canAccessSpace(serverId, session.user_id)) return send(res, 404, { message: 'No encontramos ese espacio.' });
+    const channels = await db.prepare("SELECT id FROM signals WHERE space_id = ? AND type = 'voice'").all(serverId);
+    try {
+      return send(res, 200, await voiceOccupancy(channels.map((channel) => channel.id)));
+    } catch (error) {
+      // LiveKit unreachable: show nobody rather than failing the sidebar.
+      console.warn('[Kova voice] No se pudo consultar las salas:', error?.message || error);
+      return send(res, 200, {});
     }
   }
   if (requestPath === '/api/ai/chat' && req.method === 'POST') {
@@ -516,8 +554,8 @@ const handleRequest = async (req, res) => {
   }
   if (requestPath === '/api/safety/blocks' && req.method === 'GET') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
-    const rows = await db.prepare('SELECT blocked_id FROM blocked_users WHERE blocker_id = ?').all(session.user_id);
-    return send(res, 200, { blockedUserIds: rows.map((row) => row.blocked_id) });
+    const rows = await db.prepare('SELECT b.blocked_id, u.username, u.display_name, u.avatar FROM blocked_users b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ? ORDER BY b.created_at DESC').all(session.user_id);
+    return send(res, 200, { blockedUserIds: rows.map((row) => row.blocked_id), users: rows.map((row) => ({ id: row.blocked_id, username: row.username, displayName: row.display_name, avatar: row.avatar })) });
   }
   if (requestPath === '/api/safety/blocks' && req.method === 'POST') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
@@ -526,6 +564,11 @@ const handleRequest = async (req, res) => {
     const target = await db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
     if (!target) return send(res, 404, { message: 'La cuenta ya no existe.' });
     try { await db.prepare('INSERT INTO blocked_users (blocker_id, blocked_id, created_at) VALUES (?, ?, ?)').run(session.user_id, targetId, new Date().toISOString()); } catch {}
+    // Blocking ends the friendship and any pending request between both.
+    const [a, b] = [session.user_id, targetId].sort();
+    await db.prepare('DELETE FROM friendships WHERE user_a = ? AND user_b = ?').run(a, b);
+    await db.prepare('DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)').run(session.user_id, targetId, targetId, session.user_id);
+    void emitToUsers([targetId, session.user_id], 'friends:changed', { kind: 'blocked' });
     return send(res, 201, { ok: true, userId: targetId });
   }
   const unblockMatch = requestPath.match(/^\/api\/safety\/blocks\/([^/]+)$/);
@@ -563,6 +606,7 @@ const handleRequest = async (req, res) => {
     }
     if (!target) return send(res, 404, { message: 'No encontramos esa cuenta de Kova. Revisa su usuario o correo.' });
     if (target.id === session.user_id) return send(res, 400, { message: 'No puedes enviarte una solicitud a ti mismo.' });
+    if (await db.prepare('SELECT blocker_id FROM blocked_users WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)').get(session.user_id, target.id, target.id, session.user_id)) return send(res, 403, { message: 'No puedes enviar una solicitud a esta cuenta.' });
     const pair = [session.user_id, target.id].sort();
     if (await db.prepare('SELECT user_a FROM friendships WHERE user_a = ? AND user_b = ?').get(pair[0], pair[1])) return send(res, 409, { message: 'Ya son amigos en Kova.' });
     // They already asked you: sending one back accepts it (like Discord).
@@ -751,6 +795,7 @@ const handleRequest = async (req, res) => {
         ? await db.prepare('SELECT m.*, u.username, u.display_name, u.avatar, u.email AS author_email FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? AND m.created_at < ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, before.created_at, limit)
         : await db.prepare('SELECT m.*, u.username, u.display_name, u.avatar, u.email AS author_email FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, limit);
       const messages = [];
+      const counts = await threadCounts(db, rows.map((row) => row.id));
       for (const row of rows.reverse()) {
         const reactions = await db.prepare('SELECT emoji, user_id FROM message_reactions WHERE message_id = ?').all(row.id);
         const grouped = new Map();
@@ -760,7 +805,7 @@ const handleRequest = async (req, res) => {
           current.users.push(reaction.user_id);
           grouped.set(reaction.emoji, current);
         }
-        messages.push({ id: row.id, channelId, author: { id: row.author_id, username: row.username, displayName: row.display_name, avatar: row.avatar, status: 'online', verified: isVerifiedEmail(row.author_email) }, content: row.content, replyToId: row.reply_to_id || undefined, replyTo: await replyPreview(row.reply_to_id), pinned: Boolean(row.pinned_at), edited: Boolean(row.edited_at), attachments: parseJson(row.attachments, []), createdAt: row.created_at, reactions: [...grouped.values()] });
+        messages.push({ id: row.id, channelId, author: { id: row.author_id, username: row.username, displayName: row.display_name, avatar: row.avatar, status: 'online', verified: isVerifiedEmail(row.author_email) }, content: row.content, replyToId: row.reply_to_id || undefined, replyTo: await replyPreview(row.reply_to_id), pinned: Boolean(row.pinned_at), edited: Boolean(row.edited_at), threadCount: counts[row.id] || 0, attachments: parseJson(row.attachments, []), createdAt: row.created_at, reactions: [...grouped.values()] });
       }
       return send(res, 200, messages);
     }

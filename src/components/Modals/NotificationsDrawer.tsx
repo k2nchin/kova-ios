@@ -23,19 +23,12 @@ export const NotificationsDrawer: React.FC = () => {
     dismissNotification,
     setActiveChannelId,
     setIsDMViewActive,
-    setIsLiveStreamsOpen,
   } = useApp();
 
   if (!isNotificationsOpen) return null;
 
   const handleAction = (notif: AppNotification) => {
     markNotificationAsRead(notif.id);
-
-    if (notif.type === 'stream') {
-      setIsNotificationsOpen(false);
-      setIsLiveStreamsOpen(true);
-      return;
-    }
 
     if (notif.channelId) {
       setIsDMViewActive(false);

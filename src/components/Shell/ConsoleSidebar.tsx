@@ -56,7 +56,9 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
     isInVoice,
     activeVoiceChannelId,
     voicePeers,
+    voiceOccupancy,
     unreadByChannel,
+    preferences,
     connectingVoiceChannelId,
     setActiveServerId,
     setActiveChannelId,
@@ -135,7 +137,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
             // A dot for unread messages, a number for @mentions (like Discord).
             const counts = server.channels.map((channel) => unreadByChannel[channel.id]).filter(Boolean);
             const spaceMentions = counts.reduce((sum, count) => sum + (count?.mentions || 0), 0);
-            const spaceUnread = counts.some((count) => (count?.unread || 0) > 0);
+            const spaceUnread = preferences.channelActivity && counts.some((count) => (count?.unread || 0) > 0);
             return (
               <button
                 type="button"
@@ -225,7 +227,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                       <span className="kova-channel-name">{cleanName(channel.name)}</span>
                       {unreadByChannel[channel.id]?.mentions ? (
                         <b className="kova-channel-badge is-mention" aria-label="Te mencionaron">@{unreadByChannel[channel.id].mentions}</b>
-                      ) : unreadByChannel[channel.id]?.unread ? (
+                      ) : preferences.channelActivity && unreadByChannel[channel.id]?.unread ? (
                         <b className="kova-channel-badge" aria-label="Mensajes sin leer">{unreadByChannel[channel.id].unread > 99 ? '99+' : unreadByChannel[channel.id].unread}</b>
                       ) : null}
                     </button>
@@ -238,6 +240,23 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                             <small>Conectando…</small>
                           </span>
                         </li>
+                      </ul>
+                    )}
+                    {channel.type === 'voice' && !isLive && connectingVoiceChannelId !== channel.id && (voiceOccupancy[channel.id] || []).length > 0 && (
+                      <ul className="kova-channel-peers" aria-label={`En ${channel.name}`}>
+                        {(voiceOccupancy[channel.id] || []).map((person) => {
+                          const member = activeServer?.members?.find((m) => m.id === person.id);
+                          const name = member?.nickname || member?.displayName || person.name;
+                          return (
+                            <li key={person.id}>
+                              <button type="button" className="kova-channel-peer" onClick={() => member && openUserProfile(member)} title={`Ver perfil de ${name}`}>
+                                <Avatar src={member?.avatar || person.avatar} name={name} size={20} />
+                                <span>{name}</span>
+                                {member?.verified && <VerifiedBadge size={12} />}
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                     {isLive && voicePeers.length > 0 && (

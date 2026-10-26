@@ -381,3 +381,53 @@ test('no leídos, menciones, búsqueda e historial paginado', async () => {
   assert.equal(older.length, 5);
   assert.ok(older.every((m) => !latest.some((l) => l.id === m.id)));
 });
+
+test('voz: ocupación de salas solo para miembros y salir avisa', async () => {
+  const owner = await register('salas');
+  const stranger = await register('fuera2');
+  const space = await createSpace(owner);
+  assert.equal((await call('GET', `/servers/${space.id}/voice`, undefined, stranger.token)).status, 404);
+  const occupancy = await call('GET', `/servers/${space.id}/voice`, undefined, owner.token);
+  assert.equal(occupancy.status, 200);
+  assert.deepEqual(occupancy.body, {}, 'sin LiveKit accesible: nadie');
+  const voice = space.channels.find((c) => c.type === 'voice');
+  assert.equal((await call('POST', '/voice/left', { channelId: voice.id }, owner.token)).status, 200);
+});
+
+test('bloquear: corta la amistad, frena solicitudes y lista los bloqueados', async () => {
+  const a = await register('bloquea');
+  const b = await register('bloqueado');
+  await call('POST', '/friends/requests', { userId: b.id }, a.token);
+  const incoming = (await call('GET', '/friends', undefined, b.token)).body.incoming;
+  await call('POST', `/friends/requests/${incoming[0].id}/accept`, undefined, b.token);
+  assert.equal((await call('POST', '/safety/blocks', { userId: b.id }, a.token)).status, 201);
+  assert.equal((await call('GET', '/friends', undefined, a.token)).body.friends.length, 0, 'ya no son amigos');
+  assert.equal((await call('POST', '/friends/requests', { userId: a.id }, b.token)).status, 403);
+  const list = (await call('GET', '/safety/blocks', undefined, a.token)).body;
+  assert.equal(list.users[0].id, b.id);
+  assert.ok(list.users[0].displayName);
+  assert.equal((await call('DELETE', `/safety/blocks/${b.id}`, undefined, a.token)).status, 200);
+  assert.equal((await call('GET', '/safety/blocks', undefined, a.token)).body.users.length, 0);
+});
+
+test('hilos y notas: guardados y visibles para el espacio', async () => {
+  const owner = await register('hilos');
+  const guest = await register('notas');
+  const space = await createSpace(owner, guest);
+  const channel = space.channels.find((c) => c.type !== 'voice');
+  const parent = (await call('POST', `/channels/${channel.id}/messages`, { content: 'Tema del hilo' }, owner.token)).body;
+  const reply = await call('POST', `/messages/${parent.id}/thread`, { content: 'Primera respuesta' }, guest.token);
+  assert.equal(reply.status, 201);
+  assert.equal(reply.body.threadCount, 1);
+  const thread = (await call('GET', `/messages/${parent.id}/thread`, undefined, owner.token)).body;
+  assert.equal(thread[0].content, 'Primera respuesta');
+  const history = (await call('GET', `/channels/${channel.id}/messages`, undefined, owner.token)).body;
+  assert.equal(history.find((m) => m.id === parent.id).threadCount, 1);
+
+  const note = (await call('POST', `/channels/${channel.id}/notes`, { title: 'Normas', content: 'Respeto', tags: ['guía'] }, owner.token)).body;
+  await call('PATCH', `/notes/${note.id}`, { content: 'Respeto y buen humor' }, guest.token);
+  const notes = (await call('GET', `/channels/${channel.id}/notes`, undefined, guest.token)).body;
+  assert.equal(notes[0].content, 'Respeto y buen humor', 'cualquier miembro puede editar');
+  assert.equal((await call('DELETE', `/notes/${note.id}`, undefined, guest.token)).status, 403, 'borrar: autor o moderador');
+  assert.equal((await call('DELETE', `/notes/${note.id}`, undefined, owner.token)).status, 200);
+});

@@ -26,6 +26,7 @@ export const UserProfileModal: React.FC = () => {
     activeVoiceChannelId,
     realtimeConnected,
     presenceByUser,
+    blockUser,
   } = useApp();
 
   const [quickMsg, setQuickMsg] = useState('');
@@ -90,13 +91,7 @@ export const UserProfileModal: React.FC = () => {
   };
 
   const block = async () => {
-    try {
-      await api.blockUser(user.id);
-      toast.success(`Bloqueaste a ${shownName}.`);
-      closeUserProfile();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'No se pudo bloquear.');
-    }
+    if (await blockUser({ id: user.id, username: user.username, displayName: shownName, avatar: user.avatar })) closeUserProfile();
   };
 
   return (

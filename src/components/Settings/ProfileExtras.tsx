@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Loader2, Music, Play, Trash2, Upload } from 'lucide-react';
+import { Avatar } from '../Common/Avatar';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { uploadFile } from '../../services/apiClient';
@@ -110,6 +111,33 @@ export const MuteSoundPicker: React.FC = () => {
           </button>
         ))}
       </div>
+    </div>
+  );
+};
+
+/** People you blocked, with a button to unblock each one. */
+export const BlockedList: React.FC = () => {
+  const { blockedUsers, unblockUser } = useApp();
+  return (
+    <div className="kset-field kset-extras">
+      <h4>Cuentas bloqueadas</h4>
+      <p>No pueden escribirte ni enviarte solicitudes, y sus mensajes aparecen ocultos.</p>
+      {blockedUsers.length === 0 ? (
+        <p className="kset-blocked-empty">No has bloqueado a nadie.</p>
+      ) : (
+        <ul className="kset-blocked">
+          {blockedUsers.map((user) => (
+            <li key={user.id}>
+              <Avatar src={user.avatar} name={user.displayName || user.username} size={32} />
+              <span>
+                <strong>{user.displayName || user.username}</strong>
+                {user.username && <small>@{user.username}</small>}
+              </span>
+              <button type="button" className="kset-btn-ghost" onClick={() => void unblockUser(user.id)}>Desbloquear</button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

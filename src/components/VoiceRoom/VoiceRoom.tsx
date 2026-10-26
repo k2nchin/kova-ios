@@ -36,10 +36,13 @@ export const VoiceRoom: React.FC = () => {
     openInviteModal,
     isInVoice,
     activeVoiceChannelId,
+    preferences,
+    updatePreference,
   } = useApp();
 
   // Audio DSP & Noise Suppression
-  const [antirruido, setAntirruido] = useState(true);
+  // Same setting as Ajustes → Voz: it filters the microphone people hear.
+  const antirruido = preferences.noiseSuppression;
   const [isMicHardwareAvailable, setIsMicHardwareAvailable] = useState(true);
 
   // Room UI state
@@ -419,10 +422,8 @@ export const VoiceRoom: React.FC = () => {
         onOpenChat={() => setIsChatOpen((v) => !v)}
         onToggleRadar={() => setRadarVisible((v) => !v)}
         onToggleNoiseSuppression={() => {
-          setAntirruido((v) => {
-            toast.success(`Supresión de ruido ${!v ? 'activada' : 'desactivada'}`);
-            return !v;
-          });
+          updatePreference('noiseSuppression', !antirruido);
+          toast.success(`Supresión de ruido ${!antirruido ? 'activada' : 'desactivada'}`);
         }}
         radarVisible={radarVisible}
       />

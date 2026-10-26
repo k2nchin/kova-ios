@@ -24,7 +24,7 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import '../../styles/settings.css';
-import { ProfileExtras, MuteSoundPicker } from '../Settings/ProfileExtras';
+import { ProfileExtras, MuteSoundPicker, BlockedList } from '../Settings/ProfileExtras';
 import { Avatar } from '../Common/Avatar';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { isDesktopApp } from '../../utils/platform';
@@ -752,15 +752,9 @@ export const SettingsModal: React.FC = () => {
                 <MuteSoundPicker />
                 <PreferenceToggle
                   label="Supresión de ruido"
-                  description="Reduce zumbidos y ruido de fondo de tu micrófono."
+                  description="Filtra ruido de fondo, eco y zumbidos de tu micrófono en las llamadas."
                   checked={preferences.noiseSuppression}
                   onChange={() => updatePreference('noiseSuppression', !preferences.noiseSuppression)}
-                />
-                <PreferenceToggle
-                  label="Previsualización de cámara antes de transmitir"
-                  description="Muestra tu cámara antes de activarla en salas compartidas."
-                  checked={preferences.videoPreview}
-                  onChange={() => updatePreference('videoPreview', !preferences.videoPreview)}
                 />
                 {isDesktop && (
                   <div className="p-5 rounded-3xl border border-purple-900/30 bg-gradient-to-br from-[#090414] to-[#0d071c]">
@@ -819,14 +813,14 @@ export const SettingsModal: React.FC = () => {
                 description="Elige cuándo Kova debe avisarte de nueva actividad."
               >
                 <PreferenceToggle
-                  label="Menciones directas (@nombre)"
-                  description="Recibe notificación sonora y visual cuando alguien te mencione en canales o DMs."
+                  label="Avisos de menciones (@nombre)"
+                  description="Sonido, aviso y notificación cuando alguien te menciona con @tunombre, @everyone o @here."
                   checked={preferences.directMentions}
                   onChange={() => updatePreference('directMentions', !preferences.directMentions)}
                 />
                 <PreferenceToggle
-                  label="Actividad global del servidor"
-                  description="Muestra badges de mensajes no leídos en canales con nuevos mensajes."
+                  label="Contadores de mensajes sin leer"
+                  description="Muestra cuántos mensajes nuevos hay en cada canal y espacio. Las menciones se muestran siempre."
                   checked={preferences.channelActivity}
                   onChange={() => updatePreference('channelActivity', !preferences.channelActivity)}
                 />
@@ -839,6 +833,7 @@ export const SettingsModal: React.FC = () => {
                 title="Privacidad & Seguridad"
                 description="Controla la visibilidad de tu cuenta y la seguridad de inicio de sesión."
               >
+                <BlockedList />
                 {/* Two-Factor Authentication */}
                 <div
                   className={`p-5 rounded-3xl border transition-all ${
@@ -914,18 +909,6 @@ export const SettingsModal: React.FC = () => {
                   </div>
                 </div>
 
-                <PreferenceToggle
-                  label="Mostrar estado de actividad en tiempo real"
-                  description="Permite que otros vean si estás en línea, en llamada o concentrado."
-                  checked={preferences.activityStatus}
-                  onChange={() => updatePreference('activityStatus', !preferences.activityStatus)}
-                />
-                <PreferenceToggle
-                  label="Protección contra enlaces externos desconocidos"
-                  description="Solicita confirmación antes de abrir URLs externas fuera de Kova."
-                  checked={preferences.confirmExternalLinks}
-                  onChange={() => updatePreference('confirmExternalLinks', !preferences.confirmExternalLinks)}
-                />
               </SettingsSection>
             )}
 

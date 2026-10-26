@@ -132,3 +132,11 @@
   background: none; color: #b4b6ba; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .kset-segment button.is-on { color: #0a0a0b; background: linear-gradient(180deg, #ffffff, #b8babe); }
+
+.kset-blocked { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kset-blocked li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(194, 196, 200, 0.12); background: #141516; }
+.kset-blocked li .kova-avatar { border-radius: 50% !important; }
+.kset-blocked li > span { flex: 1; min-width: 0; display: grid; }
+.kset-blocked strong { font-size: 14px; color: #f4f5f7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kset-blocked small { font-size: 12px; color: #8b8d91; }
+.kset-blocked-empty { margin: 0; font-size: 13px; color: #6d6f73; }

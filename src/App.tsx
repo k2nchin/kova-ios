@@ -99,9 +99,6 @@ const AppDirectoryModal = lazy(() =>
 const NotificationsDrawer = lazy(() =>
   import('./components/Modals/NotificationsDrawer').then((m) => ({ default: m.NotificationsDrawer }))
 );
-const LiveStreamsModal = lazy(() =>
-  import('./components/Modals/LiveStreamsModal').then((m) => ({ default: m.LiveStreamsModal }))
-);
 
 export const MainLayout: React.FC = () => {
   const {
@@ -133,7 +130,6 @@ export const MainLayout: React.FC = () => {
     profileModalUser,
     isAppDirectoryOpen,
     isNotificationsOpen,
-    isLiveStreamsOpen,
     joinServerByInvite,
     layoutMode,
     setLayoutMode,
@@ -382,7 +378,6 @@ export const MainLayout: React.FC = () => {
         {isAppDirectoryOpen && <AppDirectoryModal />}
         {/* Discord Hub oculto por petición */}
         {isNotificationsOpen && <NotificationsDrawer />}
-        {isLiveStreamsOpen && <LiveStreamsModal />}
       </Suspense>
       <Toaster position="bottom-right" theme="dark" />
     </div>

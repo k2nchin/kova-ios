@@ -46,12 +46,12 @@ export const DEFAULT_BOTS: KovaBot[] = [
   },
   {
     id: 'bot_lofi',
-    name: 'Kova Lofi · Radio 24/7',
+    name: 'Kova Lofi',
     tag: 'BOT',
     username: 'kova_radio',
     avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80',
     banner: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80',
-    description: 'Reproductor de música lofi hip hop 24/7 de alta fidelidad, beats para estudiar, relajarse y trabajar en salas de voz.',
+    description: 'Música lofi para estudiar y relajarte en las salas de voz. Próximamente: la reproducción en salas todavía no está disponible.',
     category: 'music',
     prefix: '!play',
     isAiPowered: false,
@@ -59,15 +59,9 @@ export const DEFAULT_BOTS: KovaBot[] = [
     developerName: 'Kova Radio',
     verified: true,
     commands: [
-      { name: '!play [canción]', description: 'Reproduce una canción o pista de lofi en el canal', usage: '!play lofi chill beats' },
-      { name: '!lofi', description: 'Inicia la transmisión continua de Lofi Radio 24/7', usage: '!lofi' },
-      { name: '!stop', description: 'Detiene la música y pausa el reproductor', usage: '!stop' },
-      { name: '!queue', description: 'Muestra la cola de reproducción actual', usage: '!queue' },
+      { name: '!play', description: 'Próximamente: reproducir música en la sala de voz', usage: '!play' },
     ],
-    autoResponses: [
-      { trigger: '!lofi', response: '📻 **Kova Lofi Radio** conectada: Reproduciendo *Beats to Relax/Study to* 🎶' },
-      { trigger: '!stop', response: '⏹️ Reproductor pausado. ¡Buen descanso!' },
-    ],
+    autoResponses: [],
   },
   {
     id: 'bot_sentinel',
@@ -76,7 +70,7 @@ export const DEFAULT_BOTS: KovaBot[] = [
     username: 'kova_sentinel',
     avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
     banner: 'https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=600&auto=format&fit=crop&q=80',
-    description: 'El guardián nativo de Kova: moderación, sistema de XP, limpieza de mensajes y bienvenida automática para tu espacio.',
+    description: 'Ayuda de moderación de Kova: te indica cómo moderar y muestra tu actividad en el canal.',
     category: 'moderation',
     prefix: '!level',
     isAiPowered: false,
@@ -84,13 +78,10 @@ export const DEFAULT_BOTS: KovaBot[] = [
     developerName: 'Equipo Kova',
     verified: true,
     commands: [
-      { name: '!level', description: 'Muestra tu tarjeta de nivel, rango y progreso de XP en el servidor', usage: '!level' },
-      { name: '!rank', description: 'Consulta el ranking de los usuarios más activos del servidor', usage: '!rank' },
-      { name: '!clear [N]', description: 'Limpia los últimos N mensajes del canal de texto', usage: '!clear 5' },
-      { name: '!warn @usuario [motivo]', description: 'Registra una advertencia formal a un miembro', usage: '!warn @usuario spam' },
+      { name: '!level', description: 'Muestra cuántos mensajes recientes has escrito en el canal', usage: '!level' },
+      { name: '!clear', description: 'Explica cómo borrar mensajes, expulsar o vetar', usage: '!clear' },
     ],
     autoResponses: [
-      { trigger: '!rank', response: '🏆 **Ranking del Servidor**:\n1. 🥇 **Alex Rivera** - Nivel 42 (18,450 XP)\n2. 🥈 **Elena Vance** - Nivel 38 (14,200 XP)\n3. 🥉 **Marcus Vance** - Nivel 29 (9,800 XP)' },
     ],
   },
   {
@@ -116,7 +107,7 @@ export const DEFAULT_BOTS: KovaBot[] = [
   },
   {
     id: 'bot_memes',
-    name: 'Kova Memes · Risas & Coins',
+    name: 'Kova Memes',
     tag: 'BOT',
     username: 'kova_memes',
     avatar: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=150&auto=format&fit=crop&q=80',
@@ -131,11 +122,9 @@ export const DEFAULT_BOTS: KovaBot[] = [
     commands: [
       { name: '!meme', description: 'Envía un meme aleatorio de la comunidad tech al chat', usage: '!meme' },
       { name: '!coin', description: 'Lanza una moneda con resultado aleatorio', usage: '!coin' },
-      { name: '!daily', description: 'Reclama tus 250 monedas diarias de Kova Coins', usage: '!daily' },
       { name: '!joke', description: 'Cuenta un chiste de programadores', usage: '!joke' },
     ],
     autoResponses: [
-      { trigger: '!daily', response: '🪙 **¡Has reclamado tu recompensa diaria!** +500 Kova Coins agregadas a tu billetera. Saldo actual: **1,750 🪙**.' },
       { trigger: '!joke', response: '🤓 *¿Por qué los programadores confunden Halloween con Navidad?*\nPorque OCT 31 == DEC 25. 😂' },
     ],
   },

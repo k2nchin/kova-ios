@@ -1,6 +1,6 @@
 // Real voice transport for Kova: a thin wrapper over a LiveKit room.
 // The backend (/api/voice/token) decides who may join; LiveKit carries the audio.
-import { LocalVideoTrack, Room, RoomEvent, Track, VideoPresets, type Participant, type RemoteTrack } from 'livekit-client';
+import { LocalAudioTrack, LocalVideoTrack, Room, RoomEvent, Track, VideoPresets, type Participant, type RemoteTrack } from 'livekit-client';
 
 export interface VoicePeer {
   id: string;
@@ -19,6 +19,8 @@ export interface VoiceSession {
   setDeafened: (deafened: boolean) => void;
   /** Publish or stop the camera (optionally a specific device). Resolves to the final state. */
   setCameraEnabled: (enabled: boolean, deviceId?: string) => Promise<boolean>;
+  /** Turns the microphone's noise suppression on or off during the call. */
+  setNoiseSuppression: (enabled: boolean) => Promise<void>;
   /** Publish a ready-made screen track (desktop native capture); stopping it unpublishes. */
   publishScreenTrack: (track: MediaStreamTrack) => Promise<void>;
   unpublishScreenTrack: () => Promise<void>;
@@ -32,6 +34,8 @@ interface ConnectOptions {
   token: string;
   micEnabled: boolean;
   deafened: boolean;
+  /** Browser/WebRTC noise suppression on the transmitted microphone. */
+  noiseSuppression?: boolean;
   onPeers: (peers: VoicePeer[]) => void;
   /** Called when the connection drops without the user asking to leave. */
   onUnexpectedDisconnect: () => void;
@@ -67,7 +71,7 @@ export async function connectVoice(options: ConnectOptions): Promise<VoiceSessio
   const room = new Room({
     adaptiveStream: true,
     dynacast: true,
-    audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    audioCaptureDefaults: { echoCancellation: true, noiseSuppression: options.noiseSuppression ?? true, autoGainControl: true },
     videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
   });
   const audioElements = new Map<RemoteTrack, HTMLMediaElement>();
@@ -149,6 +153,11 @@ export async function connectVoice(options: ConnectOptions): Promise<VoiceSessio
       await room.localParticipant.setCameraEnabled(enabled, deviceId ? { deviceId: { exact: deviceId } } : undefined);
       emitPeers();
       return room.localParticipant.isCameraEnabled;
+    },
+    setNoiseSuppression: async (enabled) => {
+      const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      const track = publication?.track as LocalAudioTrack | undefined;
+      if (track) await track.restartTrack({ echoCancellation: true, autoGainControl: true, noiseSuppression: enabled });
     },
     publishScreenTrack: async (mediaTrack) => {
       const track = new LocalVideoTrack(mediaTrack, undefined, true);

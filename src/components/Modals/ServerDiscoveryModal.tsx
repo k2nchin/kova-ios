@@ -24,140 +24,8 @@ interface DiscoverableServer {
   channels: { id: string; name: string; type: 'text' | 'voice' }[];
 }
 
-const PUBLIC_SERVERS: DiscoverableServer[] = [
-  {
-    id: 'pub_kova_dev',
-    name: 'Kova Official Developers',
-    category: 'dev',
-    acronym: 'KD',
-    banner: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=200&auto=format&fit=crop&q=80',
-    description: 'Comunidad oficial de Kova: novedades, temas, bots y ayuda.',
-    memberCount: 2450,
-    onlineCount: 890,
-    channels: [
-      { id: 'chan_kd_rules', name: 'reglas-y-bienvenida', type: 'text' },
-      { id: 'chan_kd_ann', name: 'anuncios-kova', type: 'text' },
-      { id: 'chan_kd_general', name: 'general-dev', type: 'text' },
-      { id: 'chan_kd_voice', name: 'Sala de Programación', type: 'voice' },
-    ],
-  },
-  {
-    id: 'pub_rust_lab',
-    name: 'Rustaceans & Low Latency',
-    category: 'dev',
-    acronym: 'RL',
-    banner: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80',
-    description: 'Sistemas distribuidos, compilación nativa en Rust, pipelines WebRTC de 0.8ms y WebAssembly.',
-    memberCount: 1840,
-    onlineCount: 520,
-    channels: [
-      { id: 'chan_rl_chat', name: 'rust-chat', type: 'text' },
-      { id: 'chan_rl_wasm', name: 'wasm-web', type: 'text' },
-      { id: 'chan_rl_voice', name: 'Voz Rust Lab', type: 'voice' },
-    ],
-  },
-  {
-    id: 'pub_ai_agents',
-    name: 'AI Agents & LLM Foundry',
-    category: 'ai',
-    acronym: 'AI',
-    banner: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=200&auto=format&fit=crop&q=80',
-    description: 'Modelos multimodales, agentes autónomos, prompt engineering y el ecosistema Gemini API.',
-    memberCount: 3120,
-    onlineCount: 1140,
-    channels: [
-      { id: 'chan_ai_general', name: 'ai-discusiones', type: 'text' },
-      { id: 'chan_ai_models', name: 'modelos-gemini', type: 'text' },
-      { id: 'chan_ai_voice', name: 'Mesa Redonda IA', type: 'voice' },
-    ],
-  },
-  {
-    id: 'pub_synthwave',
-    name: 'Cyberpunk & Synth Lounge',
-    category: 'music',
-    acronym: 'CS',
-    banner: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&auto=format&fit=crop&q=80',
-    description: 'Música retro-futurista, synthwave, lo-fi beats para concentrarse y producciones sonoras en vivo.',
-    memberCount: 1490,
-    onlineCount: 430,
-    channels: [
-      { id: 'chan_synth_chat', name: 'lounge-chat', type: 'text' },
-      { id: 'chan_synth_radio', name: 'Radio 24/7 Lo-Fi', type: 'voice' },
-    ],
-  },
-  {
-    id: 'pub_gaming',
-    name: 'Nexus Gaming & Esports',
-    category: 'gaming',
-    acronym: 'NX',
-    banner: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=200&auto=format&fit=crop&q=80',
-    description: 'Partidas competitivas de Valorant, CS2, League of Legends y torneos de fin de semana con amigos.',
-    memberCount: 4200,
-    onlineCount: 1680,
-    channels: [
-      { id: 'chan_nx_general', name: 'chat-general', type: 'text' },
-      { id: 'chan_nx_clips', name: 'clips-y-momentazos', type: 'text' },
-      { id: 'chan_nx_voice1', name: 'Escuadrón Alfa', type: 'voice' },
-      { id: 'chan_nx_voice2', name: 'Escuadrón Beta', type: 'voice' },
-    ],
-  },
-  {
-    id: 'pub_creators_latam',
-    name: 'Creadores LATAM',
-    category: 'community',
-    acronym: 'CL',
-    banner: 'https://images.unsplash.com/photo-1492724441997-5dc865305da7?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1531058020387-3be344556be6?w=200&auto=format&fit=crop&q=80',
-    description: 'Streamers, editores y creadores hispanohablantes colaborando en contenido, eventos y crecimiento.',
-    memberCount: 2780,
-    onlineCount: 760,
-    channels: [
-      { id: 'chan_cl_general', name: 'plaza-creativa', type: 'text' },
-      { id: 'chan_cl_feedback', name: 'feedback-de-contenido', type: 'text' },
-      { id: 'chan_cl_voice', name: 'Sala de Creadores', type: 'voice' },
-    ],
-  },
-  {
-    id: 'pub_design_collective',
-    name: 'Pixel & Product Collective',
-    category: 'community',
-    acronym: 'PP',
-    banner: 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1559028012-481c04fa702d?w=200&auto=format&fit=crop&q=80',
-    description: 'Diseño UI/UX, motion, branding y crítica constructiva para crear productos digitales memorables.',
-    memberCount: 1930,
-    onlineCount: 610,
-    channels: [
-      { id: 'chan_pp_showcase', name: 'showcase', type: 'text' },
-      { id: 'chan_pp_reviews', name: 'criticas-de-diseno', type: 'text' },
-      { id: 'chan_pp_voice', name: 'Mesa de Diseño', type: 'voice' },
-    ],
-  },
-  {
-    id: 'pub_focus_academy',
-    name: 'Focus Academy',
-    category: 'community',
-    acronym: 'FA',
-    banner: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800&auto=format&fit=crop&q=80',
-    icon: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=200&auto=format&fit=crop&q=80',
-    description: 'Sesiones de estudio, programación en pareja, intercambio de recursos y salas Pomodoro siempre activas.',
-    memberCount: 3560,
-    onlineCount: 980,
-    channels: [
-      { id: 'chan_fa_goals', name: 'metas-semanales', type: 'text' },
-      { id: 'chan_fa_resources', name: 'recursos', type: 'text' },
-      { id: 'chan_fa_pomodoro', name: 'Pomodoro 50/10', type: 'voice' },
-    ],
-  },
-];
 
 // El catálogo se activará cuando las primeras comunidades públicas estén listas.
-const COMMUNITY_CATALOG_ENABLED = false;
 
 export const ServerDiscoveryModal: React.FC = () => {
   const {
@@ -215,7 +83,7 @@ export const ServerDiscoveryModal: React.FC = () => {
 
   const joinedServerIds = new Set(servers.map((s) => s.id));
 
-  const filtered = [...(COMMUNITY_CATALOG_ENABLED ? PUBLIC_SERVERS : []), ...communityServers].filter((s) => {
+  const filtered = communityServers.filter((s) => {
     const matchesCat = activeCategory === 'all' || s.category === activeCategory;
     const matchesQuery =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -343,10 +211,6 @@ export const ServerDiscoveryModal: React.FC = () => {
                           {pubServer.name}
                         </h3>
                         <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono mt-0.5">
-                          <span className="flex items-center gap-1 text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            {pubServer.onlineCount} en línea
-                          </span>
                           <span className="flex items-center gap-1">
                             <Users size={11} />
                             {pubServer.memberCount} miembros
@@ -399,18 +263,6 @@ export const ServerDiscoveryModal: React.FC = () => {
                   {isLoading ? 'Esto puede tardar unos segundos.' : loadError || (searchQuery ? 'Prueba con otro nombre o descripción.' : 'Cuando alguien publique un espacio, aparecerá aquí automáticamente.')}
                 </p>
               </div>
-              {COMMUNITY_CATALOG_ENABLED && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setActiveCategory('all');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors"
-                >
-                  Mostrar todos los servidores
-                </button>
-              )}
             </div>
           )}
         </div>
