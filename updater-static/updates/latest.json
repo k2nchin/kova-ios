@@ -1,12 +1,12 @@
 {
-  "version": "1.0.27",
-  "notes": "Kova 1.0.27: canales escenario, soundboard del espacio, trivia y tres en raya en la llamada y pantalla compartida en alta calidad.",
-  "pub_date": "2026-10-26T16:59:14Z",
+  "version": "1.0.28",
+  "notes": "Kova 1.0.28: estado de juego automático, perfiles por espacio, notas de voz reales, grupos con llamadas y notas privadas.",
+  "pub_date": "2026-10-26T17:50:13Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.27_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFR0dHFFdUNPblphcVdPS2tpci9qSGhoMGZhcXV2c1pJZjgxWE0zOXVUK3MvQnZ4K1pycEV5ekRkSXVGdytnQ24vRnhvVzdDZlRoUUNPUHN4K2t3UUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDMzNzQ5CWZpbGU6S292YV8xLjAuMjdfeDY0LXNldHVwLmV4ZQo5LzR4d3hZQ1hqdXBxeFlzdkMybEFMYWhMT29STE1TcERqUEE5NEF4Kzh2K2dHMVNBeGVZeDZPVUtpUjN1d1NhMFlnVjRha3hCM2pON1BQWElMRlFCQT09Cg==",
-      "sha256": "5B28CBE1DF8E48804DC5779FE4EC2CACB25B0C8A293B023A3E2FB92060F4F881"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.28_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGJVLzN3MER5aHV6UDZob3RudjlmaEVhYmowRVhrelF1bklRYnJxaC9vRFNyNnJqbGkySndrNHRmd2phMGQ1b1pGV0s5ZHVWRnM4eFYzMFpURE00K3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDM1NjQ5CWZpbGU6S292YV8xLjAuMjhfeDY0LXNldHVwLmV4ZQo4Y2xobCtqblEwMU02U1AvT3IzTEo4YTMrWDNpM254NDBaSi9ZQUdzMzVubHBPQ3NudDRmVC9zZldTcjJobEFoQldkVkJGM3VhaE9iVHAwN21GSUlCUT09Cg==",
+      "sha256": "DE4F2E27252813D9B37D526F34D38A47E0B56A0BCD96E4BDFC56377ECA0CBDC1"
     }
   }
 }
