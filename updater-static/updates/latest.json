@@ -1,12 +1,12 @@
 {
-  "version": "1.0.22",
-  "notes": "Kova 1.0.22: no leídos y menciones, búsqueda de mensajes, historial completo, hilos y notas guardados, salas de voz visibles y lista de bloqueados.",
-  "pub_date": "2026-10-26T01:24:39Z",
+  "version": "1.0.23",
+  "notes": "Kova 1.0.23: ¿Qué me perdí? con IA, mensajes guardados, envíos programados y recordatorios.",
+  "pub_date": "2026-10-26T01:57:25Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.22_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFZvL0RWeG9kemE5eTZlckJ0MlZIYmNOK21XMW9QeVNqaFIxNEthTzJqZ3h5Ni9uSWFOSFBveW5wdEtKRFpJTDJLaUZDV1FSbUp1ZzM0NnlhWS9EakFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTc3ODM3CWZpbGU6S292YV8xLjAuMjJfeDY0LXNldHVwLmV4ZQpGeXRYTFlXcTMwbUM0NUdGaW10L2J1T0tsT25iZ0E4ZFJVM0RCRXVwZlRvN2RwL3FGMFBYY0hVMzJjeGFNNEFoYURxWFMzQ1hXVUFLUXFXQVJieHVBZz09Cg==",
-      "sha256": "EC541E43541DAB18A8BB1991F83133692E06BF57CFC5BD6F8FD6F9A3FE36772E"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.23_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFFicWRLek1zcUVlWHR0RWFTWG9kQ2VzN0IybUdFU0Q5YmFrT3U2eEwzQWFrd0J3UHRkNmdVdXg2dFc2ZUtiUndXMWdUS2toNkN5S0tlNy90NHhJdlFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTc5NjIxCWZpbGU6S292YV8xLjAuMjNfeDY0LXNldHVwLmV4ZQpVQUFTVnhuL21YUFI5cFBRK3poN3ZOeGp1WWU5WlN4Si92YndRaTVnTjRYS1B2R0NrNC9oVFRYd2RGc0dwUzdNcUdVRHNXSG05b1M0TW1jNWozRXNBQT09Cg==",
+      "sha256": "5FBA89C1FB8333BED16FDF3F03E08346A37F7E40E2CF13F5A7009D81C72597EB"
     }
   }
 }
