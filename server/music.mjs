@@ -49,7 +49,7 @@ export async function handleMusicRoutes({ db, req, res, requestPath, session, se
   if (!session) { send(res, 401, { message: 'Sesión no válida.' }); return true; }
   const channelId = decodeURIComponent(match[1]);
   const channel = await db.prepare('SELECT id, space_id, type FROM signals WHERE id = ?').get(channelId);
-  if (!channel || channel.type !== 'voice' || !await canAccessSpace(channel.space_id, session.user_id)) { send(res, 404, { message: 'No encontramos esa sala de voz.' }); return true; }
+  if (!channel || (channel.type !== 'voice' && channel.type !== 'stage') || !await canAccessSpace(channel.space_id, session.user_id)) { send(res, 404, { message: 'No encontramos esa sala de voz.' }); return true; }
   const load = () => db.prepare('SELECT * FROM voice_music WHERE signal_id = ?').get(channelId);
   if (req.method === 'GET') { send(res, 200, stateOut(await load())); return true; }
   if (req.method !== 'POST') { send(res, 405, { message: 'Método no permitido.' }); return true; }

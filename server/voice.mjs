@@ -19,7 +19,7 @@ export const voiceRoomName = (channelId) => `kova_${channelId}`;
 const base64url = (value) => Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url');
 
 /** Signs a LiveKit access token (HS256 JWT with a `video` grant). */
-export const signLiveKitToken = ({ identity, name, metadata, room, apiKey, apiSecret, ttlSeconds = TOKEN_TTL_SECONDS, now = Math.floor(Date.now() / 1000) }) => {
+export const signLiveKitToken = ({ identity, name, metadata, room, apiKey, apiSecret, ttlSeconds = TOKEN_TTL_SECONDS, now = Math.floor(Date.now() / 1000), canPublish = true }) => {
   const header = base64url({ alg: 'HS256', typ: 'JWT' });
   const payload = base64url({
     iss: apiKey,
@@ -29,13 +29,13 @@ export const signLiveKitToken = ({ identity, name, metadata, room, apiKey, apiSe
     nbf: now - 10,
     exp: now + ttlSeconds,
     jti: crypto.randomUUID(),
-    video: { room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, canPublishSources: ['microphone', 'camera', 'screen_share', 'screen_share_audio'] },
+    video: { room, roomJoin: true, canPublish, canSubscribe: true, canPublishData: true, ...(canPublish ? { canPublishSources: ['microphone', 'camera', 'screen_share', 'screen_share_audio'] } : {}) },
   });
   const signature = crypto.createHmac('sha256', apiSecret).update(`${header}.${payload}`).digest('base64url');
   return `${header}.${payload}.${signature}`;
 };
 
-export const createVoiceToken = ({ user, channelId }) => {
+export const createVoiceToken = ({ user, channelId, canPublish = true }) => {
   if (!isVoiceConfigured()) throw new VoiceError(503, 'VOICE_NOT_CONFIGURED', 'La voz no está configurada en este servidor.');
   const room = voiceRoomName(channelId);
   const token = signLiveKitToken({
@@ -45,8 +45,9 @@ export const createVoiceToken = ({ user, channelId }) => {
     room,
     apiKey: process.env.LIVEKIT_API_KEY,
     apiSecret: process.env.LIVEKIT_API_SECRET,
+    canPublish,
   });
-  return { token, url: process.env.LIVEKIT_URL, room };
+  return { token, url: process.env.LIVEKIT_URL, room, canPublish };
 };
 
 // ---- Who is in each voice room (LiveKit RoomService over HTTP/Twirp) ----
@@ -92,3 +93,18 @@ export async function voiceOccupancy(channelIds) {
   return value;
 }
 export const forgetVoiceOccupancy = () => occupancyCache.clear();
+
+/** Stage channels: grant or revoke the right to speak while someone is already in the room. */
+export async function setVoicePublish(channelId, userId, canPublish) {
+  if (!isVoiceConfigured()) return;
+  const room = voiceRoomName(channelId);
+  try {
+    await roomService('UpdateParticipant', {
+      room,
+      identity: userId,
+      permission: { canSubscribe: true, canPublish, canPublishData: true, ...(canPublish ? { canPublishSources: [1, 2, 3, 4] } : {}) },
+    }, { roomAdmin: true, room });
+  } catch {
+    // Not in the room right now: their next token carries the new rights.
+  }
+}

@@ -22,7 +22,7 @@ export interface VoiceSession {
   /** Turns the microphone's noise suppression on or off during the call. */
   setNoiseSuppression: (enabled: boolean) => Promise<void>;
   /** Publish a ready-made screen track (desktop native capture); stopping it unpublishes. */
-  publishScreenTrack: (track: MediaStreamTrack) => Promise<void>;
+  publishScreenTrack: (track: MediaStreamTrack, encoding?: { maxBitrate: number; maxFramerate: number }) => Promise<void>;
   unpublishScreenTrack: () => Promise<void>;
   /** Publish or stop a screen share (the browser asks what to share). */
   setScreenShareEnabled: (enabled: boolean) => Promise<boolean>;
@@ -159,9 +159,15 @@ export async function connectVoice(options: ConnectOptions): Promise<VoiceSessio
       const track = publication?.track as LocalAudioTrack | undefined;
       if (track) await track.restartTrack({ echoCancellation: true, autoGainControl: true, noiseSuppression: enabled });
     },
-    publishScreenTrack: async (mediaTrack) => {
+    publishScreenTrack: async (mediaTrack, encoding = { maxBitrate: 6_000_000, maxFramerate: 30 }) => {
       const track = new LocalVideoTrack(mediaTrack, undefined, true);
-      await room.localParticipant.publishTrack(track, { source: Track.Source.ScreenShare, simulcast: false });
+      // One high-bitrate layer: viewers get the full quality instead of a blurry simulcast copy.
+      await room.localParticipant.publishTrack(track, {
+        source: Track.Source.ScreenShare,
+        simulcast: false,
+        videoEncoding: encoding,
+        degradationPreference: mediaTrack.contentHint === 'motion' ? 'maintain-framerate' : 'maintain-resolution',
+      });
       emitPeers();
     },
     unpublishScreenTrack: async () => {
@@ -170,7 +176,12 @@ export async function connectVoice(options: ConnectOptions): Promise<VoiceSessio
       emitPeers();
     },
     setScreenShareEnabled: async (enabled) => {
-      await room.localParticipant.setScreenShareEnabled(enabled, { audio: true, selfBrowserSurface: 'exclude' });
+      // Browser build: ask for 1080p/30 and send it at a bitrate that keeps text readable.
+      await room.localParticipant.setScreenShareEnabled(
+        enabled,
+        { audio: true, selfBrowserSurface: 'exclude', resolution: { width: 1920, height: 1080, frameRate: 30 }, contentHint: 'detail' },
+        { screenShareEncoding: { maxBitrate: 6_000_000, maxFramerate: 30 }, simulcast: false, degradationPreference: 'maintain-resolution' },
+      );
       emitPeers();
       return room.localParticipant.isScreenShareEnabled;
     },

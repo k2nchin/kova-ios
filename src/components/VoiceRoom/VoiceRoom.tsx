@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useApp } from '../../context/AppContext';
+import { useApp, permissionsIn } from '../../context/AppContext';
 import type { User } from '../../types';
 import { isDesktopApp as detectDesktopApp, isMobileApp, isTauriApp } from '../../utils/platform';
 import { api } from '../../services/apiClient';
 import { VoiceRadar } from './VoiceRadar';
 import { VoiceHeader, type VoiceConnectionState } from './VoiceHeader';
 import { ListenTogether } from './ListenTogether';
+import { StagePanel } from './StagePanel';
+import { CallActivities } from './CallActivities';
 import '../../styles/voiceRoom.css';
 import { VideoTrackView } from './VideoTrackView';
 import { VoiceParticipantCard, type VoiceParticipant } from './VoiceParticipantCard';
@@ -439,6 +441,8 @@ export const VoiceRoom: React.FC = () => {
 
       <main className="relative min-h-0 flex-1 flex flex-col">
         <ListenTogether channelId={activeChannel.id} />
+        <CallActivities channelId={activeChannel.id} />
+        {activeChannel.type === 'stage' && <StagePanel channelId={activeChannel.id} listenerCount={totalParticipants} />}
         <div
           ref={stageRef}
           className="kvr-stage"
@@ -534,7 +538,7 @@ export const VoiceRoom: React.FC = () => {
         />
 
         {/* Compact soundboard popover */}
-        {isSoundboardOpen && <VoiceSoundboardPanel onClose={() => setIsSoundboardOpen(false)} />}
+        {isSoundboardOpen && <VoiceSoundboardPanel onClose={() => setIsSoundboardOpen(false)} channelId={activeChannel.id} spaceId={activeServer.id} canManage={permissionsIn(activeServer, currentUser.id).has('MANAGE_SERVER')} />}
 
         {/* Right-side chat panel */}
         {isChatOpen && <VoiceChatPanel channelName={activeChannel.name} onClose={() => setIsChatOpen(false)} />}

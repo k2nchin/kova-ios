@@ -33,7 +33,7 @@ export async function handleSchedulingRoutes({ db, req, res, requestPath, sessio
   if (scheduleMatch && req.method === 'POST') {
     const channelId = decodeURIComponent(scheduleMatch[1]);
     const channel = await db.prepare('SELECT space_id, type FROM signals WHERE id = ?').get(channelId);
-    if (!channel || channel.type === 'voice' || !await canAccessSpace(channel.space_id, me)) { send(res, 404, { message: 'No encontramos ese canal.' }); return true; }
+    if (!channel || channel.type === 'voice' || channel.type === 'stage' || !await canAccessSpace(channel.space_id, me)) { send(res, 404, { message: 'No encontramos ese canal.' }); return true; }
     const body = await readBody(req);
     const content = String(body.content || '').trim();
     const sendAt = parseWhen(body.sendAt);

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { isVoiceLike } from '../../utils/channels';
 import {
   Hash,
   Clock,
@@ -989,7 +990,7 @@ export const ChatArea: React.FC = () => {
                   <Paperclip size={16} />
                 </button>
 
-                {activeChannel.type !== 'voice' && activeChannel.canSend !== false && !activeChannel.id.startsWith('dm') && (
+                {!isVoiceLike(activeChannel.type) && activeChannel.canSend !== false && !activeChannel.id.startsWith('dm') && (
                   <button
                     type="button"
                     onClick={() => setIsPollOpen(true)}

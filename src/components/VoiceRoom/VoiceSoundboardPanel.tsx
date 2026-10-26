@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Search, Star, X } from 'lucide-react';
+import { Plus, Search, Star, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { soundFx } from '../../utils/soundEffects';
+import { api, uploadFile, type SpaceSound } from '../../services/apiClient';
 
 interface BuiltInSoundItem {
   id: string;
@@ -27,13 +29,25 @@ const FAVORITES_KEY = 'kova.soundboard.favorites';
 
 interface VoiceSoundboardPanelProps {
   onClose: () => void;
+  /** Voice room where the sound is played for everyone. */
+  channelId: string;
+  spaceId: string;
+  canManage: boolean;
   /** Sends a short "played X" message to the voice room chat, mirroring the full modal behavior. */
   onPlayed?: (name: string, emoji: string) => void;
 }
 
 /** Compact in-room soundboard popover — reuses the shared soundFx engine
  *  and the same favorites persisted by the full Soundboard modal. */
-export const VoiceSoundboardPanel: React.FC<VoiceSoundboardPanelProps> = ({ onClose, onPlayed }) => {
+export const VoiceSoundboardPanel: React.FC<VoiceSoundboardPanelProps> = ({ onClose, onPlayed, channelId, spaceId, canManage }) => {
+  const [spaceSounds, setSpaceSounds] = useState<SpaceSound[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    let alive = true;
+    api.getSpaceSounds(spaceId).then((items) => { if (alive) setSpaceSounds(items); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [spaceId]);
   const [query, setQuery] = useState('');
   const [volume, setVolume] = useState(0.8);
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => {
@@ -73,11 +87,40 @@ export const VoiceSoundboardPanel: React.FC<VoiceSoundboardPanelProps> = ({ onCl
     });
   };
 
-  const play = (sound: BuiltInSoundItem) => {
+  // Played through the server so everyone in the room hears it (you hear it via the same event).
+  const playForRoom = async (data: { soundId?: string; builtin?: string }, name: string, emoji: string) => {
     soundFx.setMasterVolume(volume);
-    soundFx.playSoundboardFx(sound.type);
-    onPlayed?.(sound.name, sound.emoji);
+    try {
+      await api.playRoomSound(channelId, data);
+      onPlayed?.(name, emoji);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo reproducir el sonido.');
+    }
   };
+  const play = (sound: BuiltInSoundItem) => void playForRoom({ builtin: sound.type }, sound.name, sound.emoji);
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('audio/')) { toast.error('Elige un archivo de audio (mp3, ogg, wav).'); return; }
+    if (file.size > 512 * 1024) { toast.error('El sonido debe pesar menos de 512 KB (unos 5 segundos).'); return; }
+    setUploading(true);
+    try {
+      const url = await uploadFile(file, 'sound');
+      const name = file.name.replace(/\.[^.]+$/, '').slice(0, 32) || 'Sonido';
+      const created = await api.createSpaceSound(spaceId, { name, emoji: '🔊', url });
+      setSpaceSounds((prev) => [...prev, created]);
+      toast.success(`Sonido «${name}» añadido al espacio`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo subir el sonido.');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+  const remove = async (sound: SpaceSound) => {
+    try { await api.deleteSpaceSound(sound.id); setSpaceSounds((prev) => prev.filter((item) => item.id !== sound.id)); } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo borrar.'); }
+  };
+  const visibleSpace = spaceSounds.filter((sound) => !query.trim() || sound.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   const normalized = query.trim().toLowerCase();
   const visible = builtInSounds.filter((sound) => !normalized || sound.name.toLowerCase().includes(normalized));
@@ -113,6 +156,44 @@ export const VoiceSoundboardPanel: React.FC<VoiceSoundboardPanelProps> = ({ onCl
         />
       </label>
 
+      {(visibleSpace.length > 0 || canManage) && (
+        <>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#646a76]">De este espacio</p>
+          <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {visibleSpace.map((sound) => (
+              <div key={sound.id} className="group relative">
+                <button
+                  type="button"
+                  onClick={() => void playForRoom({ soundId: sound.id }, sound.name, sound.emoji)}
+                  title={`Reproducir ${sound.name} para la sala`}
+                  className="flex h-[64px] w-full flex-col items-center justify-center gap-1 rounded-2xl border border-[#21ddb2]/20 bg-[#21ddb2]/[0.05] text-[10px] font-medium text-[#9a9faa] transition hover:border-[#21ddb2]/50 hover:text-[#f5f7fa] active:scale-[.94]"
+                >
+                  <span className="text-lg leading-none">{sound.emoji}</span>
+                  <span className="max-w-full truncate px-1">{sound.name}</span>
+                </button>
+                {canManage && (
+                  <button type="button" onClick={() => void remove(sound)} aria-label={`Borrar ${sound.name}`} className="absolute right-1.5 top-1.5 rounded-full p-0.5 text-[#646a76] opacity-0 transition hover:text-[#ff6b6b] group-hover:opacity-100">
+                    <Trash2 size={11} />
+                  </button>
+                )}
+              </div>
+            ))}
+            {canManage && (
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+                className="flex h-[64px] w-full flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-white/[0.15] text-[10px] font-medium text-[#9a9faa] transition hover:border-white/[0.3] hover:text-[#f5f7fa]"
+              >
+                <Plus size={16} />
+                <span>{uploading ? 'Subiendo…' : 'Subir sonido'}</span>
+              </button>
+            )}
+            <input ref={fileRef} type="file" accept="audio/*" hidden onChange={(event) => void upload(event.target.files?.[0])} />
+          </div>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#646a76]">Kova</p>
+        </>
+      )}
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {favoritesFirst.map((sound) => (
           <div key={sound.id} className="group relative">

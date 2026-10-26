@@ -254,6 +254,16 @@ export const api = {
   getPushKey: () => request<{ publicKey: string }>('/push/key'),
   subscribePush: (subscription: PushSubscriptionJSON) => request<{ ok: true }>('/push/subscribe', { method: 'POST', data: subscription }),
   unsubscribePush: (endpoint: string) => request<{ ok: true }>('/push/unsubscribe', { method: 'POST', data: { endpoint } }),
+  getCallActivity: (channelId: string) => request<CallActivity | null>(`/voice/${encodeURIComponent(channelId)}/activity`),
+  callActivityAction: (channelId: string, data: Record<string, unknown>) => request<CallActivity | null>(`/voice/${encodeURIComponent(channelId)}/activity`, { method: 'POST', data }),
+  getSpaceSounds: (spaceId: string) => request<SpaceSound[]>(`/servers/${encodeURIComponent(spaceId)}/sounds`),
+  createSpaceSound: (spaceId: string, data: { name: string; emoji: string; url: string; volume?: number }) => request<SpaceSound>(`/servers/${encodeURIComponent(spaceId)}/sounds`, { method: 'POST', data }),
+  deleteSpaceSound: (soundId: string) => request<{ ok: true }>(`/sounds/${encodeURIComponent(soundId)}`, { method: 'DELETE' }),
+  playRoomSound: (channelId: string, data: { soundId?: string; builtin?: string }) => request<{ ok: true }>(`/voice/${encodeURIComponent(channelId)}/sound`, { method: 'POST', data }),
+  getStage: (channelId: string) => request<StageState>(`/stage/${encodeURIComponent(channelId)}`),
+  setStageHand: (channelId: string, raised: boolean) => request<StageState>(`/stage/${encodeURIComponent(channelId)}/hand`, { method: 'POST', data: { raised } }),
+  setStageSpeaker: (channelId: string, userId: string, speaker: boolean) => request<StageState>(`/stage/${encodeURIComponent(channelId)}/speakers`, { method: 'POST', data: { userId, speaker } }),
+  setStageTopic: (channelId: string, topic: string) => request<StageState>(`/stage/${encodeURIComponent(channelId)}/topic`, { method: 'PUT', data: { topic } }),
   getMusic: (channelId: string) => request<MusicState>(`/voice/${encodeURIComponent(channelId)}/music`),
   controlMusic: (channelId: string, data: Record<string, unknown>) => request<MusicState>(`/voice/${encodeURIComponent(channelId)}/music`, { method: 'POST', data }),
   getEvents: (spaceId: string) => request<SpaceEvent[]>(`/spaces/${encodeURIComponent(spaceId)}/events`),
@@ -267,7 +277,7 @@ export const api = {
     request<Record<string, Array<{ id: string; name: string; avatar: string }>>>(`/servers/${encodeURIComponent(serverId)}/voice`, { method: 'GET' }),
   voiceLeft: (channelId: string) => request<{ ok: true }>('/voice/left', { method: 'POST', data: { channelId } }),
   getVoiceToken: (channelId: string) =>
-    request<{ token: string; url: string; room: string }>('/voice/token', { method: 'POST', data: { channelId } }),
+    request<{ token: string; url: string; room: string; canPublish?: boolean }>('/voice/token', { method: 'POST', data: { channelId } }),
 
   // Uploads, profile and user content
   createUpload: (data: { kind: UploadKind; fileName: string; contentType: string; size: number }) =>
@@ -330,3 +340,13 @@ export type MemberStats = {
   userId: string; xp: number; level: number; messages: number; currentLevelXp: number; nextLevelXp: number; joinedAt?: string;
   badges: Array<{ id: string; label: string; emoji: string }>;
 };
+
+type StagePerson = { id: string; name: string; avatar: string };
+export type StageState = { channelId: string; topic: string; speakers: StagePerson[]; requests: StagePerson[]; youModerate: boolean; youSpeak: boolean; yourHand: boolean };
+
+export type SpaceSound = { id: string; name: string; emoji: string; url: string; volume: number };
+
+type ActivityBase = { hostId: string; updatedAt: string; names: Record<string, string> };
+export type CallActivity =
+  | (ActivityBase & { kind: 'tictactoe'; players: [string, string | null]; board: Array<'X' | 'O' | null>; turn: number; winner: 'X' | 'O' | 'draw' | null })
+  | (ActivityBase & { kind: 'trivia'; round: number; rounds: number; phase: 'question' | 'reveal' | 'done'; question: { text: string; options: string[] } | null; correct?: number; answered: string[]; answers?: Record<string, number>; scores: Record<string, number> });

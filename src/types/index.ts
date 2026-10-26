@@ -39,7 +39,7 @@ export interface User {
   backupCodes?: string[];
 }
 
-export type ChannelType = 'text' | 'voice' | 'notes' | 'announcements' | 'forum';
+export type ChannelType = 'text' | 'voice' | 'notes' | 'announcements' | 'forum' | 'stage';
 
 export interface Channel {
   id: string;

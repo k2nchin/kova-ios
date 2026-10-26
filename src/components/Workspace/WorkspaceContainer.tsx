@@ -1,4 +1,5 @@
 import React from 'react';
+import { isVoiceLike } from '../../utils/channels';
 import { ConsoleSidebar } from '../Shell/ConsoleSidebar';
 import { ChatArea } from '../ChatArea/ChatArea';
 import { VoiceRoom } from '../VoiceRoom/VoiceRoom';
@@ -60,7 +61,7 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
               <EmptyServerView />
             ) : layoutMode === 'pulse_feed' ? (
               <PulseFeed />
-            ) : activeChannel?.type === 'voice' ? (
+            ) : isVoiceLike(activeChannel?.type) ? (
               <VoiceRoom />
             ) : activeChannel?.type === 'forum' ? (
               <ForumView key={activeChannel.id} />
@@ -78,10 +79,10 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
       </div>
 
       {/* 3. Right Widgets Panel (Miembros en línea, Canales de voz, Emitiendo ahora, Servidores) */}
-      {isMemberListOpen && !isDMViewActive && !isServerEmpty && activeChannel?.type !== 'voice' && (
+      {isMemberListOpen && !isDMViewActive && !isServerEmpty && !isVoiceLike(activeChannel?.type) && (
         <button type="button" className="kova-members-backdrop" onClick={() => setIsMemberListOpen(false)} aria-label="Cerrar miembros" />
       )}
-      {isMemberListOpen && !isDMViewActive && !isServerEmpty && activeChannel?.type !== 'voice' && (
+      {isMemberListOpen && !isDMViewActive && !isServerEmpty && !isVoiceLike(activeChannel?.type) && (
         <div className="kova-panel kova-panel-right h-full rounded-2xl bg-[#070210] border border-purple-950/40 overflow-hidden flex flex-col shadow-xl shrink-0">
           <RightWidgetsSidebar />
         </div>

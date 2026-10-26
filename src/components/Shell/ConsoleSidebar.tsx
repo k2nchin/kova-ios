@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { isVoiceLike } from '../../utils/channels';
 import {
   Activity,
   Bell,
@@ -25,6 +26,7 @@ import {
   Settings,
   UserPlus,
   Volume2,
+  RadioTower,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp, permissionsIn } from '../../context/AppContext';
@@ -45,7 +47,8 @@ const readFolders = (): Record<string, ChannelFolder[]> => {
 const monogram = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || 'K';
 
 const channelIcon = (channel: Channel) => {
-  if (channel.type === 'voice') return Volume2;
+  if (channel.type === 'stage') return RadioTower;
+  if (isVoiceLike(channel.type)) return Volume2;
   if (channel.type === 'announcements') return Megaphone;
   if (channel.type === 'forum') return MessagesSquare;
   if (channel.type === 'notes') return FileText;
@@ -164,8 +167,8 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
     const rest = visible.filter((channel) => !inFolder.has(channel.id));
     return [
       ...folderSections,
-      { id: 'text', title: 'Texto', folder: undefined, channels: rest.filter((channel) => channel.type !== 'voice') },
-      { id: 'voice', title: 'Voz', folder: undefined, channels: rest.filter((channel) => channel.type === 'voice') },
+      { id: 'text', title: 'Texto', folder: undefined, channels: rest.filter((channel) => !isVoiceLike(channel.type)) },
+      { id: 'voice', title: 'Voz', folder: undefined, channels: rest.filter((channel) => isVoiceLike(channel.type)) },
     ].filter((section) => section.folder || section.channels.length > 0 || section.id === 'text');
   }, [activeServer?.channels, query, folders]);
 
@@ -192,7 +195,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
     setIsDMViewActive(false);
     if (layoutMode === 'pulse_feed') setLayoutMode('split');
     setActiveChannelId(channel.id);
-    if (channel.type === 'voice' && !(isInVoice && activeVoiceChannelId === channel.id)) {
+    if (isVoiceLike(channel.type) && !(isInVoice && activeVoiceChannelId === channel.id)) {
       void joinVoiceChannel(channel.id);
     }
     onNavigate?.();
@@ -350,7 +353,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
               {!section.folder?.collapsed && section.channels.map((channel) => {
                 const Icon = channelIcon(channel);
                 const isActive = !isDMViewActive && !isPulseActive && activeChannel?.id === channel.id;
-                const isLive = channel.type === 'voice' && activeVoiceChannelId === channel.id;
+                const isLive = isVoiceLike(channel.type) && activeVoiceChannelId === channel.id;
                 return (
                   <div key={channel.id}>
                     <button
@@ -369,7 +372,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                         <b className="kova-channel-badge" aria-label="Mensajes sin leer">{unreadByChannel[channel.id].unread > 99 ? '99+' : unreadByChannel[channel.id].unread}</b>
                       ) : null}
                     </button>
-                    {channel.type === 'voice' && connectingVoiceChannelId === channel.id && !isLive && (
+                    {isVoiceLike(channel.type) && connectingVoiceChannelId === channel.id && !isLive && (
                       <ul className="kova-channel-peers" aria-live="polite">
                         <li>
                           <span className="kova-channel-peer is-connecting">
@@ -380,7 +383,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                         </li>
                       </ul>
                     )}
-                    {channel.type === 'voice' && !isLive && connectingVoiceChannelId !== channel.id && (voiceOccupancy[channel.id] || []).length > 0 && (
+                    {isVoiceLike(channel.type) && !isLive && connectingVoiceChannelId !== channel.id && (voiceOccupancy[channel.id] || []).length > 0 && (
                       <ul className="kova-channel-peers" aria-label={`En ${channel.name}`}>
                         {(voiceOccupancy[channel.id] || []).map((person) => {
                           const member = activeServer?.members?.find((m) => m.id === person.id);

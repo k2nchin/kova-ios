@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { isVoiceLike } from '../../utils/channels';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Star, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -138,7 +139,7 @@ export const EventsModal: React.FC<{ server: Server; onClose: () => void }> = ({
                   <input type="datetime-local" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} required />
                   <select value={form.channelId} onChange={(e) => setForm({ ...form, channelId: e.target.value })}>
                     <option value="">Sin canal</option>
-                    {server.channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.type === 'voice' ? '🔊' : '#'} {channel.name}</option>)}
+                    {server.channels.map((channel) => <option key={channel.id} value={channel.id}>{isVoiceLike(channel.type) ? '🔊' : '#'} {channel.name}</option>)}
                   </select>
                 </div>
                 <div className="kev-form-row">

@@ -137,10 +137,10 @@ async fn list_capture_sources() -> Result<Vec<CaptureSource>, String> {
 /// One JPEG frame of the chosen source (raw bytes, no base64).
 #[cfg(desktop)]
 #[tauri::command]
-async fn capture_source_frame(id: String, max_width: u32) -> Result<tauri::ipc::Response, String> {
+async fn capture_source_frame(id: String, max_width: u32, jpeg_quality: Option<u8>) -> Result<tauri::ipc::Response, String> {
     let jpeg = tauri::async_runtime::spawn_blocking(move || {
         let frame = capture_by_id(&id)?;
-        encode_jpeg(frame, max_width.clamp(320, 2560), 72)
+        encode_jpeg(frame, max_width.clamp(320, 2560), jpeg_quality.unwrap_or(72).clamp(50, 92))
     })
     .await
     .map_err(|e| e.to_string())??;

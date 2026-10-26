@@ -10,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 const updatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'updater-static', 'updates');
 import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
 import { askKovaAI, AiError, transcribeAudio, classifyMessage } from './ai.mjs';
+import { activitiesSchema, handleActivityRoutes as handleVoiceActivityRoutes } from './activities.mjs';
+import { soundsSchema, handleSoundRoutes } from './sounds.mjs';
+import { stageSchema, handleStageRoutes, canSpeakOnStage } from './stage.mjs';
 import { communitySchema, handleCommunityRoutes, forwardAnnouncement, mustAcceptRules, awardXp } from './community.mjs';
 import { forumsSchema, handleForumRoutes } from './forums.mjs';
 import { pollsSchema, handlePollRoutes } from './polls.mjs';
@@ -20,7 +23,7 @@ import { musicSchema, handleMusicRoutes } from './music.mjs';
 import { eventsSchema, handleEventRoutes, runEventReminders } from './events.mjs';
 import { automodSchema, screenMessage, logBlocked, handleAutomodRoutes } from './automod.mjs';
 import { callNotesSchema, handleCallNotesRoutes } from './callnotes.mjs';
-import { createVoiceToken, VoiceError, voiceOccupancy, forgetVoiceOccupancy } from './voice.mjs';
+import { createVoiceToken, VoiceError, voiceOccupancy, forgetVoiceOccupancy, setVoicePublish } from './voice.mjs';
 import { contentSchema, contentUserColumns, handleContentRoute } from './content.mjs';
 import { translateSchema, handleTranslateRoutes } from './translate.mjs';
 import { schedulingSchema, handleSchedulingRoutes, runDueJobs } from './scheduling.mjs';
@@ -106,6 +109,9 @@ await db.exec(expressionsSchema);
 await db.exec(pollsSchema);
 await db.exec(forumsSchema);
 await db.exec(communitySchema);
+await db.exec(stageSchema);
+await db.exec(soundsSchema);
+await db.exec(activitiesSchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -197,7 +203,7 @@ const notifySpace = async (spaceId, kind) => {
   if (audience.length) await emitToUsers(audience, 'space:changed', { serverId: spaceId, kind });
 };
 const SPACE_CATEGORIES = new Set(['gaming', 'music', 'dev', 'ai', 'art', 'study', 'anime', 'sports', 'community']);
-const CHANNEL_TYPES = new Set(['text', 'voice', 'announcements', 'notes', 'forum']);
+const CHANNEL_TYPES = new Set(['text', 'voice', 'announcements', 'notes', 'forum', 'stage']);
 const channelType = (value) => (CHANNEL_TYPES.has(String(value)) ? String(value) : 'text');
 // Everything a member needs to render a space.
 const spacePayload = async (s, viewerId) => {
@@ -517,6 +523,9 @@ const handleRequest = async (req, res) => {
       if (writes && await mustAcceptRules(db, scoped.space_id, session.user_id)) return send(res, 403, { message: 'Acepta las normas del espacio para poder escribir.', code: 'RULES_NOT_ACCEPTED' });
     }
   }
+  if (await handleVoiceActivityRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, spaceAudience, emitToUsers })) return;
+  if (await handleSoundRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers, hostedImageUrl, crypto })) return;
+  if (await handleStageRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers, setVoicePublish })) return;
   if (await handleCommunityRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, notifySpace })) return;
   if (await handleForumRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, deliverMessage, notifySpace, isVerifiedEmail })) return;
   if (await handlePollRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, channelRights, deliverMessage, emitToChannel, crypto })) return;
@@ -539,11 +548,12 @@ const handleRequest = async (req, res) => {
     const channelId = String(body.channelId || '');
     const channel = channelId && await db.prepare('SELECT id, space_id, type FROM signals WHERE id = ?').get(channelId);
     if (!channel || !(await canAccessSpace(channel.space_id, session.user_id))) return send(res, 404, { message: 'No encontramos ese canal o no tienes acceso.' });
-    if (channel.type !== 'voice') return send(res, 400, { message: 'Ese canal no es de voz.', code: 'NOT_VOICE_CHANNEL' });
+    if (channel.type !== 'voice' && channel.type !== 'stage') return send(res, 400, { message: 'Ese canal no es de voz.', code: 'NOT_VOICE_CHANNEL' });
     if (!(await channelRights(db, channel, session.user_id)).view) return send(res, 404, { message: 'No encontramos ese canal o no tienes acceso.' });
     try {
       const user = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
-      const token = createVoiceToken({ user, channelId });
+      const canPublish = channel.type !== 'stage' || await canSpeakOnStage(db, can, channel, session.user_id);
+      const token = createVoiceToken({ user, channelId, canPublish });
       // Others refresh who's in each room (the app re-asks a moment later too).
       forgetVoiceOccupancy();
       await notifyVoice(channel.space_id);
@@ -570,7 +580,7 @@ const handleRequest = async (req, res) => {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const serverId = decodeURIComponent(voiceOccupancyMatch[1]);
     if (!await canAccessSpace(serverId, session.user_id)) return send(res, 404, { message: 'No encontramos ese espacio.' });
-    const channels = await db.prepare("SELECT id FROM signals WHERE space_id = ? AND type = 'voice'").all(serverId);
+    const channels = await db.prepare("SELECT id FROM signals WHERE space_id = ? AND type IN ('voice', 'stage')").all(serverId);
     try {
       return send(res, 200, await voiceOccupancy(channels.map((channel) => channel.id)));
     } catch (error) {

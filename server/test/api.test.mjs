@@ -802,3 +802,76 @@ test('descubrir: categorías, actividad y si ya eres miembro', async () => {
   assert.equal(found.isMember, false);
   assert.ok(!(await call('GET', '/servers/discover?category=gaming', undefined, visitor.token)).body.some((s) => s.id === space.id));
 });
+
+test('escenario: solo hablan los que suben al escenario (lo aplica LiveKit)', async () => {
+  const owner = await register('escenario');
+  const listener = await register('oyente1');
+  const space = await createSpace(owner, listener);
+  const stage = (await call('POST', '/channels', { serverId: space.id, name: 'charla', type: 'stage' }, owner.token)).body;
+  assert.equal(stage.type, 'stage');
+  const claims = async (who) => JSON.parse(Buffer.from((await call('POST', '/voice/token', { channelId: stage.id }, who.token)).body.token.split('.')[1], 'base64url').toString()).video;
+  assert.equal((await claims(owner)).canPublish, true, 'los moderadores hablan');
+  assert.equal((await claims(listener)).canPublish, false, 'el público solo escucha');
+  const raised = await call('POST', `/stage/${stage.id}/hand`, { raised: true }, listener.token);
+  assert.equal(raised.body.yourHand, true);
+  assert.equal((await call('POST', `/stage/${stage.id}/speakers`, { userId: listener.id, speaker: true }, listener.token)).status, 403);
+  const up = await call('POST', `/stage/${stage.id}/speakers`, { userId: listener.id, speaker: true }, owner.token);
+  assert.equal(up.body.speakers[0].id, listener.id);
+  assert.equal(up.body.requests.length, 0);
+  assert.equal((await claims(listener)).canPublish, true);
+  assert.equal((await call('POST', `/stage/${stage.id}/speakers`, { userId: listener.id, speaker: false }, listener.token)).status, 200, 'cualquiera puede bajarse');
+  assert.equal((await claims(listener)).canPublish, false);
+  assert.equal((await call('PUT', `/stage/${stage.id}/topic`, { topic: 'AMA con el equipo' }, owner.token)).body.topic, 'AMA con el equipo');
+});
+
+test('soundboard del espacio: sonidos propios y se oyen en toda la sala', async () => {
+  const owner = await register('sonidos');
+  const member = await register('miembro16');
+  const space = await createSpace(owner, member);
+  const voice = space.channels.find((c) => c.type === 'voice');
+  const url = 'https://cdn.example.com/risa.mp3';
+  assert.equal((await call('POST', `/servers/${space.id}/sounds`, { name: 'Risa', url }, member.token)).status, 403);
+  const sound = await call('POST', `/servers/${space.id}/sounds`, { name: 'Risa', emoji: '😂', url, volume: 5 }, owner.token);
+  assert.equal(sound.status, 201);
+  assert.equal(sound.body.volume, 1);
+  assert.equal((await call('GET', `/servers/${space.id}/sounds`, undefined, member.token)).body.length, 1);
+  assert.equal((await call('POST', `/voice/${voice.id}/sound`, { soundId: sound.body.id }, member.token)).status, 200);
+  assert.equal((await call('POST', `/voice/${voice.id}/sound`, { builtin: 'airhorn' }, member.token)).status, 429, 'sin spam de sonidos');
+  assert.equal((await call('POST', `/voice/${voice.id}/sound`, { builtin: 'airhorn' }, owner.token)).status, 200);
+  assert.equal((await call('POST', `/voice/${voice.id}/sound`, { builtin: 'inventado' }, owner.token)).status, 429);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  assert.equal((await call('POST', `/voice/${text.id}/sound`, { builtin: 'airhorn' }, owner.token)).status, 404);
+  assert.equal((await call('DELETE', `/sounds/${sound.body.id}`, undefined, owner.token)).status, 200);
+});
+
+test('actividades en la llamada: tres en raya y trivia sin trampas', async () => {
+  const a = await register('jugadora');
+  const b = await register('jugador2');
+  const space = await createSpace(a, b);
+  const voice = space.channels.find((c) => c.type === 'voice');
+  const act = (who, data) => call('POST', `/voice/${voice.id}/activity`, data, who.token);
+  await act(a, { action: 'start', kind: 'tictactoe' });
+  assert.equal((await act(a, { action: 'move', cell: 0 })).status, 400, 'falta rival');
+  await act(b, { action: 'join' });
+  await act(a, { action: 'move', cell: 0 });
+  assert.equal((await act(a, { action: 'move', cell: 1 })).status, 400, 'no es su turno');
+  await act(b, { action: 'move', cell: 3 });
+  await act(a, { action: 'move', cell: 1 });
+  await act(b, { action: 'move', cell: 4 });
+  const win = await act(a, { action: 'move', cell: 2 });
+  assert.equal(win.body.winner, 'X');
+
+  const trivia = await act(a, { action: 'start', kind: 'trivia' });
+  assert.equal(trivia.body.correct, undefined, 'la respuesta no se envía antes de tiempo');
+  await act(b, { action: 'answer', option: 0 });
+  assert.equal((await act(b, { action: 'answer', option: 1 })).status, 400, 'una respuesta por ronda');
+  assert.equal((await act(b, { action: 'reveal' })).status, 400, 'solo el anfitrión revela');
+  const revealed = await act(a, { action: 'reveal' });
+  assert.equal(typeof revealed.body.correct, 'number');
+  const next = await act(a, { action: 'next' });
+  assert.equal(next.body.round, 1);
+  assert.equal(next.body.phase, 'question');
+  assert.equal((await act(b, { action: 'stop' })).status, 400);
+  assert.equal((await act(a, { action: 'stop' })).status, 200);
+  assert.equal((await call('GET', `/voice/${voice.id}/activity`, undefined, b.token)).body, null);
+});

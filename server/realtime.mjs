@@ -49,7 +49,7 @@ export const emitToUsers = async (userIds, event, payload) => {
 
 /** Receives a relayed event (POST /api/realtime/emit) and broadcasts it locally. */
 export const broadcastRelayed = ({ channelId, userIds, event, payload } = {}) => {
-  const allowed = ['message:created', 'message:updated', 'message:deleted', 'message:reactions', 'dm:created', 'space:nickname', 'space:changed', 'friends:changed', 'channel:activity', 'voice:changed', 'thread:message', 'notes:changed', 'reminder:due', 'voice:notes', 'event:changed', 'event:starting', 'voice:music', 'poll:updated', 'level:up'];
+  const allowed = ['message:created', 'message:updated', 'message:deleted', 'message:reactions', 'dm:created', 'space:nickname', 'space:changed', 'friends:changed', 'channel:activity', 'voice:changed', 'thread:message', 'notes:changed', 'reminder:due', 'voice:notes', 'event:changed', 'event:starting', 'voice:music', 'poll:updated', 'level:up', 'stage:changed', 'voice:sound', 'voice:activity'];
   if (!io || !allowed.includes(event)) return false;
   if (typeof channelId === 'string' && channelId) io.to(channelRoom(channelId)).emit(event, payload);
   if (Array.isArray(userIds)) for (const id of new Set(userIds.map(String).slice(0, 50))) io.to(userRoom(id)).emit(event, payload);

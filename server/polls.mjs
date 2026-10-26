@@ -39,7 +39,7 @@ export async function handlePollRoutes({ db, req, res, requestPath, session, sen
   if (create) {
     if (req.method !== 'POST') { send(res, 405, { message: 'Método no permitido.' }); return true; }
     const channel = await db.prepare('SELECT id, space_id, type FROM signals WHERE id = ?').get(decodeURIComponent(create[1]));
-    if (!channel || channel.type === 'voice' || !await canAccessSpace(channel.space_id, session.user_id)) { send(res, 404, { message: 'No encontramos ese canal.' }); return true; }
+    if (!channel || channel.type === 'voice' || channel.type === 'stage' || !await canAccessSpace(channel.space_id, session.user_id)) { send(res, 404, { message: 'No encontramos ese canal.' }); return true; }
     if (!(await channelRights(db, channel, session.user_id)).send) { send(res, 403, { message: 'No puedes escribir en este canal.' }); return true; }
     const body = await readBody(req);
     const question = String(body.question || '').trim().slice(0, 300);

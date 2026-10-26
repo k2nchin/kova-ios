@@ -18,7 +18,7 @@ export async function handleCallNotesRoutes({ db, req, res, requestPath, session
   const channelId = decodeURIComponent(match[1]);
   const action = match[2];
   const channel = await db.prepare('SELECT id, space_id, type, name FROM signals WHERE id = ?').get(channelId);
-  if (!channel || channel.type !== 'voice' || !await canAccessSpace(channel.space_id, session.user_id)) { send(res, 404, { message: 'No encontramos esa sala de voz.' }); return true; }
+  if (!channel || (channel.type !== 'voice' && channel.type !== 'stage') || !await canAccessSpace(channel.space_id, session.user_id)) { send(res, 404, { message: 'No encontramos esa sala de voz.' }); return true; }
   const body = await readBody(req);
   const aiFail = (error) => {
     if (error instanceof AiError) { send(res, error.status, { message: error.message, code: error.code }); return true; }

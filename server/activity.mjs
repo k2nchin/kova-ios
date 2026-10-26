@@ -125,7 +125,7 @@ ${transcript}
       JOIN spaces s ON s.id = c.space_id
       LEFT JOIN space_members sm ON sm.space_id = s.id AND sm.user_id = ?
       LEFT JOIN channel_reads r ON r.channel_id = c.id AND r.user_id = ?
-      WHERE (s.owner_id = ? OR sm.user_id IS NOT NULL) AND c.type <> 'voice'`).all(me, me, me);
+      WHERE (s.owner_id = ? OR sm.user_id IS NOT NULL) AND c.type NOT IN ('voice', 'stage')`).all(me, me, me);
     const rows = [];
     for (const channel of channels.slice(0, 300)) {
       const since = channel.last_read_at || channel.joined_at || channel.space_created_at;

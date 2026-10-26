@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { isVoiceLike } from '../../utils/channels';
 import {
   Sparkles,
   Volume2,
@@ -32,7 +33,7 @@ export const PulseFeed: React.FC = () => {
 
   // Real signals computed from live state.
   const voiceChannels = useMemo(
-    () => (activeServer?.channels || []).filter((channel) => channel.type === 'voice'),
+    () => (activeServer?.channels || []).filter((channel) => isVoiceLike(channel.type)),
     [activeServer?.channels]
   );
   const activeVoiceRooms = useMemo(

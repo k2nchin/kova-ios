@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { isVoiceLike } from '../utils/channels';
 import {
   Server,
   Channel,
@@ -966,7 +967,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const owner = servers.find((server) => server.channels.some((channel) => channel.id === activeChannelId)) || servers[0];
     setActiveServerId(owner.id);
     if (!owner.channels.some((channel) => channel.id === activeChannelId)) {
-      const general = owner.channels.find((channel) => channel.type !== 'voice' && channel.name.includes('general')) || owner.channels.find((channel) => channel.type !== 'voice');
+      const general = owner.channels.find((channel) => !isVoiceLike(channel.type) && channel.name.includes('general')) || owner.channels.find((channel) => !isVoiceLike(channel.type));
       if (general) setActiveChannelId(general.id);
     }
   }, [servers, activeServerId, activeChannelId]);
@@ -1788,6 +1789,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.history.replaceState(null, '', window.location.pathname);
   }, [isAuthenticated, servers]);
 
+  // Soundboard: sounds anyone plays in your voice room are heard by everyone in it.
+  const voiceRoomRef = useRef<{ channelId: string | null; deafened: boolean }>({ channelId: null, deafened: false });
+  voiceRoomRef.current = { channelId: activeVoiceChannelId, deafened: Boolean(currentUser.isDeafened) };
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    const onSound = (event: { channelId: string; builtin?: string; sound?: { url: string; volume: number } }) => {
+      const room = voiceRoomRef.current;
+      if (event.channelId !== room.channelId || room.deafened) return;
+      if (event.builtin) { soundFx.playSoundboardFx(event.builtin as Parameters<typeof soundFx.playSoundboardFx>[0]); return; }
+      if (event.sound) {
+        const audio = new Audio(event.sound.url);
+        audio.volume = Math.min(1, Math.max(0, event.sound.volume * 0.8));
+        void audio.play().catch(() => undefined);
+      }
+    };
+    socket.on('voice:sound', onSound);
+    return () => { socket.off('voice:sound', onSound); };
+  }, [isAuthenticated]);
+
   // ---- Call notes (opt-in transcription of your own voice) ----
   const [callNotesOn, setCallNotesOn] = useState(false);
   const [notesTakers, setNotesTakers] = useState<Record<string, string[]>>({});
@@ -2243,8 +2264,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       voiceSessionRef.current = null;
       knownPeerIdsRef.current = new Set();
       setCurrentUser((prev) => ({ ...prev, isCameraOn: false, isScreenSharing: false }));
-      const { token, url } = await api.getVoiceToken(channelId);
-      const muted = Boolean(currentUser.isMuted || currentUser.isDeafened);
+      const { token, url, canPublish } = await api.getVoiceToken(channelId);
+      // Stage audience joins listening only; moderators invite them up to talk.
+      if (canPublish === false) setCurrentUser((prev) => ({ ...prev, isMuted: true }));
+      const muted = Boolean(currentUser.isMuted || currentUser.isDeafened || canPublish === false);
       voiceSessionRef.current = await connectVoice({
         url,
         token,
@@ -2325,7 +2348,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prevServers.map((srv) => ({
         ...srv,
         channels: srv.channels.map((chan) => {
-          if (chan.type === 'voice' && chan.connectedUsers?.includes(currentUser.id)) {
+          if (isVoiceLike(chan.type) && chan.connectedUsers?.includes(currentUser.id)) {
             return {
               ...chan,
               connectedUsers: chan.connectedUsers.filter((uId) => uId !== currentUser.id),
@@ -2340,7 +2363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const currentServer = servers.find((s) => s.id === activeServerId) || servers[0];
     if (currentServer) {
       const activeChan = currentServer.channels.find((c) => c.id === activeChannelId);
-      if (!activeChan || activeChan.type === 'voice') {
+      if (!activeChan || isVoiceLike(activeChan.type)) {
         const textChannel = currentServer.channels.find(
           (c) => c.type === 'text' || c.type === 'announcements'
         ) || currentServer.channels[0];
@@ -2494,7 +2517,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toast.info('Se dejó de compartir: la ventana ya no está disponible.');
       });
       nativeShareRef.current = capture;
-      await session.publishScreenTrack(capture.track);
+      await session.publishScreenTrack(capture.track, { maxBitrate: quality.bitrate, maxFramerate: quality.fps });
       setCurrentUser((prev) => ({ ...prev, isScreenSharing: true }));
       return true;
     } catch (error) {
@@ -2951,7 +2974,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else if (bot.id === 'bot_stats') {
         const onlineNow = activeServer.members.filter((member) => presenceByUser[member.id] === 'online').length;
-        reply = `📊 **Estadísticas de ${activeServer.name}**:\n• 👥 **Miembros**: ${activeServer.members.length}${onlineNow ? ` (${onlineNow} en línea)` : ''}\n• 💬 **Canales**: ${activeServer.channels.filter((c) => c.type !== 'voice').length} de texto y ${activeServer.channels.filter((c) => c.type === 'voice').length} de voz\n• 🛡️ **Roles**: ${activeServer.roles.length}`;
+        reply = `📊 **Estadísticas de ${activeServer.name}**:\n• 👥 **Miembros**: ${activeServer.members.length}${onlineNow ? ` (${onlineNow} en línea)` : ''}\n• 💬 **Canales**: ${activeServer.channels.filter((c) => !isVoiceLike(c.type)).length} de texto y ${activeServer.channels.filter((c) => isVoiceLike(c.type)).length} de voz\n• 🛡️ **Roles**: ${activeServer.roles.length}`;
       } else if (bot.id === 'bot_gemini' || bot.systemPrompt) {
         const query = content.replace(bot.prefix || '', '').replace(`@${bot.name}`, '').trim();
         if (!query) {
@@ -3109,7 +3132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setServers((prev) => [...prev, newServer]);
     setActiveServerId(newServerId);
-    const firstText = channels.find((channel) => channel.type !== 'voice');
+    const firstText = channels.find((channel) => !isVoiceLike(channel.type));
     if (firstText) setActiveChannelId(firstText.id);
     setIsDMViewActive(false);
     soundFx.playJoinVoice();
@@ -3125,7 +3148,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const existing = servers.find((server) => server.id === cleanCode);
     if (existing) {
       setActiveServerId(existing.id);
-      setActiveChannelId(existing.channels.find((channel) => channel.type !== 'voice')?.id || existing.channels[0]?.id || '');
+      setActiveChannelId(existing.channels.find((channel) => !isVoiceLike(channel.type))?.id || existing.channels[0]?.id || '');
       setIsDMViewActive(false);
       toast.success(`Ya estás en ${existing.name}`);
       return { ok: true };
@@ -3136,7 +3159,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const space = ensureServerRoles([joined as Server], currentUser)[0];
       setServers((prev) => (prev.some((server) => server.id === space.id) ? prev : [...prev, space]));
       setActiveServerId(space.id);
-      setActiveChannelId(space.channels.find((channel) => channel.type !== 'voice')?.id || space.channels[0]?.id || '');
+      setActiveChannelId(space.channels.find((channel) => !isVoiceLike(channel.type))?.id || space.channels[0]?.id || '');
       setIsDMViewActive(false);
       toast.success(`Te uniste a ${space.name}`);
       return { ok: true };
@@ -3184,7 +3207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     // Only set as active text view if not a voice channel, or keep current channel active
-    if (type !== 'voice') {
+    if (!isVoiceLike(type)) {
       setActiveChannelId(newChanId);
     }
     setIsCreateChannelOpen(false);
