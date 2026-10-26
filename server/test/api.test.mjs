@@ -930,3 +930,96 @@ test('grupos de DM: solo amigos, mensajes y llamada del grupo', async () => {
   assert.equal(list[0].members.length, 2);
   assert.notEqual(list[0].ownerId, a.id, 'pasa la propiedad al salir');
 });
+
+test('auditoría: quién cambió qué en el espacio', async () => {
+  const owner = await register('auditor');
+  const member = await register('miembro17');
+  const space = await createSpace(owner, member);
+  const role = (await call('POST', `/servers/${space.id}/roles`, { name: 'Veteranos', permissions: [] }, owner.token)).body;
+  await call('PUT', `/servers/${space.id}/members/${member.id}/roles/${role.id}`, {}, owner.token);
+  const ch = (await call('POST', '/channels', { serverId: space.id, name: 'logs' }, owner.token)).body;
+  await call('DELETE', `/channels/${ch.id}`, undefined, owner.token);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  const own = (await call('POST', `/channels/${text.id}/messages`, { content: 'mío' }, member.token)).body;
+  await call('DELETE', `/messages/${own.id}`, undefined, member.token);
+  const theirs = (await call('POST', `/channels/${text.id}/messages`, { content: 'spam' }, member.token)).body;
+  await call('DELETE', `/messages/${theirs.id}`, undefined, owner.token);
+  await call('DELETE', `/servers/${space.id}/members/${member.id}?ban=1`, undefined, owner.token);
+  assert.equal((await call('GET', `/servers/${space.id}/audit`, undefined, member.token)).status, 403);
+  const log = (await call('GET', `/servers/${space.id}/audit`, undefined, owner.token)).body;
+  const actions = log.map((entry) => entry.action);
+  for (const action of ['role.create', 'member.role_add', 'channel.create', 'channel.delete', 'message.delete', 'member.ban']) assert.ok(actions.includes(action), `falta ${action}`);
+  assert.equal(log.filter((e) => e.action === 'message.delete').length, 1, 'borrar lo tuyo no se registra');
+  assert.equal(log.find((e) => e.action === 'channel.delete').target, 'logs');
+  assert.equal(log.find((e) => e.action === 'role.create').target, 'Veteranos');
+});
+
+test('webhooks: URL secreta, formato Discord y GitHub', async () => {
+  const owner = await register('webhooks');
+  const member = await register('miembro18');
+  const space = await createSpace(owner, member);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  assert.equal((await call('POST', `/servers/${space.id}/webhooks`, { name: 'Bot', channelId: text.id }, member.token)).status, 403);
+  const hook = (await call('POST', `/servers/${space.id}/webhooks`, { name: 'Alertas', channelId: text.id }, owner.token)).body;
+  assert.ok(hook.url.includes(`/api/hooks/${hook.id}/`));
+  const path = hook.url.slice(hook.url.indexOf('/api') + 4);
+  assert.equal((await call('POST', `/hooks/${hook.id}/token-falso`, { content: 'x' })).status, 404);
+  assert.equal((await call('POST', path, { content: 'Servidor caído 🔥', embeds: [{ title: 'Detalles', description: 'CPU 100%' }] })).status, 200);
+  const github = await fetch(`${base}${path}/github`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-github-event': 'push' }, body: JSON.stringify({ ref: 'refs/heads/main', repository: { full_name: 'k2nchin/kova' }, sender: { login: 'k2nchin' }, commits: [{ id: 'abcdef123456', message: 'Arreglo del chat\n\ndetalle', author: { name: 'K' } }] }) });
+  assert.equal(github.status, 200);
+  const msgs = (await call('GET', `/channels/${text.id}/messages`, undefined, member.token)).body;
+  const posted = msgs.find((m) => m.content.startsWith('Servidor caído'));
+  assert.ok(posted.content.includes('**Detalles**') && posted.content.includes('CPU 100%'));
+  assert.equal(posted.author.displayName, 'Alertas');
+  assert.ok(msgs.some((m) => m.content.includes('subió 1 commit a **k2nchin/kova** (main)') && m.content.includes('`abcdef1` Arreglo del chat')));
+  assert.equal((await call('DELETE', `/webhooks/${hook.id}`, undefined, owner.token)).status, 200);
+  assert.equal((await call('POST', path, { content: 'ya no' })).status, 404);
+});
+
+test('plantillas: copiar la estructura de un espacio sin mensajes ni miembros', async () => {
+  const owner = await register('plantilla');
+  const other = await register('usaplantilla');
+  const space = await createSpace(owner);
+  await call('POST', `/servers/${space.id}/roles`, { name: 'Moderación', color: '#ff0000', permissions: ['KICK_MEMBERS'] }, owner.token);
+  await call('POST', '/channels', { serverId: space.id, name: 'reglas', type: 'announcements' }, owner.token);
+  await call('PUT', `/servers/${space.id}/welcome`, { enabled: true, message: 'Hola', rules: ['Respeto'], requireAccept: false }, owner.token);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  await call('POST', `/channels/${text.id}/messages`, { content: 'secreto' }, owner.token);
+  assert.equal((await call('POST', `/servers/${space.id}/template`, {}, other.token)).status, 403);
+  const tpl = (await call('POST', `/servers/${space.id}/template`, {}, owner.token)).body;
+  assert.ok(tpl.code.length >= 6);
+  assert.equal((await call('POST', `/servers/${space.id}/template`, {}, owner.token)).body.code, tpl.code, 'el código no cambia al actualizar');
+  const preview = (await call('GET', `/templates/${tpl.code}`, undefined, other.token)).body;
+  assert.ok(preview.channels.some((c) => c.name === 'reglas' && c.type === 'announcements'));
+  const created = await call('POST', `/templates/${tpl.code}/use`, { name: 'Mi copia' }, other.token);
+  assert.equal(created.status, 201);
+  const copy = (await call('GET', '/servers', undefined, other.token)).body.find((s) => s.id === created.body.id);
+  assert.equal(copy.name, 'Mi copia');
+  assert.equal(copy.ownerId, other.id);
+  assert.ok(copy.roles.some((r) => r.name === 'Moderación'));
+  assert.equal(copy.members.length, 1, 'sin los miembros del original');
+  const copyText = copy.channels.find((c) => c.name === text.name);
+  assert.equal((await call('GET', `/channels/${copyText.id}/messages`, undefined, other.token)).body.length, 0, 'sin mensajes');
+  assert.equal((await call('GET', `/servers/${copy.id}/welcome`, undefined, other.token)).body.rules[0], 'Respeto');
+});
+
+test('estadísticas del espacio: actividad, canales y retención', async () => {
+  const owner = await register('stats');
+  const member = await register('miembro19');
+  const space = await createSpace(owner, member);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  await call('POST', '/channels', { serverId: space.id, name: 'muerto' }, owner.token);
+  await call('POST', `/channels/${text.id}/messages`, { content: 'a' }, member.token);
+  await call('POST', `/channels/${text.id}/messages`, { content: 'b' }, owner.token);
+  assert.equal((await call('GET', `/servers/${space.id}/stats`, undefined, member.token)).status, 403);
+  const stats = (await call('GET', `/servers/${space.id}/stats`, undefined, owner.token)).body;
+  assert.equal(stats.totals.members, 2);
+  assert.equal(stats.totals.messages30, 2);
+  assert.equal(stats.totals.activeWeek, 2);
+  assert.equal(stats.days.length, 30);
+  assert.equal(stats.days[29].messages, 2);
+  assert.equal(stats.hours.reduce((a, b) => a + b, 0), 2);
+  assert.equal(stats.topChannels[0].name, text.name);
+  assert.ok(stats.deadChannels.some((c) => c.name === 'muerto'));
+  assert.equal(stats.totals.newcomerRetention, 100);
+});

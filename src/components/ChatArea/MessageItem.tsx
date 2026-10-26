@@ -175,6 +175,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
           >
             {authorName}
             {(authorMember?.verified || message.author.verified) && <VerifiedBadge size={14} />}
+            {message.author.id.startsWith('wh_') && <span className="kova-webhook-tag" title="Mensaje de una integración">WEBHOOK</span>}
             {isOwner && (
               <span className="text-[10px] font-medium text-[#797b7e] border border-white/10 rounded-full px-1.5 py-px" title="Creador del espacio">Creador</span>
             )}

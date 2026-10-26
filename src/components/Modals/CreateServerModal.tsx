@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { api, uploadFile } from '../../services/apiClient';
 import { SPACE_TEMPLATES, type SpaceTemplateId } from '../../data/spaceTemplates';
+import { UseTemplateForm } from '../Settings/OwnerPanels';
 import type { Server } from '../../types';
 import { Avatar } from '../Common/Avatar';
 import '../../styles/createSpace.css';
@@ -12,7 +13,7 @@ type Step = 'template' | 'details' | 'invite' | 'join';
 
 /** Wizard to create a space (template → details → invite) or join one with a code. */
 export const CreateServerModal: React.FC = () => {
-  const { isCreateServerOpen, setIsCreateServerOpen, createServer, joinServerByInvite, currentUser } = useApp();
+  const { isCreateServerOpen, setIsCreateServerOpen, createServer, joinServerByInvite, currentUser, refreshServers, setActiveServerId } = useApp();
 
   const [step, setStep] = useState<Step>('template');
   const [template, setTemplate] = useState<SpaceTemplateId>('amigos');
@@ -233,6 +234,11 @@ export const CreateServerModal: React.FC = () => {
               </button>
             </footer>
           </form>
+        )}
+        {step === 'join' && (
+          <div className="kcs-body">
+            <UseTemplateForm onCreated={(spaceId) => { void refreshServers().then(() => { setActiveServerId(spaceId); setIsCreateServerOpen(false); }); }} />
+          </div>
         )}
       </div>
     </div>

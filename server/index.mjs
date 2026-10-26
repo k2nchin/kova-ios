@@ -10,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 const updatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'updater-static', 'updates');
 import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
 import { askKovaAI, AiError, transcribeAudio, classifyMessage } from './ai.mjs';
+import { ownerSchema, handleOwnerRoutes } from './owner.mjs';
+import { webhooksSchema, handleWebhookRoutes } from './webhooks.mjs';
+import { auditSchema, auditAround, handleAuditRoutes } from './audit.mjs';
 import { groupsSchema, handleGroupRoutes, isGroupMember } from './groups.mjs';
 import { socialSchema, handleSocialRoutes, activitiesFor, spaceProfilesOf } from './social.mjs';
 import { activitiesSchema, handleActivityRoutes as handleVoiceActivityRoutes } from './activities.mjs';
@@ -116,6 +119,9 @@ await db.exec(soundsSchema);
 await db.exec(activitiesSchema);
 await db.exec(socialSchema);
 await db.exec(groupsSchema);
+await db.exec(auditSchema);
+await db.exec(webhooksSchema);
+await db.exec(ownerSchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -238,6 +244,18 @@ const hostedImageUrl = (value) => {
   return url.length <= 2048 && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/)/i.test(url) ? url : '';
 };
 const readBody = async (req) => {
+  // The audit log may read the body first; routes get the same parsed copy.
+  if (req.kovaBody !== undefined) return req.kovaBody;
+  if (req.kovaBodyError) throw req.kovaBodyError;
+  try {
+    req.kovaBody = await readBodyOnce(req);
+  } catch (error) {
+    req.kovaBodyError = error;
+    throw error;
+  }
+  return req.kovaBody;
+};
+const readBodyOnce = async (req) => {
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
@@ -295,6 +313,7 @@ const replaceBackupCodes = async (userId) => {
   return codes;
 };
 const send = (res, status, body) => {
+  res.kovaBody = body; // read by the audit log after the request
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
@@ -529,6 +548,9 @@ const handleRequest = async (req, res) => {
       if (writes && await mustAcceptRules(db, scoped.space_id, session.user_id)) return send(res, 403, { message: 'Acepta las normas del espacio para poder escribir.', code: 'RULES_NOT_ACCEPTED' });
     }
   }
+  if (await handleOwnerRoutes({ db, req, res, requestPath, session, send, readBody, can, crypto })) return;
+  if (await handleWebhookRoutes({ db, req, res, requestPath, session, send, readBody, can, deliverMessage, hostedImageUrl, crypto })) return;
+  if (await handleAuditRoutes({ db, req, res, requestPath, session, send, can })) return;
   if (await handleGroupRoutes({ db, req, res, requestPath, session, send, readBody, emitToUsers, publicUser, userFromRow, sendPush, crypto })) return;
   if (await handleSocialRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, notifySpace, emitToUsers, hostedImageUrl })) return;
   if (await handleVoiceActivityRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, spaceAudience, emitToUsers })) return;
@@ -1105,7 +1127,20 @@ const handleRequest = async (req, res) => {
 
 export const handler = async (req, res) => {
   try {
-    return await handleRequest(req, res);
+    // Admin changes are written to the space's audit log once they succeed.
+    let finishAudit = null;
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && /^\/api\/(servers|channels|spaces|expressions|webhooks|messages)\//.test(new URL(req.url || '/', 'http://localhost').pathname + '/')) {
+      const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      const session = token && await db.prepare('SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?').get(token, new Date().toISOString());
+      if (session) {
+        const requestPath = new URL(req.url || '/', 'http://localhost').pathname;
+        const body = req.method === 'DELETE' ? {} : await readBody(req).catch(() => ({}));
+        finishAudit = await auditAround(db, { req, requestPath, actorId: session.user_id, body, crypto });
+      }
+    }
+    const result = await handleRequest(req, res);
+    if (finishAudit) await finishAudit(res.statusCode, res.kovaBody).catch((error) => console.warn('[Kova audit]', error?.message || error));
+    return result;
   } catch (error) {
     console.error('[Kova API error]', error);
     if (res.headersSent) { res.destroy?.(); return; }

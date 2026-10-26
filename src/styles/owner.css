@@ -1,0 +1,55 @@
+/* Owner tools: audit log, webhooks, templates, stats */
+.kown { display: flex; flex-direction: column; gap: 12px; padding-bottom: 12px; color: #e6e9f2; }
+.kown h3 { margin: 0 0 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,.5); }
+.kown h3 small { text-transform: none; letter-spacing: 0; color: #a99fff; font-weight: 600; }
+.kown-help { margin: 0; font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,.6); }
+.kown-help code { padding: 1px 5px; border-radius: 5px; background: rgba(255,255,255,.08); font-size: 11.5px; }
+.kown-empty { font-size: 13px; color: rgba(255,255,255,.5); }
+.kown-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.kown-chips button, .kown-dead { padding: 5px 11px; border-radius: 99px; border: 1px solid rgba(255,255,255,.12); color: rgba(255,255,255,.75); font-size: 12px; }
+.kown-chips button.is-on { background: rgba(124,108,255,.2); border-color: #7c6cff; color: #fff; }
+.kown-dead { border-color: rgba(251,191,36,.35); color: #fcd34d; }
+.kown-audit { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.kown-audit li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.025); }
+.kown-audit li > div { flex: 1; min-width: 0; }
+.kown-audit p { margin: 0; font-size: 13px; color: rgba(255,255,255,.75); }
+.kown-audit p strong { color: #fff; }
+.kown-audit p b { color: #c9c3ff; font-weight: 600; }
+.kown-audit small { display: block; font-size: 11.5px; color: rgba(255,255,255,.45); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kown-audit time { flex: none; font-size: 11px; color: rgba(255,255,255,.4); }
+.kown-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.kown-row input { flex: 1; min-width: 180px; }
+.kown-row input, .kown-row select { padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); color: #fff; font-size: 13px; outline: none; color-scheme: dark; }
+.kown-row button, .kown-primary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px; background: #7c6cff; color: #fff; font-size: 13px; font-weight: 600; align-self: flex-start; }
+.kown-row button:disabled, .kown-primary:disabled { opacity: .55; }
+.kown-hooks { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.kown-hooks li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); }
+.kown-hooks li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.kown-hooks strong { font-size: 13.5px; }
+.kown-hooks small { font-size: 11.5px; color: rgba(255,255,255,.5); }
+.kown-hook-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: rgba(124,108,255,.18); color: #c9c3ff; }
+.kown-hooks button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 9px; border-radius: 9px; background: rgba(255,255,255,.06); color: rgba(255,255,255,.8); font-size: 12px; }
+.kown-hooks button:hover { background: rgba(255,255,255,.12); color: #fff; }
+.kown-hooks button.is-danger:hover { color: #ff9b9b; }
+.kown-template { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: rgba(124,108,255,.07); border: 1px solid rgba(124,108,255,.25); }
+.kown-template p { margin: 0; font-size: 12.5px; color: rgba(255,255,255,.65); }
+.kown-code { display: flex; align-items: center; gap: 10px; }
+.kown-code span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,.5); }
+.kown-code strong { font-family: ui-monospace, monospace; font-size: 20px; letter-spacing: .08em; color: #fff; }
+.kown-code button { color: rgba(255,255,255,.6); padding: 4px; border-radius: 7px; }
+.kown-meta { color: #a99fff !important; }
+.kown-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.kown-cards div { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 14px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07); }
+.kown-cards strong { font-size: 22px; color: #fff; font-variant-numeric: tabular-nums; }
+.kown-cards span { font-size: 11.5px; color: rgba(255,255,255,.55); }
+.kown-bars { display: flex; align-items: flex-end; gap: 2px; padding: 6px; border-radius: 12px; background: rgba(255,255,255,.02); }
+.kown-bars span { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.kown-bars i { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #8d7fff, #5b4fd6); }
+.kown-axis { display: flex; justify-content: space-between; font-size: 10.5px; color: rgba(255,255,255,.4); margin-top: 3px; }
+.kown-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kown-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.kown-list li { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 9px; background: rgba(255,255,255,.025); font-size: 12.5px; }
+.kown-list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kown-list b { color: #c9c3ff; font-variant-numeric: tabular-nums; }
+.kown-ok { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; color: #6ee7b7; }
+@media (max-width: 640px) { .kown-two { grid-template-columns: 1fr; } }

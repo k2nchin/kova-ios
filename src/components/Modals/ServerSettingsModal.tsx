@@ -13,6 +13,10 @@ import {
   ShieldAlert,
   Smile,
   DoorOpen,
+  BarChart3,
+  ScrollText,
+  Webhook,
+  LayoutTemplate,
 } from 'lucide-react';
 import { useApp, permissionsIn } from '../../context/AppContext';
 import { uploadFile } from '../../services/apiClient';
@@ -21,6 +25,7 @@ import { Avatar } from '../Common/Avatar';
 import { AutomodPanel } from '../Settings/AutomodPanel';
 import { ExpressionsPanel } from '../Settings/ExpressionsPanel';
 import { WelcomePanel } from '../Settings/WelcomePanel';
+import { AuditPanel, StatsPanel, TemplatePanel, WebhooksPanel } from '../Settings/OwnerPanels';
 import { SPACE_CATEGORIES } from '../../data/spaceCategories';
 import '../../styles/serverSettings.css';
 
@@ -314,7 +319,7 @@ export const ServerSettingsModal: React.FC = () => {
               { id: 'overview', label: 'General', icon: Settings },
               { id: 'roles', label: 'Roles', icon: Shield, count: roles.length },
               { id: 'members', label: 'Miembros', icon: Users, count: members.length },
-              ...(myPerms.has('MANAGE_SERVER') ? [{ id: 'welcome', label: 'Bienvenida', icon: DoorOpen }, { id: 'expressions', label: 'Expresiones', icon: Smile }, { id: 'automod', label: 'AutoMod IA', icon: ShieldAlert }] as const : []),
+              ...(myPerms.has('MANAGE_SERVER') ? [{ id: 'stats', label: 'Estadísticas', icon: BarChart3 }, { id: 'audit', label: 'Auditoría', icon: ScrollText }, { id: 'webhooks', label: 'Webhooks', icon: Webhook }, { id: 'template', label: 'Plantilla', icon: LayoutTemplate }, { id: 'welcome', label: 'Bienvenida', icon: DoorOpen }, { id: 'expressions', label: 'Expresiones', icon: Smile }, { id: 'automod', label: 'AutoMod IA', icon: ShieldAlert }] as const : []),
             ] as const).map((item) => (
               <button
                 key={item.id}
@@ -742,6 +747,10 @@ export const ServerSettingsModal: React.FC = () => {
             )}
 
             {/* ======================= TAB: MEMBERS ======================= */}
+            {serverSettingsTab === 'stats' && <StatsPanel spaceId={activeServer.id} />}
+            {serverSettingsTab === 'audit' && <AuditPanel spaceId={activeServer.id} />}
+            {serverSettingsTab === 'webhooks' && <WebhooksPanel spaceId={activeServer.id} channels={activeServer.channels} />}
+            {serverSettingsTab === 'template' && <TemplatePanel spaceId={activeServer.id} />}
             {serverSettingsTab === 'welcome' && <WelcomePanel spaceId={activeServer.id} roles={activeServer.roles || []} />}
             {serverSettingsTab === 'expressions' && <ExpressionsPanel spaceId={activeServer.id} expressions={activeServer.expressions || []} />}
             {serverSettingsTab === 'automod' && <AutomodPanel spaceId={activeServer.id} channels={activeServer.channels} />}

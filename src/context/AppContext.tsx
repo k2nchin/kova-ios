@@ -289,8 +289,8 @@ interface AppContextType {
   // Server Settings & Roles
   isServerSettingsOpen: boolean;
   setIsServerSettingsOpen: (open: boolean) => void;
-  serverSettingsTab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome';
-  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome') => void;
+  serverSettingsTab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome' | 'stats' | 'audit' | 'webhooks' | 'template';
+  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome' | 'stats' | 'audit' | 'webhooks' | 'template') => void;
   createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Promise<Role | null>;
   updateRole: (serverId: string, roleId: string, updates: Partial<Role>) => void;
   deleteRole: (serverId: string, roleId: string) => Promise<void>;
@@ -3430,7 +3430,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Server Settings & Roles State & Handlers
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
-  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome'>('roles');
+  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome' | 'stats' | 'audit' | 'webhooks' | 'template'>('roles');
 
   const applyRoles = (serverId: string, update: (server: Server) => Server) =>
     setServers((prev) => prev.map((server) => (server.id === serverId ? update(server) : server)));

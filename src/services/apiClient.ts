@@ -257,6 +257,15 @@ export const api = {
   getPushKey: () => request<{ publicKey: string }>('/push/key'),
   subscribePush: (subscription: PushSubscriptionJSON) => request<{ ok: true }>('/push/subscribe', { method: 'POST', data: subscription }),
   unsubscribePush: (endpoint: string) => request<{ ok: true }>('/push/unsubscribe', { method: 'POST', data: { endpoint } }),
+  getAuditLog: (spaceId: string, action = '') => request<AuditEntry[]>(`/servers/${encodeURIComponent(spaceId)}/audit${action ? `?action=${encodeURIComponent(action)}` : ''}`),
+  getWebhooks: (spaceId: string) => request<WebhookInfo[]>(`/servers/${encodeURIComponent(spaceId)}/webhooks`),
+  createWebhook: (spaceId: string, data: { name: string; channelId: string }) => request<WebhookInfo>(`/servers/${encodeURIComponent(spaceId)}/webhooks`, { method: 'POST', data }),
+  deleteWebhook: (id: string) => request<{ ok: true }>(`/webhooks/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getSpaceTemplate: (spaceId: string) => request<SpaceTemplate | null>(`/servers/${encodeURIComponent(spaceId)}/template`),
+  createSpaceTemplate: (spaceId: string) => request<SpaceTemplate>(`/servers/${encodeURIComponent(spaceId)}/template`, { method: 'POST', data: {} }),
+  previewTemplate: (code: string) => request<SpaceTemplate>(`/templates/${encodeURIComponent(code)}`),
+  useTemplate: (code: string, name: string) => request<{ id: string; name: string }>(`/templates/${encodeURIComponent(code)}/use`, { method: 'POST', data: { name } }),
+  getSpaceStats: (spaceId: string) => request<SpaceStats>(`/servers/${encodeURIComponent(spaceId)}/stats`),
   getUserNote: (userId: string) => request<{ note: string }>(`/users/${encodeURIComponent(userId)}/note`),
   setUserNote: (userId: string, note: string) => request<{ note: string }>(`/users/${encodeURIComponent(userId)}/note`, { method: 'PUT', data: { note } }),
   setMyActivity: (data: { kind?: string; name?: string; details?: string; clear?: boolean }) => request<{ activity: UserActivity | null }>('/me/activity', { method: 'PUT', data }),
@@ -369,3 +378,15 @@ export type CallActivity =
 type GroupPerson = { id: string; username: string; displayName: string; avatar: string; verified?: boolean };
 export type DmGroup = { id: string; name: string; ownerId: string; members: GroupPerson[]; createdAt: string; lastMessage: { content: string; createdAt: string; authorId: string } | null };
 export type GroupMessage = { id: string; groupId: string; author: GroupPerson | null; content: string; attachments: Attachment[]; createdAt: string };
+
+export type AuditEntry = { id: string; action: string; target: string; details: string; createdAt: string; actor: { id: string; name: string; avatar: string } };
+export type WebhookInfo = { id: string; name: string; avatar: string; channelId: string; createdAt: string; url: string; githubUrl: string };
+export type SpaceTemplate = { code: string; name: string; description: string; uses: number; createdAt: string; channels: Array<{ name: string; type: string }>; categories: string[]; roles: Array<{ name: string; color: string }>; hasWelcome: boolean };
+export type SpaceStats = {
+  totals: { members: number; messages30: number; activeWeek: number; joins30: number; newcomerRetention: number | null };
+  days: Array<{ date: string; messages: number; joins: number }>;
+  hours: number[];
+  topChannels: Array<{ id: string; name: string; messages: number }>;
+  deadChannels: Array<{ id: string; name: string; lastMessageAt: string | null }>;
+  topMembers: Array<{ id: string; name: string; avatar: string; messages: number }>;
+};
