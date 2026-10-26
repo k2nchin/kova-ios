@@ -1,11 +1,11 @@
 // Single source of truth for public download assets.
 // Keep in sync with `public/updates/latest.json` (updater feed).
 
-export const KOVA_VERSION = '1.0.23';
+export const KOVA_VERSION = '1.0.24';
 
-export const WINDOWS_INSTALLER_URL = 'https://kova-k2nchin.vercel.app/updates/Kova_1.0.23_x64-setup.exe';
+export const WINDOWS_INSTALLER_URL = 'https://kova-k2nchin.vercel.app/updates/Kova_1.0.24_x64-setup.exe';
 
-export const WINDOWS_INSTALLER_SIZE_MB = '9.7 MB';
+export const WINDOWS_INSTALLER_SIZE_MB = '14.5 MB';
 
 export type PlatformSupport = 'ready' | 'coming-soon';
 
