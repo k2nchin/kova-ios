@@ -21,6 +21,11 @@ interface VoiceHeaderProps {
   onToggleRadar: () => void;
   onToggleNoiseSuppression: () => void;
   radarVisible: boolean;
+  /** Call notes: yours, how many people in the room have them on, actions. */
+  notesOn: boolean;
+  notesTakers: number;
+  onToggleNotes: () => void;
+  onSummarize: () => void;
 }
 
 const STATE_LABEL: Record<VoiceConnectionState, string> = {
@@ -43,6 +48,10 @@ export const VoiceHeader: React.FC<VoiceHeaderProps> = ({
   onToggleRadar,
   onToggleNoiseSuppression,
   radarVisible,
+  notesOn,
+  notesTakers,
+  onToggleNotes,
+  onSummarize,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
@@ -85,6 +94,7 @@ export const VoiceHeader: React.FC<VoiceHeaderProps> = ({
           </span>
           <span>{peopleCount === 1 ? '1 persona' : `${peopleCount} personas`}</span>
           <span className="kvr-desktop-only">{serverName}</span>
+          {notesTakers > 0 && <span className="kvr-notes-badge" title="Kova IA transcribe la voz de quien activó las notas">📝 Notas activas{notesTakers > 1 ? ` · ${notesTakers}` : ''}</span>}
         </p>
       </div>
 
@@ -112,6 +122,13 @@ export const VoiceHeader: React.FC<VoiceHeaderProps> = ({
           <button type="button" role="menuitemcheckbox" aria-checked={noiseSuppression} className="kvr-menu-item" onClick={onToggleNoiseSuppression}>
             <span>Supresión de ruido</span>
             <i className={`kvr-switch ${noiseSuppression ? 'is-on' : ''}`} />
+          </button>
+          <button type="button" role="menuitemcheckbox" aria-checked={notesOn} className="kvr-menu-item" onClick={onToggleNotes}>
+            <span>Notas de la llamada<small style={{ display: 'block' }}>Kova IA transcribe solo tu voz</small></span>
+            <i className={`kvr-switch ${notesOn ? 'is-on' : ''}`} />
+          </button>
+          <button type="button" role="menuitem" className="kvr-menu-item" onClick={() => { onSummarize(); setMenuOpen(false); }}>
+            <span>Resumir llamada<small style={{ display: 'block' }}>Se publica en el chat de la sala</small></span>
           </button>
           <button type="button" role="menuitemcheckbox" aria-checked={radarVisible} className="kvr-menu-item kvr-desktop-only" onClick={onToggleRadar}>
             <span>Radar de voz</span>

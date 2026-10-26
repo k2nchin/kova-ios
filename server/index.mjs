@@ -9,9 +9,14 @@ import { fileURLToPath } from 'node:url';
 // Signed desktop installers + latest.json, also served from the API host.
 const updatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'updater-static', 'updates');
 import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
-import { askKovaAI, AiError } from './ai.mjs';
+import { askKovaAI, AiError, transcribeAudio, classifyMessage } from './ai.mjs';
+import { musicSchema, handleMusicRoutes } from './music.mjs';
+import { eventsSchema, handleEventRoutes, runEventReminders } from './events.mjs';
+import { automodSchema, screenMessage, logBlocked, handleAutomodRoutes } from './automod.mjs';
+import { callNotesSchema, handleCallNotesRoutes } from './callnotes.mjs';
 import { createVoiceToken, VoiceError, voiceOccupancy, forgetVoiceOccupancy } from './voice.mjs';
 import { contentSchema, contentUserColumns, handleContentRoute } from './content.mjs';
+import { translateSchema, handleTranslateRoutes } from './translate.mjs';
 import { schedulingSchema, handleSchedulingRoutes, runDueJobs } from './scheduling.mjs';
 import { threadsSchema, handleThreadRoutes, threadCounts } from './threads.mjs';
 import { activitySchema, handleActivityRoutes, mentionedUserIds } from './activity.mjs';
@@ -84,6 +89,11 @@ await db.exec(spacesSchema);
 await db.exec(activitySchema);
 await db.exec(threadsSchema);
 await db.exec(schedulingSchema);
+await db.exec(translateSchema);
+await db.exec(callNotesSchema);
+await db.exec(automodSchema);
+await db.exec(eventsSchema);
+await db.exec(musicSchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -470,9 +480,14 @@ const handleRequest = async (req, res) => {
       throw error;
     }
   }
+  if (await handleCallNotesRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, transcribeAudio, askKovaAI, AiError, deliverMessage, spaceAudience, emitToUsers, crypto })) return;
+  if (await handleTranslateRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, askKovaAI, AiError })) return;
   if (await handleSchedulingRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace })) return;
   if (await handleThreadRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, can, publicUser, userFromRow, emitToChannel })) return;
   if (await handleActivityRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, isVerifiedEmail, askKovaAI, AiError })) return;
+  if (await handleMusicRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers })) return;
+  if (await handleEventRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers, crypto })) return;
+  if (await handleAutomodRoutes({ db, req, res, requestPath, session, send, readBody, can })) return;
   if (await handleSpaceRoutes({ db, req, res, requestPath, session, send, readBody, notifySpace, emitToUsers })) return;
   if (await handleContentRoute({ req, res, requestPath, session, db, send, readBody, userFromRow, publicUser, canAccessSpace })) return;
   if (requestPath === '/api/voice/token' && req.method === 'POST') {
@@ -835,6 +850,13 @@ const handleRequest = async (req, res) => {
     if (content.length > 10_000) return send(res, 413, { message: 'El mensaje supera el límite de 10 000 caracteres.' });
     const replyToId = String(body.replyToId || '').trim() || null;
     if (replyToId && !await db.prepare('SELECT id FROM messages WHERE id = ? AND signal_id = ?').get(replyToId, channelId)) return send(res, 400, { message: 'El mensaje al que respondes ya no existe.' });
+    if (content && !await can(db, channel.space_id, session.user_id, 'MANAGE_MESSAGES')) {
+      const blocked = await screenMessage({ db, spaceId: channel.space_id, userId: session.user_id, content, classifyMessage });
+      if (blocked) {
+        await logBlocked({ db, crypto, spaceId: channel.space_id, channelId, userId: session.user_id, content, reason: blocked });
+        return send(res, 422, { message: `AutoMod de Kova IA bloqueó tu mensaje: ${blocked}.`, code: 'AUTOMOD_BLOCKED' });
+      }
+    }
     const created = await deliverMessage({ channelId, spaceId: channel.space_id, authorId: session.user_id, content, replyToId, attachments });
     return send(res, 201, created);
   }
@@ -1002,7 +1024,10 @@ if (!process.env.VERCEL) {
   await attachRealtime(server, { db, canAccessSpace, allowedOrigins });
   server.listen(port, () => console.log(`Kova API listening on http://localhost:${port}`));
   // Long-running host only (Render / local): send scheduled messages and reminders.
-  const tick = () => runDueJobs({ db, canAccessSpace, deliverMessage, emitToUsers }).catch((error) => console.error('[Kova scheduling]', error?.message || error));
+  const tick = () => Promise.all([
+    runDueJobs({ db, canAccessSpace, deliverMessage, emitToUsers }),
+    runEventReminders({ db, emitToUsers }),
+  ]).catch((error) => console.error('[Kova scheduling]', error?.message || error));
   setInterval(tick, Number(process.env.KOVA_JOBS_INTERVAL_MS) || 30_000);
   void tick();
   // Hosts stop containers with SIGTERM: finish in-flight requests, then exit.

@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import '../../styles/settings.css';
 import { ProfileExtras, MuteSoundPicker, BlockedList } from '../Settings/ProfileExtras';
+import { LANGUAGES } from '../../data/languages';
 import { Avatar } from '../Common/Avatar';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { isDesktopApp } from '../../utils/platform';
@@ -604,6 +605,13 @@ export const SettingsModal: React.FC = () => {
                 title="Temas & Entorno Visual Activo"
                 description="Haz clic en cualquier tema para transformar instantáneamente la interfaz de Kova."
               >
+                <div className="kset-field kset-extras">
+                  <h4>Mi idioma</h4>
+                  <p>Kova IA traduce los mensajes a este idioma (botón de traducir o traducción automática del canal).</p>
+                  <select className="kset-select" value={preferences.myLanguage} onChange={(event) => updatePreference('myLanguage', event.target.value)}>
+                    {LANGUAGES.map((lang) => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
+                  </select>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
                   {[
                     {

@@ -196,6 +196,8 @@ export const api = {
   getReminders: () => request<Array<{ id: string; note: string; messageId: string | null; channelId: string | null; remindAt: string }>>('/reminders', { method: 'GET' }),
   getDueReminders: () => request<Array<{ id: string; note: string; messageId: string | null; channelId: string | null; serverId: string | null; remindAt: string }>>('/reminders?due=1', { method: 'GET' }),
   cancelReminder: (id: string) => request<{ ok: true }>(`/reminders/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  translateMessages: (lang: string, messageIds: string[]) =>
+    request<Record<string, { text: string; same: boolean }>>('/translate', { method: 'POST', data: { lang, messageIds } }),
   markChannelRead: (channelId: string) => request<{ channelId: string; lastReadAt: string }>(`/channels/${encodeURIComponent(channelId)}/read`, { method: 'PUT' }),
   getUnread: () => request<Record<string, { unread: number; mentions: number }>>('/unread', { method: 'GET' }),
   searchMessages: (serverId: string, params: { q?: string; author?: string; channel?: string; hasFile?: boolean }) => {
@@ -223,6 +225,18 @@ export const api = {
   createNote: (channelId: string, data: { title: string; content: string; tags: string[] }) => request<any>(`/channels/${encodeURIComponent(channelId)}/notes`, { method: 'POST', data }),
   updateNote: (noteId: string, data: { title?: string; content?: string; tags?: string[] }) => request<any>(`/notes/${encodeURIComponent(noteId)}`, { method: 'PATCH', data }),
   deleteNote: (noteId: string) => request<{ ok: true }>(`/notes/${encodeURIComponent(noteId)}`, { method: 'DELETE' }),
+  setCallNotes: (channelId: string, active: boolean) => request<{ ok: true }>(`/voice/${encodeURIComponent(channelId)}/notes`, { method: 'POST', data: { active } }),
+  transcribeCallClip: (channelId: string, audio: string, mimeType: string) => request<{ text: string }>(`/voice/${encodeURIComponent(channelId)}/transcribe`, { method: 'POST', data: { audio, mimeType } }),
+  summarizeCall: (channelId: string) => request<{ summary: string; messageId: string; lines: number }>(`/voice/${encodeURIComponent(channelId)}/summary`, { method: 'POST', data: {} }),
+  getMusic: (channelId: string) => request<MusicState>(`/voice/${encodeURIComponent(channelId)}/music`),
+  controlMusic: (channelId: string, data: Record<string, unknown>) => request<MusicState>(`/voice/${encodeURIComponent(channelId)}/music`, { method: 'POST', data }),
+  getEvents: (spaceId: string) => request<SpaceEvent[]>(`/spaces/${encodeURIComponent(spaceId)}/events`),
+  createEvent: (spaceId: string, data: { title: string; description?: string; startsAt: string; endsAt?: string; channelId?: string }) =>
+    request<SpaceEvent>(`/spaces/${encodeURIComponent(spaceId)}/events`, { method: 'POST', data }),
+  setEventInterest: (eventId: string, interested: boolean) => request<SpaceEvent>(`/events/${encodeURIComponent(eventId)}/rsvp`, { method: 'POST', data: { interested } }),
+  cancelEvent: (eventId: string) => request<{ ok: true }>(`/events/${encodeURIComponent(eventId)}`, { method: 'DELETE' }),
+  getAutomod: (spaceId: string) => request<AutomodState>(`/spaces/${encodeURIComponent(spaceId)}/automod`),
+  setAutomod: (spaceId: string, enabled: boolean) => request<AutomodState>(`/spaces/${encodeURIComponent(spaceId)}/automod`, { method: 'PATCH', data: { enabled } }),
   getVoiceOccupancy: (serverId: string) =>
     request<Record<string, Array<{ id: string; name: string; avatar: string }>>>(`/servers/${encodeURIComponent(serverId)}/voice`, { method: 'GET' }),
   voiceLeft: (channelId: string) => request<{ ok: true }>('/voice/left', { method: 'POST', data: { channelId } }),
@@ -251,4 +265,20 @@ export const api = {
   // Kova AI Proxy
   askAI: (prompt: string, context?: any) =>
     request<{ text: string }>('/ai/chat', { method: 'POST', data: { prompt, context } }),
+};
+
+export type AutomodState = {
+  enabled: boolean;
+  log: Array<{ id: string; content: string; reason: string; createdAt: string; channelId: string; author: string }>;
+};
+
+export type SpaceEvent = {
+  id: string; spaceId: string; title: string; description: string; startsAt: string; endsAt?: string;
+  channelId?: string; createdBy: string; interested: number; interestedIds: string[]; meInterested: boolean;
+};
+
+export type MusicTrack = { id: string; kind: 'youtube' | 'audio'; ref: string; url: string; title: string; addedBy: string };
+export type MusicState = {
+  channelId: string | null; current: MusicTrack | null; queue: MusicTrack[]; playing: boolean;
+  startedAt: string | null; offsetMs: number; serverNow: number; updatedBy?: string;
 };

@@ -114,6 +114,8 @@ export interface Message {
   pinned?: boolean;
   aiGenerated?: boolean;
   translatedText?: string;
+  /** Language code of translatedText. */
+  translatedLang?: string;
   replyTo?: {
     id: string;
     authorName: string;

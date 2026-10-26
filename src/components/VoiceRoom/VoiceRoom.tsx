@@ -7,6 +7,7 @@ import { isDesktopApp as detectDesktopApp, isMobileApp, isTauriApp } from '../..
 import { api } from '../../services/apiClient';
 import { VoiceRadar } from './VoiceRadar';
 import { VoiceHeader, type VoiceConnectionState } from './VoiceHeader';
+import { ListenTogether } from './ListenTogether';
 import '../../styles/voiceRoom.css';
 import { VideoTrackView } from './VideoTrackView';
 import { VoiceParticipantCard, type VoiceParticipant } from './VoiceParticipantCard';
@@ -38,6 +39,10 @@ export const VoiceRoom: React.FC = () => {
     activeVoiceChannelId,
     preferences,
     updatePreference,
+    callNotesOn,
+    notesTakers,
+    toggleCallNotes,
+    summarizeCall,
   } = useApp();
 
   // Audio DSP & Noise Suppression
@@ -426,9 +431,14 @@ export const VoiceRoom: React.FC = () => {
           toast.success(`Supresión de ruido ${!antirruido ? 'activada' : 'desactivada'}`);
         }}
         radarVisible={radarVisible}
+        notesOn={callNotesOn}
+        notesTakers={(notesTakers[activeChannel.id] || []).length}
+        onToggleNotes={() => void toggleCallNotes()}
+        onSummarize={() => void summarizeCall().then((summary) => { if (summary) setIsChatOpen(true); })}
       />
 
       <main className="relative min-h-0 flex-1 flex flex-col">
+        <ListenTogether channelId={activeChannel.id} />
         <div
           ref={stageRef}
           className="kvr-stage"

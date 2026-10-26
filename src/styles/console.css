@@ -406,3 +406,14 @@
   font-size: 11px; font-weight: 800; color: #0a0a0b; background: #c2c4c8;
 }
 .kova-channel-badge.is-mention { color: #fff; background: #d64545; }
+
+/* Personal channel folders */
+.kova-channels-section-head.is-folder { gap: 4px; }
+.kova-channels-section-head button.kova-folder-toggle { display: flex; width: auto; height: auto; opacity: 1; align-items: center; gap: 4px; flex: 1; min-width: 0; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; text-align: left; place-items: initial; }
+.kova-folder-toggle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kova-folder-empty { margin: 2px 10px 8px; font-size: 11px; color: rgba(255,255,255,.4); }
+.kova-folder-menu { position: fixed; z-index: 80; min-width: 200px; padding: 6px; border-radius: 12px; background: #141826; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 12px 32px rgba(0,0,0,.45); display: flex; flex-direction: column; }
+.kova-folder-menu small { padding: 4px 8px 6px; font-size: 10.5px; color: rgba(255,255,255,.45); }
+.kova-folder-menu button { text-align: left; padding: 7px 9px; border-radius: 8px; background: none; border: 0; color: #e6e9f2; font-size: 13px; cursor: pointer; }
+.kova-folder-menu button:hover { background: rgba(124,108,255,.18); }
+.kova-folder-name-input { flex: 1; min-width: 0; background: rgba(255,255,255,.06); border: 1px solid rgba(124,108,255,.5); border-radius: 6px; color: #fff; font-size: 11px; padding: 2px 6px; outline: none; }

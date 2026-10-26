@@ -23,6 +23,7 @@ import { Message } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { WhenPicker } from '../Common/WhenPicker';
+import { LANGUAGES, languageName } from '../../data/languages';
 import { VoiceMessagePlayer } from '../Audio/VoiceMessagePlayer';
 import { Avatar } from '../Common/Avatar';
 
@@ -53,6 +54,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
     savedMessageIds,
     toggleSaveMessage,
     remindMe,
+    preferences,
   } = useApp();
   const [copiedCode, setCopiedCode] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -64,6 +66,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
   const [showActions, setShowActions] = useState(false);
   const [revealBlocked, setRevealBlocked] = useState(false);
   const [isRemindOpen, setIsRemindOpen] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
   const toggleActionsOnTouch = (event: React.MouseEvent) => {
     if (!window.matchMedia('(hover: none)').matches) return;
     if ((event.target as HTMLElement).closest('a, button, input, textarea, video, audio, img')) return;
@@ -260,10 +263,17 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
         )}
 
         {/* Translated Text Box (if translated) */}
-        {message.translatedText && (
-          <div className="mt-1.5 p-2 rounded-xl bg-cyan-950/20 border border-cyan-500/30 text-cyan-200 text-xs font-mono">
-            {message.translatedText}
+        {message.translatedText && !showOriginal && (
+          <div className="kova-translation">
+            <p>{message.translatedText}</p>
+            <span>
+              🌐 Traducido{message.translatedLang ? ` al ${languageName(message.translatedLang).toLowerCase()}` : ''} por Kova IA ·{' '}
+              <button type="button" onClick={() => setShowOriginal(true)}>Ver solo el original</button>
+            </span>
           </div>
+        )}
+        {message.translatedText && showOriginal && (
+          <button type="button" className="kova-translation-show" onClick={() => setShowOriginal(false)}>🌐 Ver traducción</button>
         )}
 
         {/* Voice Note Player if message has audio */}
@@ -462,25 +472,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
           </button>
 
           {showLangPicker && (
-            <div className="absolute top-7 right-0 bg-[#161a28] border border-white/[0.12] p-1.5 rounded-xl shadow-2xl flex flex-col gap-1 z-30 whitespace-nowrap text-[11px]">
-              <button
-                onClick={() => {
-                  translateMessage(message.id, 'en');
-                  setShowLangPicker(false);
-                }}
-                className="px-2 py-1 text-left hover:bg-white/[0.08] rounded text-slate-200"
-              >
-                Inglés (EN)
+            <div className="kova-lang-menu">
+              <button type="button" className="is-main" onClick={() => { void translateMessage(message.id); setShowLangPicker(false); }}>
+                A mi idioma ({languageName(preferences.myLanguage)})
               </button>
-              <button
-                onClick={() => {
-                  translateMessage(message.id, 'ja');
-                  setShowLangPicker(false);
-                }}
-                className="px-2 py-1 text-left hover:bg-white/[0.08] rounded text-slate-200"
-              >
-                Japonés (JA)
-              </button>
+              {LANGUAGES.filter((lang) => lang.code !== preferences.myLanguage).map((lang) => (
+                <button key={lang.code} type="button" onClick={() => { void translateMessage(message.id, lang.code); setShowLangPicker(false); }}>
+                  {lang.name}
+                </button>
+              ))}
             </div>
           )}
         </div>

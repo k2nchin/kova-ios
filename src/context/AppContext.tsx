@@ -21,7 +21,9 @@ import { INITIAL_NOTES, CURRENT_USER } from '../data/defaults';
 import { buildSpaceStructure, type SpaceTemplateId } from '../data/spaceTemplates';
 import { soundFx } from '../utils/soundEffects';
 import { playJoinSound } from '../utils/voiceSounds';
+import { systemLanguage, languageName } from '../data/languages';
 import { startNativeCapture, type ShareQuality } from '../services/screenCapture';
+import { startCallNotes } from '../services/callNotes';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
@@ -70,6 +72,8 @@ export interface AppPreferences {
   channelActivity: boolean;
   activityStatus: boolean;
   confirmExternalLinks: boolean;
+  /** Language messages are translated into. */
+  myLanguage: string;
 }
 
 export interface AppNotification {
@@ -123,7 +127,7 @@ interface AppContextType {
   addReaction: (messageId: string, emoji: string) => void;
   deleteMessage: (messageId: string) => void;
   togglePinMessage: (messageId: string) => void;
-  translateMessage: (messageId: string, targetLang: string) => void;
+  translateMessage: (messageId: string, targetLang?: string) => Promise<void>;
   // Voice Call
   activeVoiceChannelId: string | null;
   isInVoice: boolean;
@@ -236,6 +240,12 @@ interface AppContextType {
   ) => Promise<Server | null>;
   setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
   removeFromSpace: (serverId: string, userId: string, ban?: boolean) => Promise<boolean>;
+  callNotesOn: boolean;
+  notesTakers: Record<string, string[]>;
+  toggleCallNotes: () => Promise<void>;
+  summarizeCall: () => Promise<string | null>;
+  autoTranslateChannels: Set<string>;
+  toggleAutoTranslate: (channelId: string) => void;
   scheduleMessage: (channelId: string, content: string, sendAt: Date) => Promise<boolean>;
   remindMe: (messageId: string, remindAt: Date) => Promise<void>;
   savedMessageIds: Set<string>;
@@ -270,8 +280,8 @@ interface AppContextType {
   // Server Settings & Roles
   isServerSettingsOpen: boolean;
   setIsServerSettingsOpen: (open: boolean) => void;
-  serverSettingsTab: 'overview' | 'roles' | 'members';
-  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members') => void;
+  serverSettingsTab: 'overview' | 'roles' | 'members' | 'automod';
+  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'automod') => void;
   createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Promise<Role | null>;
   updateRole: (serverId: string, roleId: string, updates: Partial<Role>) => void;
   deleteRole: (serverId: string, roleId: string) => Promise<void>;
@@ -1160,6 +1170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           channelActivity: true,
           activityStatus: true,
           confirmExternalLinks: true,
+          myLanguage: systemLanguage(),
           ...JSON.parse(saved),
         };
       }
@@ -1174,6 +1185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       channelActivity: true,
       activityStatus: true,
       confirmExternalLinks: true,
+      myLanguage: systemLanguage(),
     };
   });
 
@@ -1726,10 +1738,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       void api.getDueReminders().catch(() => undefined); // marks it as seen
     };
     socket.on('reminder:due', onDue);
+    const onEvent = (event: { id: string; title: string; startsAt: string; serverId: string; channelId?: string }) => {
+      soundFx.playReactionAdded();
+      const minutes = Math.max(0, Math.round((Date.parse(event.startsAt) - Date.now()) / 60_000));
+      const when = minutes > 0 ? `Empieza en ${minutes} min` : 'Empieza ahora';
+      toast(`📅 ${event.title}`, {
+        description: when,
+        duration: 20_000,
+        action: { label: 'Ir', onClick: () => {
+          setActiveServerId(event.serverId);
+          setIsDMViewActive(false);
+          if (event.channelId) setActiveChannelId(event.channelId);
+        } },
+      });
+      if (!document.hasFocus()) void showNotification(`📅 ${event.title}`, when);
+    };
+    socket.on('event:starting', onEvent);
     const onFocus = () => { void loadDue(); };
     window.addEventListener('focus', onFocus);
-    return () => { socket.off('reminder:due', onDue); window.removeEventListener('focus', onFocus); };
+    return () => { socket.off('reminder:due', onDue); socket.off('event:starting', onEvent); window.removeEventListener('focus', onFocus); };
   }, [isAuthenticated, currentUser.id]);
+
+  // ---- Call notes (opt-in transcription of your own voice) ----
+  const [callNotesOn, setCallNotesOn] = useState(false);
+  const [notesTakers, setNotesTakers] = useState<Record<string, string[]>>({});
+  const stopCallNotesRef = useRef<(() => void) | null>(null);
+  const stopCallNotes = (channelId?: string | null) => {
+    stopCallNotesRef.current?.();
+    stopCallNotesRef.current = null;
+    setCallNotesOn(false);
+    if (channelId && getAuthToken()) void api.setCallNotes(channelId, false).catch(() => undefined);
+  };
+  const toggleCallNotes = async () => {
+    const channelId = activeVoiceChannelId;
+    if (!channelId) { toast.error('Entra a una sala de voz para tomar notas.'); return; }
+    if (callNotesOn) { stopCallNotes(channelId); toast.success('Notas de la llamada desactivadas'); return; }
+    try {
+      stopCallNotesRef.current = await startCallNotes(channelId, (message) => toast.error(message));
+      setCallNotesOn(true);
+      void api.setCallNotes(channelId, true).catch(() => undefined);
+      toast.success('Notas activadas: Kova IA transcribe solo tu voz. Todos en la sala lo ven.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudieron activar las notas.');
+    }
+  };
+  const summarizeCall = async () => {
+    if (!activeVoiceChannelId) return null;
+    try {
+      const result = await api.summarizeCall(activeVoiceChannelId);
+      toast.success('Resumen publicado en el chat de la sala');
+      return result.summary;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo resumir la llamada.');
+      return null;
+    }
+  };
+  // Who is taking notes in each room (everyone sees it).
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    const onNotes = ({ channelId, userId, active }: { channelId: string; userId: string; active: boolean }) =>
+      setNotesTakers((prev) => {
+        const current = new Set(prev[channelId] || []);
+        if (active) current.add(userId); else current.delete(userId);
+        return { ...prev, [channelId]: [...current] };
+      });
+    socket.on('voice:notes', onNotes);
+    return () => { socket.off('voice:notes', onNotes); };
+  }, [isAuthenticated]);
 
   // ---- Blocked people ----
   const [blockedUsers, setBlockedUsers] = useState<Array<{ id: string; username: string; displayName: string; avatar: string }>>([]);
@@ -2192,6 +2268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const leaveVoiceChannel = () => {
     soundFx.playLeaveVoice();
+    if (stopCallNotesRef.current) stopCallNotes(activeVoiceChannelId);
     if (activeVoiceChannelId && getAuthToken()) void api.voiceLeft(activeVoiceChannelId).catch(() => undefined);
     nativeShareRef.current?.stop();
     nativeShareRef.current = null;
@@ -2575,30 +2652,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const translateMessage = async (messageId: string, targetLang: string) => {
-    soundFx.playAISparkle();
-    const channelMsgs = allMessages[activeChannel.id] || [];
-    const targetMsg = channelMsgs.find((m) => m.id === messageId);
-    if (!targetMsg) return;
+  const applyTranslations = (channelId: string, lang: string, results: Record<string, { text: string; same: boolean }>) =>
+    setAllMessages((prev) => ({
+      ...prev,
+      [channelId]: (prev[channelId] || []).map((message) => {
+        const found = results[message.id];
+        if (!found || found.same) return message;
+        return { ...message, translatedText: found.text, translatedLang: lang };
+      }),
+    }));
 
+  const translateMessage = async (messageId: string, targetLang?: string) => {
+    const lang = targetLang || preferences.myLanguage;
+    const channelId = activeChannel.id;
+    if (!messageId.startsWith('message_')) { toast.error('Espera a que el mensaje se envíe para traducirlo.'); return; }
     try {
-      toast.info(`Traduciendo mensaje con Gemini al ${targetLang.toUpperCase()}...`);
-      const translated = await translateTextWithGemini(targetMsg.content, targetLang);
-      setAllMessages((prev) => {
-        const msgs = prev[activeChannel.id] || [];
-        const updated = msgs.map((msg) => {
-          if (msg.id !== messageId) return msg;
-          return { ...msg, translatedText: `[Gemini ${targetLang.toUpperCase()}]: ${translated}` };
-        });
-        return { ...prev, [activeChannel.id]: updated };
-      });
-      soundFx.playAISparkle();
-    } catch (err) {
-      console.error('[Kova AI] Error traduciendo mensaje:', err);
-      toast.error('Error al traducir el mensaje');
+      const results = await api.translateMessages(lang, [messageId]);
+      if (results[messageId]?.same) { toast.info(`Este mensaje ya está en ${languageName(lang).toLowerCase()}.`); return; }
+      applyTranslations(channelId, lang, results);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo traducir el mensaje.');
     }
   };
 
+  // Auto-translate: channels where new messages are translated to your language.
+  const [autoTranslateChannels, setAutoTranslateChannels] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('kova.autoTranslate.v1') || '[]')); } catch { return new Set(); }
+  });
+  const toggleAutoTranslate = (channelId: string) => setAutoTranslateChannels((prev) => {
+    const next = new Set(prev);
+    if (next.has(channelId)) next.delete(channelId); else next.add(channelId);
+    try { localStorage.setItem('kova.autoTranslate.v1', JSON.stringify([...next])); } catch {}
+    toast.success(next.has(channelId) ? `Traducción automática al ${languageName(preferences.myLanguage).toLowerCase()} activada` : 'Traducción automática desactivada');
+    return next;
+  });
+  const triedTranslations = useRef<Set<string>>(new Set());
+  const autoChannelId = activeChannel?.id && autoTranslateChannels.has(activeChannel.id) ? activeChannel.id : '';
+  const channelMessages = autoChannelId ? allMessages[autoChannelId] : undefined;
+  useEffect(() => {
+    if (!autoChannelId || !channelMessages) return;
+    const lang = preferences.myLanguage;
+    const pending = channelMessages
+      .filter((message) => message.id.startsWith('message_') && message.author.id !== currentUser.id && message.content.trim() && !message.translatedText)
+      .map((message) => message.id)
+      .filter((id) => !triedTranslations.current.has(`${id}:${lang}`))
+      .slice(-60);
+    if (!pending.length) return;
+    pending.forEach((id) => triedTranslations.current.add(`${id}:${lang}`));
+    const timer = window.setTimeout(async () => {
+      for (let index = 0; index < pending.length; index += 20) {
+        try {
+          applyTranslations(autoChannelId, lang, await api.translateMessages(lang, pending.slice(index, index + 20)));
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'No se pudo traducir automáticamente.');
+          break;
+        }
+      }
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [autoChannelId, channelMessages, preferences.myLanguage, currentUser.id]);
 
   // Bots & App Directory operations
   const installBotToServer = (botId: string, serverId: string) => {
@@ -3229,7 +3341,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Server Settings & Roles State & Handlers
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
-  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members'>('roles');
+  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'automod'>('roles');
 
   const applyRoles = (serverId: string, update: (server: Server) => Server) =>
     setServers((prev) => prev.map((server) => (server.id === serverId ? update(server) : server)));
@@ -3467,6 +3579,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinServerByInvite,
         setSpaceNickname,
         removeFromSpace,
+        callNotesOn,
+        notesTakers,
+        toggleCallNotes,
+        summarizeCall,
+        autoTranslateChannels,
+        toggleAutoTranslate,
         scheduleMessage,
         remindMe,
         savedMessageIds,

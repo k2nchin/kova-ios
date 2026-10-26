@@ -55,6 +55,20 @@ before(async () => {
     for await (const chunk of req) raw += chunk;
     const body = JSON.parse(raw);
     res.setHeader('content-type', 'application/json');
+    const userText = body.contents?.[0]?.parts?.[0]?.text || '';
+    fakeGemini.calls = (fakeGemini.calls || 0) + 1;
+    // Translation requests: echo every item back "translated".
+    if (userText.includes('moderador automático')) {
+      const verdict = /phishing-falso/.test(userText) ? 'scam' : 'ok';
+      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: verdict }] } }] }));
+      return;
+    }
+    if (userText.includes('Traduce cada texto')) {
+      const items = JSON.parse(userText.slice(userText.lastIndexOf('[')));
+      const out = items.map((item) => ({ id: item.id, text: `[trad] ${item.text}`, same: item.text.startsWith('ya ') }));
+      res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: '```json\n' + JSON.stringify(out) + '\n```' }] } }] }));
+      return;
+    }
     res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: `system=${body.systemInstruction.parts[0].text.startsWith('Eres Kova IA')}` }] } }] }));
   });
   await new Promise((resolve) => fakeGemini.listen(0, resolve));
@@ -72,6 +86,7 @@ before(async () => {
       KOVA_AUTH_RATE_LIMIT: '1000',
       KOVA_JOBS_INTERVAL_MS: '300',
       KOVA_SCHEDULE_MIN_AHEAD_MS: '0',
+      KOVA_OFFLINE_TESTS: '1',
       GEMINI_API_KEY: 'test-gemini-key',
       GEMINI_API_BASE: `http://localhost:${geminiPort}`,
       KOVA_REALTIME_SECRET: 'relay-test-secret',
@@ -489,4 +504,109 @@ test('mensajes programados y recordatorios: se envían a su hora', async () => {
   assert.equal(due.length, 1);
   assert.equal(due[0].note, 'Revisar el presupuesto');
   assert.equal((await call('GET', '/reminders?due=1', undefined, owner.token)).body.length, 0, 'se muestra una vez');
+});
+
+test('traducción: por lotes, con caché y solo de mensajes accesibles', async () => {
+  const owner = await register('traduce');
+  const stranger = await register('ajeno3');
+  const space = await createSpace(owner);
+  const channel = space.channels.find((c) => c.type !== 'voice');
+  const a = (await call('POST', `/channels/${channel.id}/messages`, { content: 'hello team' }, owner.token)).body;
+  const b = (await call('POST', `/channels/${channel.id}/messages`, { content: 'ya está en español' }, owner.token)).body;
+  assert.equal((await call('POST', '/translate', { lang: 'xx', messageIds: [a.id] }, owner.token)).status, 400);
+  const first = (await call('POST', '/translate', { lang: 'es', messageIds: [a.id, b.id] }, owner.token)).body;
+  assert.equal(first[a.id].text, '[trad] hello team');
+  assert.equal(first[b.id].same, true);
+  const callsBefore = fakeGemini.calls;
+  const again = (await call('POST', '/translate', { lang: 'es', messageIds: [a.id] }, owner.token)).body;
+  assert.equal(again[a.id].text, '[trad] hello team');
+  assert.equal(fakeGemini.calls, callsBefore, 'la segunda vez sale de la caché');
+  assert.deepEqual((await call('POST', '/translate', { lang: 'es', messageIds: [a.id] }, stranger.token)).body, {}, 'ajenos: nada');
+});
+
+test('notas de llamada: transcribir tu voz y resumen publicado en la sala', async () => {
+  const owner = await register('llamada');
+  const stranger = await register('ajeno4');
+  const space = await createSpace(owner);
+  const voice = space.channels.find((c) => c.type === 'voice');
+  const text = space.channels.find((c) => c.type !== 'voice');
+  assert.equal((await call('POST', `/voice/${text.id}/transcribe`, { audio: 'AAAA' }, owner.token)).status, 404, 'solo salas de voz');
+  assert.equal((await call('POST', `/voice/${voice.id}/transcribe`, { audio: 'AAAA' }, stranger.token)).status, 404);
+  assert.equal((await call('POST', `/voice/${voice.id}/summary`, {}, owner.token)).status, 400, 'sin transcripción no hay resumen');
+  const clip = await call('POST', `/voice/${voice.id}/transcribe`, { audio: Buffer.from('audio falso').toString('base64'), mimeType: 'audio/webm;codecs=opus' }, owner.token);
+  assert.equal(clip.status, 200);
+  assert.ok(clip.body.text.length > 0);
+  const summary = await call('POST', `/voice/${voice.id}/summary`, {}, owner.token);
+  assert.equal(summary.status, 200);
+  const roomChat = (await call('GET', `/channels/${voice.id}/messages`, undefined, owner.token)).body;
+  assert.ok(roomChat.some((m) => m.id === summary.body.messageId && m.content.startsWith('📝 **Resumen de la llamada**')));
+});
+
+test('AutoMod con IA: frena estafas y spam antes de publicarse', async () => {
+  const owner = await register('automod');
+  const member = await register('miembro9');
+  const space = await createSpace(owner, member);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  const post = (who, content) => call('POST', `/channels/${text.id}/messages`, { content }, who.token);
+  assert.equal((await post(member, 'free nitro aquí https://x.example')).status, 201, 'apagado por defecto');
+  assert.equal((await call('PATCH', `/spaces/${space.id}/automod`, { enabled: true }, member.token)).status, 403);
+  assert.equal((await call('PATCH', `/spaces/${space.id}/automod`, { enabled: true }, owner.token)).body.enabled, true);
+  const scam = await post(member, 'free nitro aquí https://x.example');
+  assert.equal(scam.status, 422);
+  assert.equal(scam.body.code, 'AUTOMOD_BLOCKED');
+  assert.equal((await post(member, 'mira https://phishing-falso.example/login')).status, 422, 'la IA detecta el enlace');
+  assert.equal((await post(member, 'mira este clip https://youtube.com/watch?v=1')).status, 201);
+  assert.equal((await post(member, 'hola')).status, 201);
+  assert.equal((await post(member, 'hola')).status, 201);
+  assert.equal((await post(member, 'hola')).status, 422, 'repetido 3 veces');
+  assert.equal((await post(owner, 'free nitro https://x.example')).status, 201, 'los moderadores no pasan por AutoMod');
+  const log = (await call('GET', `/spaces/${space.id}/automod`, undefined, owner.token)).body.log;
+  assert.equal(log.length, 3);
+});
+
+test('eventos: calendario del espacio con "me interesa"', async () => {
+  const owner = await register('eventos');
+  const member = await register('miembro10');
+  const stranger = await register('ajeno5');
+  const space = await createSpace(owner, member);
+  const startsAt = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString();
+  assert.equal((await call('POST', `/spaces/${space.id}/events`, { title: 'Torneo', startsAt }, member.token)).status, 403);
+  assert.equal((await call('POST', `/spaces/${space.id}/events`, { title: 'Pasado', startsAt: '2020-01-01T00:00:00Z' }, owner.token)).status, 400);
+  const created = await call('POST', `/spaces/${space.id}/events`, { title: 'Torneo', description: 'Final', startsAt }, owner.token);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.interested, 1);
+  assert.equal((await call('GET', `/spaces/${space.id}/events`, undefined, stranger.token)).status, 404);
+  const rsvp = await call('POST', `/events/${created.body.id}/rsvp`, { interested: true }, member.token);
+  assert.equal(rsvp.body.interested, 2);
+  assert.equal(rsvp.body.meInterested, true);
+  assert.equal((await call('DELETE', `/events/${created.body.id}`, undefined, member.token)).status, 403);
+  assert.equal((await call('DELETE', `/events/${created.body.id}`, undefined, owner.token)).status, 200);
+  assert.equal((await call('GET', `/spaces/${space.id}/events`, undefined, member.token)).body.length, 0);
+});
+
+test('escuchar juntos: cola compartida y posición sincronizada', async () => {
+  const owner = await register('musica');
+  const member = await register('miembro11');
+  const stranger = await register('ajeno6');
+  const space = await createSpace(owner, member);
+  const voice = space.channels.find((c) => c.type === 'voice');
+  const music = (who, data) => call('POST', `/voice/${voice.id}/music`, data, who.token);
+  assert.equal((await music(stranger, { action: 'add', url: 'https://youtu.be/dQw4w9WgXcQ' })).status, 404);
+  assert.equal((await music(owner, { action: 'add', url: 'https://example.com/pagina' })).status, 400);
+  const first = await music(owner, { action: 'add', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.current.kind, 'youtube');
+  assert.equal(first.body.current.ref, 'dQw4w9WgXcQ');
+  assert.equal(first.body.playing, true);
+  const queued = await music(member, { action: 'add', url: 'https://cdn.example.com/cancion.mp3' });
+  assert.equal(queued.body.queue.length, 1);
+  assert.equal(queued.body.queue[0].kind, 'audio');
+  const paused = await music(member, { action: 'pause' });
+  assert.equal(paused.body.playing, false);
+  assert.ok(paused.body.offsetMs >= 0);
+  const skipped = await music(owner, { action: 'skip' });
+  assert.equal(skipped.body.current.kind, 'audio');
+  assert.equal(skipped.body.queue.length, 0);
+  assert.equal((await call('GET', `/voice/${voice.id}/music`, undefined, member.token)).body.current.title, 'cancion.mp3');
+  assert.equal((await music(owner, { action: 'stop' })).body.current, null);
 });

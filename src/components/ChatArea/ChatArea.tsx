@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Hash,
   Clock,
+  Languages,
   Sparkles,
   Users,
   Search,
@@ -243,6 +244,8 @@ export const ChatArea: React.FC = () => {
     currentUser,
     loadOlderMessages,
     scheduleMessage,
+    autoTranslateChannels,
+    toggleAutoTranslate,
   } = useApp();
 
   // People here now: you, plus members the realtime gateway reports online.
@@ -591,6 +594,16 @@ export const ChatArea: React.FC = () => {
               <span>{onlineMembers.length} en línea</span>
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => toggleAutoTranslate(activeChannel.id)}
+            className={autoTranslateChannels.has(activeChannel.id) ? 'is-active' : ''}
+            title={autoTranslateChannels.has(activeChannel.id) ? 'Desactivar traducción automática' : 'Traducir automáticamente este canal'}
+            aria-label="Traducción automática"
+            aria-pressed={autoTranslateChannels.has(activeChannel.id)}
+          >
+            <Languages size={17} />
+          </button>
           <button type="button" onClick={() => setIsSearchOpen(true)} title="Buscar mensajes (Ctrl+F)" aria-label="Buscar mensajes">
             <Search size={17} />
           </button>

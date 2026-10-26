@@ -1,8 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Bell,
   Bookmark,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  FolderPlus,
+  X,
   Compass,
   FileText,
   Hash,
@@ -23,9 +28,16 @@ import { useApp, permissionsIn } from '../../context/AppContext';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { Avatar } from '../Common/Avatar';
 import type { Channel } from '../../types';
+import { EventsModal } from '../Modals/EventsModal';
 import '../../styles/console.css';
 
 const cleanName = (name: string) => name.replace(/^.*?[│|]\s*/, '').replace(/^#+\s*/, '');
+type ChannelFolder = { id: string; name: string; channelIds: string[]; collapsed?: boolean };
+const FOLDERS_KEY = 'kova.channelFolders.v1';
+const readFolders = (): Record<string, ChannelFolder[]> => {
+  try { return JSON.parse(localStorage.getItem(FOLDERS_KEY) || '{}'); } catch { return {}; }
+};
+
 const monogram = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || 'K';
 
 const channelIcon = (channel: Channel) => {
@@ -83,17 +95,72 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
   const canManageChannels = permissionsIn(activeServer, currentUser.id).has('MANAGE_CHANNELS');
 
   const [query, setQuery] = useState('');
+  const [isEventsOpen, setIsEventsOpen] = useState(false);
   const savedCount = savedMessageIds.size;
   const isPulseActive = layoutMode === 'pulse_feed' && !isDMViewActive;
+
+  // Personal channel folders (only you see them), saved per space on this device.
+  const [allFolders, setAllFolders] = useState<Record<string, ChannelFolder[]>>(readFolders);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [channelMenu, setChannelMenu] = useState<{ channelId: string; x: number; y: number } | null>(null);
+  const spaceId = activeServer?.id || '';
+  const folders = useMemo(() => allFolders[spaceId] || [], [allFolders, spaceId]);
+  const saveFolders = (next: ChannelFolder[]) => setAllFolders((prev) => {
+    const updated = { ...prev, [spaceId]: next };
+    try { localStorage.setItem(FOLDERS_KEY, JSON.stringify(updated)); } catch { /* storage unavailable */ }
+    return updated;
+  });
+  const createFolder = (channelId?: string) => {
+    const id = `f_${crypto.randomUUID().slice(0, 8)}`;
+    const cleaned = folders.map((folder) => ({ ...folder, channelIds: folder.channelIds.filter((other) => other !== channelId) }));
+    saveFolders([...cleaned, { id, name: 'Nueva carpeta', channelIds: channelId ? [channelId] : [] }]);
+    setEditingFolderId(id);
+  };
+  const renameFolder = (folderId: string, name: string) => {
+    setEditingFolderId(null);
+    saveFolders(folders.map((folder) => folder.id === folderId ? { ...folder, name: name.trim().slice(0, 40) || folder.name } : folder));
+  };
+  const moveToFolder = (channelId: string, folderId: string | null) =>
+    saveFolders(folders.map((folder) => {
+      const rest = folder.channelIds.filter((id) => id !== channelId);
+      return { ...folder, channelIds: folder.id === folderId ? [...rest, channelId] : rest };
+    }));
+  const moveInFolder = (channelId: string, delta: number) =>
+    saveFolders(folders.map((folder) => {
+      const index = folder.channelIds.indexOf(channelId);
+      const target = index + delta;
+      if (index < 0 || target < 0 || target >= folder.channelIds.length) return folder;
+      const ids = [...folder.channelIds];
+      [ids[index], ids[target]] = [ids[target], ids[index]];
+      return { ...folder, channelIds: ids };
+    }));
+  const toggleFolder = (folderId: string) => saveFolders(folders.map((folder) => folder.id === folderId ? { ...folder, collapsed: !folder.collapsed } : folder));
+  const deleteFolder = (folderId: string) => saveFolders(folders.filter((folder) => folder.id !== folderId));
+  useEffect(() => {
+    if (!channelMenu) return;
+    const close = () => setChannelMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', close);
+    return () => { window.removeEventListener('click', close); window.removeEventListener('keydown', close); };
+  }, [channelMenu]);
 
   const sections = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const visible = (activeServer?.channels || []).filter((channel) => !normalized || cleanName(channel.name).toLowerCase().includes(normalized));
+    const inFolder = new Set(folders.flatMap((folder) => folder.channelIds));
+    const folderSections = folders.map((folder) => ({
+      id: folder.id,
+      title: folder.name,
+      folder: folder as ChannelFolder | undefined,
+      channels: folder.channelIds.map((id) => visible.find((channel) => channel.id === id)).filter((channel): channel is Channel => Boolean(channel)),
+    })).filter((section) => !normalized || section.channels.length > 0);
+    const rest = visible.filter((channel) => !inFolder.has(channel.id));
     return [
-      { id: 'text', title: 'Texto', channels: visible.filter((channel) => channel.type !== 'voice') },
-      { id: 'voice', title: 'Voz', channels: visible.filter((channel) => channel.type === 'voice') },
-    ].filter((section) => section.channels.length > 0);
-  }, [activeServer?.channels, query]);
+      ...folderSections,
+      { id: 'text', title: 'Texto', folder: undefined, channels: rest.filter((channel) => channel.type !== 'voice') },
+      { id: 'voice', title: 'Voz', folder: undefined, channels: rest.filter((channel) => channel.type === 'voice') },
+    ].filter((section) => section.folder || section.channels.length > 0 || section.id === 'text');
+  }, [activeServer?.channels, query, folders]);
 
   const liveVoiceChannel = activeServer?.channels.find((channel) => channel.id === activeVoiceChannelId);
 
@@ -188,31 +255,88 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
           <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes guardados">
             <Bookmark size={15} /> Guardado {savedCount > 0 && <b>{savedCount}</b>}
           </button>
+          <button type="button" onClick={() => setIsEventsOpen(true)} title="Eventos del espacio" aria-label="Eventos">
+            <CalendarDays size={15} />
+          </button>
           <button type="button" onClick={() => setIsNotificationsOpen(true)} title="Actividad">
             <Bell size={15} /> {unreadNotificationsCount > 0 && <b>{unreadNotificationsCount}</b>}
           </button>
         </div>
 
+        {isEventsOpen && activeServer && <EventsModal server={activeServer} onClose={() => setIsEventsOpen(false)} />}
         <label className="kova-channels-search">
           <Search size={14} />
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar canal" />
         </label>
 
+        {channelMenu && (() => {
+          const current = folders.find((folder) => folder.channelIds.includes(channelMenu.channelId));
+          const close = () => setChannelMenu(null);
+          return (
+            <div className="kova-folder-menu" style={{ left: Math.min(channelMenu.x, window.innerWidth - 220), top: Math.min(channelMenu.y, window.innerHeight - 260) }} onClick={(event) => event.stopPropagation()} role="menu">
+              <small>Mis carpetas (solo tú las ves)</small>
+              {folders.filter((folder) => folder.id !== current?.id).map((folder) => (
+                <button key={folder.id} type="button" role="menuitem" onClick={() => { moveToFolder(channelMenu.channelId, folder.id); close(); }}>Mover a «{folder.name}»</button>
+              ))}
+              <button type="button" role="menuitem" onClick={() => { createFolder(channelMenu.channelId); close(); }}>Nueva carpeta con este canal…</button>
+              {current && (
+                <>
+                  <button type="button" role="menuitem" onClick={() => { moveInFolder(channelMenu.channelId, -1); close(); }}>Subir</button>
+                  <button type="button" role="menuitem" onClick={() => { moveInFolder(channelMenu.channelId, 1); close(); }}>Bajar</button>
+                  <button type="button" role="menuitem" onClick={() => { moveToFolder(channelMenu.channelId, null); close(); }}>Sacar de «{current.name}»</button>
+                </>
+              )}
+            </div>
+          );
+        })()}
         <div className="kova-channels-list custom-scrollbar">
           {sections.length === 0 && (
             <p className="kova-channels-empty">{query ? 'Ningún canal coincide.' : 'Este espacio aún no tiene canales.'}</p>
           )}
           {sections.map((section) => (
             <div key={section.id} className="kova-channels-section">
-              <div className="kova-channels-section-head">
-                <span>{section.title}</span>
-                {canManageChannels && (
+              <div className={`kova-channels-section-head ${section.folder ? 'is-folder' : ''}`}>
+                {section.folder ? (
+                  <>
+                    {editingFolderId === section.folder.id ? (
+                      <input
+                        className="kova-folder-name-input"
+                        defaultValue={section.title}
+                        autoFocus
+                        maxLength={40}
+                        onFocus={(event) => event.target.select()}
+                        onBlur={(event) => renameFolder(section.folder!.id, event.target.value)}
+                        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur(); }}
+                        aria-label="Nombre de la carpeta"
+                      />
+                    ) : (
+                      <button type="button" className="kova-folder-toggle" onClick={() => toggleFolder(section.folder!.id)} onDoubleClick={() => setEditingFolderId(section.folder!.id)} title="Clic para plegar · doble clic para renombrar" aria-expanded={!section.folder.collapsed}>
+                        {section.folder.collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                        <span>{section.title}</span>
+                      </button>
+                    )}
+                    <button type="button" onClick={() => deleteFolder(section.folder!.id)} title="Quitar carpeta (los canales vuelven a su sitio)" aria-label="Quitar carpeta">
+                      <X size={13} />
+                    </button>
+                  </>
+                ) : (
+                  <span>{section.title}</span>
+                )}
+                {section.id === 'text' && (
+                  <button type="button" onClick={() => createFolder()} title="Nueva carpeta personal" aria-label="Nueva carpeta">
+                    <FolderPlus size={13} />
+                  </button>
+                )}
+                {!section.folder && canManageChannels && (
                 <button type="button" onClick={() => setIsCreateChannelOpen(true)} title="Crear canal" aria-label="Crear canal">
                   <Plus size={13} />
                 </button>
                 )}
               </div>
-              {section.channels.map((channel) => {
+              {section.folder && !section.folder.collapsed && section.channels.length === 0 && (
+                <p className="kova-folder-empty">Clic derecho en un canal → Mover a «{section.title}»</p>
+              )}
+              {!section.folder?.collapsed && section.channels.map((channel) => {
                 const Icon = channelIcon(channel);
                 const isActive = !isDMViewActive && !isPulseActive && activeChannel?.id === channel.id;
                 const isLive = channel.type === 'voice' && activeVoiceChannelId === channel.id;
@@ -222,6 +346,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                       type="button"
                       className={`kova-channel ${isActive ? 'is-active' : ''} ${isLive ? 'is-live' : ''}`}
                       onClick={() => openChannel(channel)}
+                      onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setChannelMenu({ channelId: channel.id, x: event.clientX, y: event.clientY }); }}
                       aria-current={isActive ? 'page' : undefined}
                     >
                       <Icon size={16} />
