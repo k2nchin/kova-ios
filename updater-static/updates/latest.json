@@ -1,12 +1,12 @@
 {
-  "version": "1.0.28",
-  "notes": "Kova 1.0.28: estado de juego automático, perfiles por espacio, notas de voz reales, grupos con llamadas y notas privadas.",
-  "pub_date": "2026-10-26T17:50:13Z",
+  "version": "1.0.29",
+  "notes": "Kova 1.0.29: registro de auditoría, webhooks con GitHub, plantillas de espacio y estadísticas.",
+  "pub_date": "2026-10-26T18:36:08Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.28_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGJVLzN3MER5aHV6UDZob3RudjlmaEVhYmowRVhrelF1bklRYnJxaC9vRFNyNnJqbGkySndrNHRmd2phMGQ1b1pGV0s5ZHVWRnM4eFYzMFpURE00K3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDM1NjQ5CWZpbGU6S292YV8xLjAuMjhfeDY0LXNldHVwLmV4ZQo4Y2xobCtqblEwMU02U1AvT3IzTEo4YTMrWDNpM254NDBaSi9ZQUdzMzVubHBPQ3NudDRmVC9zZldTcjJobEFoQldkVkJGM3VhaE9iVHAwN21GSUlCUT09Cg==",
-      "sha256": "DE4F2E27252813D9B37D526F34D38A47E0B56A0BCD96E4BDFC56377ECA0CBDC1"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.29_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGFWWXpLeEhsa1AvRkJWdFB5STVybUpSQmlsMWhMM05ISmFqOFgvR1EycGEzSkZyc2tidGZIQ2REYlByZ0NWMDNaWXRBakxJclFmNU9ld0twSGhIcncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDM5NDczCWZpbGU6S292YV8xLjAuMjlfeDY0LXNldHVwLmV4ZQpYNXRJZUdob29FN2w3UUJ3WmNRNGJlUmVpb0xlQ1lRTEVzdzhtWDRmcXFETFBOYzczb2NrUS9xT1dtT1F1RDlMR2RHOEw1UTBOUHZ2ZGNoblJqcUZBQT09Cg==",
+      "sha256": "5EBB76AF69A4C2EB20850EB815880EC75B6F4F5CBDDE0CA94476152FA5EB3999"
     }
   }
 }
