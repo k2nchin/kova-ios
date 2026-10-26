@@ -1,12 +1,12 @@
 {
-  "version": "1.0.25",
-  "notes": "Kova 1.0.25: canales privados y de solo lectura, emojis y stickers propios, encuestas, foros y notificaciones push.",
-  "pub_date": "2026-10-26T15:16:21Z",
+  "version": "1.0.26",
+  "notes": "Kova 1.0.26: anuncios que se siguen, bienvenida con normas y onboarding, niveles e insignias y nuevo Descubrir.",
+  "pub_date": "2026-10-26T16:31:40Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.25_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFYrVkY1MUtCMVRqTVU1clRSTDZNYXFUWjhZQXd2L1BIUDNsMitwUm1qdlNlMWV4R0FhdHVhQ1RNYTFOUnpjYkplcldSQmwyb2FZZ1R4WmdYS1JyS0FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTkzNjgyCWZpbGU6S292YV8xLjAuMjVfeDY0LXNldHVwLmV4ZQp6aUY3OEFheWpyS0luOWxZMm1tZ2RwQnF0YWVvalgxR1Yzb25QR21CUHl3VUFlcW1oaUdvMWFocmwyK1ZRTDUzOEVKOXNIVjJFdDhVT0M0ellLVmZBQT09Cg==",
-      "sha256": "A8FE7F27C55A3484BDF26C8E082FFE7ED9BBC186FFA1DA7F4C5049F3EA64B4D7"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.26_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFZ3dmVhN3MrQnFZa25uMlNpSTlzbUVhRHI3LzJEdHgvaFBjcm84M1REN2VKdXQyOGxSTGZWa3lEVDlVbGFiSExuTlpPYVJwWmV3WWU1bGN5WU0wWXdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDI5NTAxCWZpbGU6S292YV8xLjAuMjZfeDY0LXNldHVwLmV4ZQpLWHgzK08wOTdkK0pqbUZPQU1LT2NoVjVKazJ1YURqRUNoR3REUG1GYlJRV0o0RGVsRGUwbXhrMnVDKzZUSW14Ny9vajBsL0huR1lNYXdtTjdCSFpEUT09Cg==",
+      "sha256": "C5349EFD919357DD004F65A3820F53821877D19C8116FFC702D4796D79E26038"
     }
   }
 }
