@@ -720,3 +720,85 @@ test('foros: publicaciones con título, etiquetas y respuestas en hilo', async (
   const text = space.channels.find((c) => c.type !== 'voice');
   assert.equal((await call('GET', `/channels/${text.id}/posts`, undefined, member.token)).status, 404, 'solo en canales de foro');
 });
+
+test('anuncios que se siguen: llegan a otro espacio sin pings masivos', async () => {
+  const news = await register('noticias');
+  const other = await register('otroadmin');
+  const reader = await register('lector1');
+  const source = await createSpace(news);
+  await call('PATCH', `/servers/${source.id}`, { visibility: 'public' }, news.token);
+  const ann = (await call('POST', '/channels', { serverId: source.id, name: 'anuncios', type: 'announcements' }, news.token)).body;
+  const target = await createSpace(other, reader);
+  const targetText = target.channels.find((c) => c.type !== 'voice');
+  assert.equal((await call('POST', `/channels/${ann.id}/follow`, { targetChannelId: targetText.id }, reader.token)).status, 403, 'hay que gestionar canales en el destino');
+  assert.equal((await call('POST', `/channels/${ann.id}/follow`, { targetChannelId: targetText.id }, other.token)).status, 200);
+  await call('POST', `/channels/${ann.id}/messages`, { content: '@everyone nueva versión' }, news.token);
+  const got = (await call('GET', `/channels/${targetText.id}/messages`, undefined, reader.token)).body;
+  const copy = got.find((m) => m.content.includes('nueva versión'));
+  assert.ok(copy && copy.content.startsWith('📣 **'));
+  assert.ok(!/@everyone/.test(copy.content.replace('​', 'X')), '@everyone neutralizado');
+  assert.equal((await call('GET', `/channels/${ann.id}/followers`, undefined, other.token)).body.count, 1);
+  await call('DELETE', `/channels/${ann.id}/follow`, { targetChannelId: targetText.id }, other.token);
+  assert.equal((await call('GET', `/channels/${ann.id}/followers`, undefined, other.token)).body.count, 0);
+});
+
+test('bienvenida: normas obligatorias y onboarding que asigna roles seguros', async () => {
+  const owner = await register('bienvenida');
+  const newbie = await register('nuevo1');
+  const space = await createSpace(owner, newbie);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  const gamer = (await call('POST', `/servers/${space.id}/roles`, { name: 'Gamer', permissions: [] }, owner.token)).body;
+  const modRole = (await call('POST', `/servers/${space.id}/roles`, { name: 'Mod', permissions: ['KICK_MEMBERS'] }, owner.token)).body;
+  const cfg = await call('PUT', `/servers/${space.id}/welcome`, {
+    enabled: true, message: '¡Hola!', rules: ['Respeto', ''], requireAccept: true,
+    questions: [{ question: '¿Qué te gusta?', options: [{ label: 'Juegos', roleIds: [gamer.id, modRole.id] }, { label: 'Charlar', roleIds: [] }] }],
+  }, owner.token);
+  assert.equal(cfg.status, 200);
+  assert.deepEqual(cfg.body.rules, ['Respeto']);
+  assert.deepEqual(cfg.body.questions[0].options[0].roleIds, [gamer.id], 'nunca roles con poderes de moderación');
+  assert.equal((await call('PUT', `/servers/${space.id}/welcome`, { enabled: false }, newbie.token)).status, 403);
+  const blocked = await call('POST', `/channels/${text.id}/messages`, { content: 'hola' }, newbie.token);
+  assert.equal(blocked.body.code, 'RULES_NOT_ACCEPTED');
+  assert.equal((await call('POST', `/channels/${text.id}/messages`, { content: 'dueño' }, owner.token)).status, 201);
+  const q = cfg.body.questions[0];
+  const done = await call('POST', `/servers/${space.id}/onboarding`, { answers: { [q.id]: [q.options[0].id] } }, newbie.token);
+  assert.deepEqual(done.body.roles, [gamer.id]);
+  assert.equal((await call('GET', `/servers/${space.id}/welcome`, undefined, newbie.token)).body.completed, true);
+  assert.equal((await call('POST', `/channels/${text.id}/messages`, { content: 'hola' }, newbie.token)).status, 201);
+  const members = (await call('GET', '/servers', undefined, owner.token)).body.find((s) => s.id === space.id).members;
+  assert.ok(members.find((m) => m.id === newbie.id).roles.includes(gamer.id));
+});
+
+test('niveles e insignias: XP con enfriamiento y clasificación', async () => {
+  const owner = await register('niveles');
+  const member = await register('miembro15');
+  const space = await createSpace(owner, member);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  for (let i = 0; i < 3; i += 1) await call('POST', `/channels/${text.id}/messages`, { content: `msg ${i}` }, member.token);
+  const stats = (await call('GET', `/servers/${space.id}/members/${member.id}/stats`, undefined, owner.token)).body;
+  assert.equal(stats.messages, 3);
+  assert.ok(stats.xp >= 15 && stats.xp <= 25, 'solo cuenta un mensaje por minuto');
+  assert.equal(stats.level, 0);
+  assert.equal(stats.nextLevelXp, 100);
+  assert.ok(stats.badges.some((b) => b.id === 'first_words'));
+  assert.ok(stats.badges.some((b) => b.id === 'pioneer'));
+  assert.ok((await call('GET', `/servers/${space.id}/members/${owner.id}/stats`, undefined, member.token)).body.badges.some((b) => b.id === 'founder'));
+  const board = (await call('GET', `/servers/${space.id}/leaderboard`, undefined, member.token)).body;
+  assert.equal(board[0].userId, member.id);
+});
+
+test('descubrir: categorías, actividad y si ya eres miembro', async () => {
+  const owner = await register('descubre');
+  const visitor = await register('visita1');
+  const space = await createSpace(owner);
+  await call('PATCH', `/servers/${space.id}`, { visibility: 'public', category: 'music' }, owner.token);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  await call('POST', `/channels/${text.id}/messages`, { content: 'hola' }, owner.token);
+  const music = (await call('GET', '/servers/discover?category=music', undefined, visitor.token)).body;
+  const found = music.find((s) => s.id === space.id);
+  assert.ok(found);
+  assert.equal(found.category, 'music');
+  assert.ok(found.weeklyMessages >= 1);
+  assert.equal(found.isMember, false);
+  assert.ok(!(await call('GET', '/servers/discover?category=gaming', undefined, visitor.token)).body.some((s) => s.id === space.id));
+});

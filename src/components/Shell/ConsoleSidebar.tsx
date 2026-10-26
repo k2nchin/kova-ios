@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Bell,
   Bookmark,
   CalendarDays,
+  Trophy,
   ChevronDown,
   ChevronRight,
   FolderPlus,
@@ -31,6 +32,7 @@ import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { Avatar } from '../Common/Avatar';
 import type { Channel } from '../../types';
 import { EventsModal } from '../Modals/EventsModal';
+import { LeaderboardModal } from '../Community/Levels';
 import '../../styles/console.css';
 
 const cleanName = (name: string) => name.replace(/^.*?[│|]\s*/, '').replace(/^#+\s*/, '');
@@ -99,6 +101,8 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
 
   const [query, setQuery] = useState('');
   const [isEventsOpen, setIsEventsOpen] = useState(false);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const closeLeaderboard = useCallback(() => setIsLeaderboardOpen(false), []);
   const savedCount = savedMessageIds.size;
   const isPulseActive = layoutMode === 'pulse_feed' && !isDMViewActive;
 
@@ -258,6 +262,9 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
           <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes guardados">
             <Bookmark size={15} /> Guardado {savedCount > 0 && <b>{savedCount}</b>}
           </button>
+          <button type="button" onClick={() => setIsLeaderboardOpen(true)} title="Clasificación y niveles" aria-label="Clasificación">
+            <Trophy size={15} />
+          </button>
           <button type="button" onClick={() => setIsEventsOpen(true)} title="Eventos del espacio" aria-label="Eventos">
             <CalendarDays size={15} />
           </button>
@@ -266,6 +273,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
           </button>
         </div>
 
+        {isLeaderboardOpen && activeServer && <LeaderboardModal spaceId={activeServer.id} spaceName={activeServer.name} currentUserId={currentUser.id} onClose={closeLeaderboard} />}
         {isEventsOpen && activeServer && <EventsModal server={activeServer} onClose={() => setIsEventsOpen(false)} />}
         <label className="kova-channels-search">
           <Search size={14} />

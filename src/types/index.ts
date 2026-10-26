@@ -87,6 +87,8 @@ export interface Server {
   /** Set by the server for spaces owned by a verified account. */
   verified?: boolean;
   visibility?: 'public' | 'private';
+  /** Discover category id. */
+  category?: string;
   themeGradient?: string;
   categories: ChannelCategory[];
   channels: Channel[];

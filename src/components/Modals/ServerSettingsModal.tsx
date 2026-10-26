@@ -12,6 +12,7 @@ import {
   Crown,
   ShieldAlert,
   Smile,
+  DoorOpen,
 } from 'lucide-react';
 import { useApp, permissionsIn } from '../../context/AppContext';
 import { uploadFile } from '../../services/apiClient';
@@ -19,6 +20,8 @@ import { toast } from 'sonner';
 import { Avatar } from '../Common/Avatar';
 import { AutomodPanel } from '../Settings/AutomodPanel';
 import { ExpressionsPanel } from '../Settings/ExpressionsPanel';
+import { WelcomePanel } from '../Settings/WelcomePanel';
+import { SPACE_CATEGORIES } from '../../data/spaceCategories';
 import '../../styles/serverSettings.css';
 
 const DISCORD_ROLE_COLORS = [
@@ -165,6 +168,8 @@ export const ServerSettingsModal: React.FC = () => {
   // Overview form state
   const [serverName, setServerName] = useState(activeServer?.name || '');
   const [serverDescription, setServerDescription] = useState(activeServer?.description || '');
+  const [serverVisibility, setServerVisibility] = useState<'public' | 'private'>(activeServer?.visibility || 'private');
+  const [serverCategory, setServerCategory] = useState(activeServer?.category || 'community');
   const [serverIcon, setServerIcon] = useState(activeServer?.icon || '');
   const [serverBanner, setServerBanner] = useState(activeServer?.banner || '');
   const iconInputRef = useRef<HTMLInputElement | null>(null);
@@ -278,6 +283,8 @@ export const ServerSettingsModal: React.FC = () => {
       description: serverDescription.trim(),
       icon: serverIcon,
       banner: serverBanner,
+      visibility: serverVisibility,
+      category: serverCategory,
     });
   };
 
@@ -307,7 +314,7 @@ export const ServerSettingsModal: React.FC = () => {
               { id: 'overview', label: 'General', icon: Settings },
               { id: 'roles', label: 'Roles', icon: Shield, count: roles.length },
               { id: 'members', label: 'Miembros', icon: Users, count: members.length },
-              ...(myPerms.has('MANAGE_SERVER') ? [{ id: 'expressions', label: 'Expresiones', icon: Smile }, { id: 'automod', label: 'AutoMod IA', icon: ShieldAlert }] as const : []),
+              ...(myPerms.has('MANAGE_SERVER') ? [{ id: 'welcome', label: 'Bienvenida', icon: DoorOpen }, { id: 'expressions', label: 'Expresiones', icon: Smile }, { id: 'automod', label: 'AutoMod IA', icon: ShieldAlert }] as const : []),
             ] as const).map((item) => (
               <button
                 key={item.id}
@@ -735,6 +742,7 @@ export const ServerSettingsModal: React.FC = () => {
             )}
 
             {/* ======================= TAB: MEMBERS ======================= */}
+            {serverSettingsTab === 'welcome' && <WelcomePanel spaceId={activeServer.id} roles={activeServer.roles || []} />}
             {serverSettingsTab === 'expressions' && <ExpressionsPanel spaceId={activeServer.id} expressions={activeServer.expressions || []} />}
             {serverSettingsTab === 'automod' && <AutomodPanel spaceId={activeServer.id} channels={activeServer.channels} />}
             {serverSettingsTab === 'members' && (
@@ -991,6 +999,19 @@ export const ServerSettingsModal: React.FC = () => {
                       <div className="text-right text-[10px] text-slate-500 font-mono">
                         {serverDescription.length}/200
                       </div>
+                    </div>
+
+                    <div className="kss-discover">
+                      <label className="kss-discover-row">
+                        <input type="checkbox" checked={serverVisibility === 'public'} onChange={() => setServerVisibility(serverVisibility === 'public' ? 'private' : 'public')} />
+                        <span><strong>Mostrar en Descubrir</strong><small>Cualquiera podrá encontrar el espacio y unirse sin invitación.</small></span>
+                      </label>
+                      <label className="kss-discover-cat">
+                        <span>Categoría</span>
+                        <select value={serverCategory} onChange={(e) => setServerCategory(e.target.value)}>
+                          {SPACE_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.emoji} {category.label}</option>)}
+                        </select>
+                      </label>
                     </div>
                   </div>
                 </div>

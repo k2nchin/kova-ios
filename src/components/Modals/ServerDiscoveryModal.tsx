@@ -5,16 +5,19 @@ import {
   Users,
   Check,
   X,
-  Heart,
   Globe,
+  Flame,
 } from 'lucide-react';
+import { SPACE_CATEGORIES, categoryLabel } from '../../data/spaceCategories';
+import '../../styles/community.css';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../services/apiClient';
 
 interface DiscoverableServer {
   id: string;
   name: string;
-  category: 'dev' | 'gaming' | 'ai' | 'music' | 'community';
+  category: string;
+  weeklyMessages: number;
   acronym: string;
   icon?: string;
   banner: string;
@@ -55,12 +58,13 @@ export const ServerDiscoveryModal: React.FC = () => {
     const timer = window.setTimeout(() => {
       setIsLoading(true);
       setLoadError('');
-      void api.discoverServers(searchQuery.trim()).then((items) => {
+      void api.discoverServers(searchQuery.trim(), activeCategory).then((items) => {
         if (cancelled) return;
         setCommunityServers(items.map((item: any) => ({
           id: item.id,
           name: item.name,
-          category: 'community' as const,
+          category: String(item.category || 'community'),
+          weeklyMessages: Number(item.weeklyMessages) || 0,
           acronym: String(item.name || 'K').split(/\s+/).slice(0, 2).map((part: string) => part[0] || '').join('').toUpperCase(),
           icon: item.icon || undefined,
           banner: item.banner || '',
@@ -77,19 +81,15 @@ export const ServerDiscoveryModal: React.FC = () => {
       }).finally(() => { if (!cancelled) setIsLoading(false); });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [isDiscoveryOpen, searchQuery]);
+  }, [isDiscoveryOpen, searchQuery, activeCategory]);
 
   if (!isDiscoveryOpen) return null;
 
   const joinedServerIds = new Set(servers.map((s) => s.id));
 
-  const filtered = communityServers.filter((s) => {
-    const matchesCat = activeCategory === 'all' || s.category === activeCategory;
-    const matchesQuery =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCat && matchesQuery;
-  });
+  // The server already filters and sorts by weekly activity.
+  const filtered = communityServers;
+  const activity = (count: number) => (count >= 200 ? 'Muy activo' : count >= 30 ? 'Activo' : count > 0 ? 'Tranquilo' : 'Nuevo');
 
   const handleJoin = async (pubServer: DiscoverableServer) => {
     setJoiningServerId(pubServer.id);
@@ -140,10 +140,9 @@ export const ServerDiscoveryModal: React.FC = () => {
           {/* Categories */}
           <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar">
             {[
-              { id: 'all', label: 'Todos', icon: Globe },
-              { id: 'community', label: 'Comunidad', icon: Heart },
+              { id: 'all', label: 'Todos', emoji: '' },
+              ...SPACE_CATEGORIES.map((category) => ({ id: category.id, label: category.label, emoji: category.emoji })),
             ].map((tab) => {
-              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
@@ -155,8 +154,8 @@ export const ServerDiscoveryModal: React.FC = () => {
                       : 'bg-white/[0.04] text-slate-400 hover:text-white hover:bg-white/[0.08]'
                   }`}
                 >
-                  <Icon size={13} />
-                  <span>{tab.label}</span>
+                  {tab.emoji ? <span aria-hidden="true">{tab.emoji}</span> : <Globe size={13} />}
+                  <span className="whitespace-nowrap">{tab.label}</span>
                 </button>
               );
             })}
@@ -187,11 +186,15 @@ export const ServerDiscoveryModal: React.FC = () => {
               >
                 {/* Banner */}
                 <div className="h-28 relative overflow-hidden bg-slate-900">
-                  <img
-                    src={pubServer.banner}
-                    alt={pubServer.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
+                  {pubServer.banner ? (
+                    <img
+                      src={pubServer.banner}
+                      alt=""
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="kova-discovery-fallback w-full h-full" />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#11141d] to-transparent opacity-80" />
                 </div>
 
@@ -215,6 +218,10 @@ export const ServerDiscoveryModal: React.FC = () => {
                             <Users size={11} />
                             {pubServer.memberCount} miembros
                           </span>
+                          <span className="flex items-center gap-1" title={`${pubServer.weeklyMessages} mensajes esta semana`}>
+                            <Flame size={11} className={pubServer.weeklyMessages >= 30 ? 'text-orange-400' : ''} />
+                            {activity(pubServer.weeklyMessages)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -227,7 +234,7 @@ export const ServerDiscoveryModal: React.FC = () => {
                   {/* Join Action */}
                   <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
                     <span className="text-[10px] text-purple-300 font-mono">
-                      {pubServer.channels.length} canales
+                      {categoryLabel(pubServer.category)} · {pubServer.channels.length} canales
                     </span>
 
                     {isAlreadyJoined ? (

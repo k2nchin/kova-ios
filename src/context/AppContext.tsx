@@ -281,13 +281,13 @@ interface AppContextType {
   // Server Settings & Roles
   isServerSettingsOpen: boolean;
   setIsServerSettingsOpen: (open: boolean) => void;
-  serverSettingsTab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions';
-  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions') => void;
+  serverSettingsTab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome';
+  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome') => void;
   createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Promise<Role | null>;
   updateRole: (serverId: string, roleId: string, updates: Partial<Role>) => void;
   deleteRole: (serverId: string, roleId: string) => Promise<void>;
   toggleMemberRole: (serverId: string, memberId: string, roleId: string) => Promise<void>;
-  updateServerDetails: (serverId: string, updates: { name?: string; icon?: string; banner?: string; description?: string }) => void;
+  updateServerDetails: (serverId: string, updates: { name?: string; icon?: string; banner?: string; description?: string; visibility?: 'public' | 'private'; category?: string }) => void;
   // Discord MCP & Bot Hub
   // Notes
   notes: NoteDocument[];
@@ -1756,9 +1756,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!document.hasFocus()) void showNotification(`📅 ${event.title}`, when);
     };
     socket.on('event:starting', onEvent);
+    const onLevel = ({ spaceId, level }: { spaceId: string; level: number }) => {
+      const space = serversRef.current.find((item) => item.id === spaceId);
+      soundFx.playReactionAdded();
+      toast.success(`🎉 ¡Subiste a nivel ${level}${space ? ` en ${space.name}` : ''}!`);
+    };
+    socket.on('level:up', onLevel);
     const onFocus = () => { void loadDue(); };
     window.addEventListener('focus', onFocus);
-    return () => { socket.off('reminder:due', onDue); socket.off('event:starting', onEvent); window.removeEventListener('focus', onFocus); };
+    return () => { socket.off('reminder:due', onDue); socket.off('event:starting', onEvent); socket.off('level:up', onLevel); window.removeEventListener('focus', onFocus); };
   }, [isAuthenticated, currentUser.id]);
 
   // Push notifications: keep this device's subscription fresh and open the
@@ -3369,7 +3375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Server Settings & Roles State & Handlers
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
-  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'automod' | 'expressions'>('roles');
+  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'automod' | 'expressions' | 'welcome'>('roles');
 
   const applyRoles = (serverId: string, update: (server: Server) => Server) =>
     setServers((prev) => prev.map((server) => (server.id === serverId ? update(server) : server)));
@@ -3466,7 +3472,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateServerDetails = (
     serverId: string,
-    updates: { name?: string; icon?: string; banner?: string; description?: string }
+    updates: { name?: string; icon?: string; banner?: string; description?: string; visibility?: 'public' | 'private'; category?: string }
   ) => {
     setServers((prev) =>
       prev.map((s) => {
@@ -3478,7 +3484,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       })
     );
-    if (getAuthToken()) void api.updateServer(serverId, { name: updates.name, description: updates.description, icon: updates.icon, banner: updates.banner }).catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudieron guardar los ajustes en línea.'));
+    if (getAuthToken()) void api.updateServer(serverId, { name: updates.name, description: updates.description, icon: updates.icon, banner: updates.banner, visibility: updates.visibility, category: updates.category }).catch((error) => toast.error(error instanceof Error ? error.message : 'No se pudieron guardar los ajustes en línea.'));
     toast.success('Ajustes del servidor guardados');
   };
 

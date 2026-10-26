@@ -127,7 +127,7 @@ export const api = {
 
   // Servers
   getServers: () => request<any[]>('/servers', { method: 'GET' }),
-  discoverServers: (query = '') => request<any[]>(`/servers/discover${query ? `?q=${encodeURIComponent(query)}` : ''}`, { method: 'GET' }),
+  discoverServers: (query = '', category = 'all') => request<any[]>(`/servers/discover?q=${encodeURIComponent(query)}&category=${encodeURIComponent(category)}`, { method: 'GET' }),
   createServer: (data: { id?: string; name: string; description?: string; iconUrl?: string; visibility?: 'public' | 'private'; categories?: Array<{ id: string; name: string }>; channels?: Array<{ id: string; name: string; type: string; topic?: string; categoryId?: string }> }) =>
     request<any>('/servers', { method: 'POST', data }),
   createInvite: async (serverId: string, options: { expiresInMinutes: number; maxUses: number }) => {
@@ -152,7 +152,7 @@ export const api = {
   setNickname: (serverId: string, nickname: string) =>
     request<{ serverId: string; userId: string; nickname: string }>(`/servers/${encodeURIComponent(serverId)}/nickname`, { method: 'PUT', data: { nickname } }),
   deleteServer: (serverId: string) => request<{ ok: boolean }>(`/servers/${encodeURIComponent(serverId)}`, { method: 'DELETE' }),
-  updateServer: (serverId: string, data: { name?: string; description?: string; visibility?: 'public' | 'private'; icon?: string; banner?: string }) =>
+  updateServer: (serverId: string, data: { name?: string; description?: string; visibility?: 'public' | 'private'; icon?: string; banner?: string; category?: string }) =>
     request<any>(`/servers/${encodeURIComponent(serverId)}`, { method: 'PATCH', data }),
   getFriends: () => request<any>('/friends', { method: 'GET' }),
   /** Accepts a user id or a username/@username (what people type in "Añadir amigo"). */
@@ -228,6 +228,14 @@ export const api = {
   setCallNotes: (channelId: string, active: boolean) => request<{ ok: true }>(`/voice/${encodeURIComponent(channelId)}/notes`, { method: 'POST', data: { active } }),
   transcribeCallClip: (channelId: string, audio: string, mimeType: string) => request<{ text: string }>(`/voice/${encodeURIComponent(channelId)}/transcribe`, { method: 'POST', data: { audio, mimeType } }),
   summarizeCall: (channelId: string) => request<{ summary: string; messageId: string; lines: number }>(`/voice/${encodeURIComponent(channelId)}/summary`, { method: 'POST', data: {} }),
+  getWelcome: (spaceId: string) => request<WelcomeConfig & { completed: boolean }>(`/servers/${encodeURIComponent(spaceId)}/welcome`),
+  setWelcome: (spaceId: string, data: WelcomeConfig) => request<WelcomeConfig & { completed: boolean }>(`/servers/${encodeURIComponent(spaceId)}/welcome`, { method: 'PUT', data }),
+  completeOnboarding: (spaceId: string, answers: Record<string, string[]>) => request<{ ok: true; roles: string[] }>(`/servers/${encodeURIComponent(spaceId)}/onboarding`, { method: 'POST', data: { answers } }),
+  getLeaderboard: (spaceId: string) => request<LeaderboardEntry[]>(`/servers/${encodeURIComponent(spaceId)}/leaderboard`),
+  getMemberStats: (spaceId: string, userId: string) => request<MemberStats>(`/servers/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(userId)}/stats`),
+  getFollowers: (channelId: string) => request<{ count: number; mine: Array<{ channelId: string; channelName: string; spaceId: string; spaceName: string }> }>(`/channels/${encodeURIComponent(channelId)}/followers`),
+  followChannel: (channelId: string, targetChannelId: string, follow: boolean) =>
+    request<{ following: boolean }>(`/channels/${encodeURIComponent(channelId)}/follow`, { method: follow ? 'POST' : 'DELETE', data: { targetChannelId } }),
   getForumPosts: (channelId: string, tag?: string) =>
     request<{ tags: string[]; posts: ForumPost[] }>(`/channels/${encodeURIComponent(channelId)}/posts${tag ? `?tag=${encodeURIComponent(tag)}` : ''}`),
   createForumPost: (channelId: string, data: { title: string; content: string; tags: string[] }) =>
@@ -313,4 +321,12 @@ export type ForumPost = {
   id: string; channelId: string; title: string; tags: string[]; content: string; createdAt: string;
   pinned: boolean; replies: number; lastActivityAt: string;
   author: { id: string; username: string; displayName: string; avatar: string; status: 'online'; verified?: boolean };
+};
+
+export type OnboardingQuestion = { id: string; question: string; multi: boolean; options: Array<{ id: string; label: string; emoji: string; roleIds: string[] }> };
+export type WelcomeConfig = { enabled: boolean; message: string; rules: string[]; requireAccept: boolean; questions: OnboardingQuestion[] };
+export type LeaderboardEntry = { userId: string; username: string; displayName: string; avatar: string; xp: number; level: number; messages: number };
+export type MemberStats = {
+  userId: string; xp: number; level: number; messages: number; currentLevelXp: number; nextLevelXp: number; joinedAt?: string;
+  badges: Array<{ id: string; label: string; emoji: string }>;
 };

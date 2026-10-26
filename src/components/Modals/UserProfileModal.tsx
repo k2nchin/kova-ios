@@ -1,3 +1,4 @@
+import { MemberLevel } from '../Community/Levels';
 import React, { useEffect, useState } from 'react';
 import { X, Pencil, Send, UserPlus, Ban, Flag, Check, Volume2, MicOff, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -125,6 +126,8 @@ export const UserProfileModal: React.FC = () => {
               {voicePeer.isMuted && <MicOff size={14} aria-label="Micrófono silenciado" />}
             </div>
           )}
+
+          {activeServer && member && <MemberLevel spaceId={activeServer.id} userId={user.id} />}
 
           {user.bio && (
             <section className="kpf-section">

@@ -388,3 +388,4 @@ button.kova-avatar { cursor: pointer; }
 .kpoll-ghost { padding: 8px 12px; border-radius: 10px; color: rgba(255,255,255,.7); font-size: 13px; }
 .kpoll-primary { padding: 8px 14px; border-radius: 10px; background: #7c6cff; color: #fff; font-size: 13px; font-weight: 600; }
 .kpoll-primary:disabled { opacity: .5; }
+.kova-follow-btn { display: inline-flex !important; align-items: center; gap: 5px; width: auto !important; padding: 0 10px !important; border-radius: 99px !important; border: 1px solid rgba(251,113,133,.4) !important; color: #fda4af !important; font-size: 12px; font-weight: 600; }

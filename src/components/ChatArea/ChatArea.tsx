@@ -4,6 +4,7 @@ import {
   Clock,
   Languages,
   BarChart3,
+  Megaphone,
   Sparkles,
   Users,
   Search,
@@ -28,6 +29,7 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { PollComposer } from './PollCard';
+import { FollowChannelModal } from '../Community/FollowChannelModal';
 import { ChannelAccessPanel } from '../Settings/ChannelAccessPanel';
 import { MessageSearch } from './MessageSearch';
 import { CatchUpBar } from './CatchUpBar';
@@ -265,6 +267,7 @@ export const ChatArea: React.FC = () => {
   const [isChannelMuted, setIsChannelMuted] = useState(false);
   const [isChannelInfoOpen, setIsChannelInfoOpen] = useState(false);
   const [isPollOpen, setIsPollOpen] = useState(false);
+  const [isFollowOpen, setIsFollowOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   // Ctrl+F searches messages (the browser's own find bar is disabled).
@@ -596,6 +599,11 @@ export const ChatArea: React.FC = () => {
                 ))}
               </span>
               <span>{onlineMembers.length} en línea</span>
+            </button>
+          )}
+          {activeChannel.type === 'announcements' && (
+            <button type="button" className="kova-follow-btn" onClick={() => setIsFollowOpen(true)} title="Seguir estos anuncios desde otro espacio" aria-label="Seguir anuncios">
+              <Megaphone size={15} /> <span>Seguir</span>
             </button>
           )}
           <button
@@ -1115,6 +1123,7 @@ export const ChatArea: React.FC = () => {
         </div>
       )}
       <MessageSearch open={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      {isFollowOpen && <FollowChannelModal channel={activeChannel} onClose={() => setIsFollowOpen(false)} />}
       {isPollOpen && <PollComposer channelId={activeChannel.id} onClose={() => setIsPollOpen(false)} />}
     </main>
   );
