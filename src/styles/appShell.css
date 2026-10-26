@@ -328,3 +328,63 @@ button.kova-avatar { cursor: pointer; }
 .kova-translation button, .kova-translation-show { border: 0; padding: 0; background: none; color: #b4b6ba; font-size: 11px; font-weight: 600; cursor: pointer; text-decoration: underline; }
 .kova-translation-show { display: block; margin-top: 4px; }
 .kset-select { padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(194, 196, 200, 0.16); background: #141516; color: #e4e5e7; font: inherit; font-size: 14px; max-width: 260px; }
+
+/* Channel permissions */
+.kca { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06); }
+.kca-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: rgba(255,255,255,.45); }
+.kca-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); cursor: pointer; color: #c9c3ff; }
+.kca-row span { flex: 1; display: flex; flex-direction: column; }
+.kca-row strong { color: #fff; font-size: 12.5px; }
+.kca-row small { color: rgba(255,255,255,.5); font-size: 11px; }
+.kca-row input { width: 16px; height: 16px; accent-color: #7c6cff; }
+.kca-roles { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 4px; }
+.kca-roles button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; border: 1px solid rgba(255,255,255,.12); color: rgba(255,255,255,.7); font-size: 11.5px; }
+.kca-roles button.is-on { border-color: #7c6cff; background: rgba(124,108,255,.18); color: #fff; }
+.kca-roles i { width: 8px; height: 8px; border-radius: 50%; }
+.kca-hint, .kca-note { margin: 0; font-size: 11px; color: rgba(255,255,255,.5); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+/* Custom emojis & stickers */
+.kova-custom-emoji { display: inline-block; width: 22px; height: 22px; object-fit: contain; vertical-align: -5px; margin: 0 1px; }
+.kova-custom-emoji.is-big { width: 44px; height: 44px; vertical-align: middle; }
+.kova-sticker { display: block; width: 160px; height: 160px; object-fit: contain; margin: 4px 0; }
+.kova-sticker-missing { font-size: 12px; color: rgba(255,255,255,.5); }
+
+/* Polls */
+.kpoll { width: min(440px, 100%); margin: 4px 0; padding: 12px; border-radius: 14px; background: rgba(124,108,255,.06); border: 1px solid rgba(124,108,255,.25); white-space: normal; }
+.kpoll.is-missing, .kpoll.is-loading { font-size: 12.5px; color: rgba(255,255,255,.55); }
+.kpoll.is-closed { border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.03); }
+.kpoll header { display: flex; align-items: flex-start; gap: 8px; color: #a99fff; }
+.kpoll header strong { color: #fff; font-size: 14px; line-height: 1.35; }
+.kpoll-meta { display: block; margin: 2px 0 8px 23px; font-size: 11px; color: rgba(255,255,255,.5); }
+.kpoll ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.kpoll li button { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: #e6e9f2; font-size: 13px; text-align: left; overflow: hidden; transition: border-color .15s; }
+.kpoll li button:not(:disabled):hover { border-color: rgba(124,108,255,.6); }
+.kpoll li button.is-mine { border-color: #7c6cff; }
+.kpoll li button i { position: absolute; inset: 0 auto 0 0; background: rgba(124,108,255,.22); transition: width .4s ease; }
+.kpoll li button.is-leader i { background: rgba(124,108,255,.38); }
+.kpoll li button > span { position: relative; }
+.kpoll-check { display: grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.35); }
+.kpoll-check.is-multi { border-radius: 4px; }
+.kpoll li button.is-mine .kpoll-check { background: #7c6cff; border-color: #7c6cff; color: #fff; }
+.kpoll-label { flex: 1; min-width: 0; word-break: break-word; }
+.kpoll-pct { font-size: 11.5px; color: rgba(255,255,255,.7); font-variant-numeric: tabular-nums; }
+.kpoll footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11.5px; color: rgba(255,255,255,.5); }
+.kpoll footer button { display: inline-flex; align-items: center; gap: 4px; color: rgba(255,255,255,.6); font-size: 11.5px; }
+.kpoll footer button:hover { color: #fff; }
+@media (prefers-reduced-motion: reduce) { .kpoll li button i { transition: none; } }
+.kpoll-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgba(4,6,12,.66); backdrop-filter: blur(6px); }
+.kpoll-form { width: min(420px, 100%); display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 18px; background: #0f121c; border: 1px solid rgba(255,255,255,.08); box-shadow: 0 24px 60px rgba(0,0,0,.55); color: #e6e9f2; }
+.kpoll-form h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 15px; color: #fff; }
+.kpoll-form input:not([type=checkbox]), .kpoll-form select { width: 100%; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); color: #fff; font-size: 13px; outline: none; color-scheme: dark; }
+.kpoll-form input:focus, .kpoll-form select:focus { border-color: #7c6cff; }
+.kpoll-opt { display: flex; gap: 6px; }
+.kpoll-opt button { width: 32px; border-radius: 9px; color: rgba(255,255,255,.5); font-size: 18px; }
+.kpoll-opt button:hover { background: rgba(255,255,255,.06); color: #fff; }
+.kpoll-more { align-self: flex-start; color: #a99fff; font-size: 12.5px; }
+.kpoll-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.kpoll-row label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; white-space: nowrap; }
+.kpoll-row select { width: auto; }
+.kpoll-row.is-end { justify-content: flex-end; }
+.kpoll-ghost { padding: 8px 12px; border-radius: 10px; color: rgba(255,255,255,.7); font-size: 13px; }
+.kpoll-primary { padding: 8px 14px; border-radius: 10px; background: #7c6cff; color: #fff; font-size: 13px; font-weight: 600; }
+.kpoll-primary:disabled { opacity: .5; }

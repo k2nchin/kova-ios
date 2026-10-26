@@ -228,6 +228,24 @@ export const api = {
   setCallNotes: (channelId: string, active: boolean) => request<{ ok: true }>(`/voice/${encodeURIComponent(channelId)}/notes`, { method: 'POST', data: { active } }),
   transcribeCallClip: (channelId: string, audio: string, mimeType: string) => request<{ text: string }>(`/voice/${encodeURIComponent(channelId)}/transcribe`, { method: 'POST', data: { audio, mimeType } }),
   summarizeCall: (channelId: string) => request<{ summary: string; messageId: string; lines: number }>(`/voice/${encodeURIComponent(channelId)}/summary`, { method: 'POST', data: {} }),
+  getForumPosts: (channelId: string, tag?: string) =>
+    request<{ tags: string[]; posts: ForumPost[] }>(`/channels/${encodeURIComponent(channelId)}/posts${tag ? `?tag=${encodeURIComponent(tag)}` : ''}`),
+  createForumPost: (channelId: string, data: { title: string; content: string; tags: string[] }) =>
+    request<ForumPost>(`/channels/${encodeURIComponent(channelId)}/posts`, { method: 'POST', data }),
+  setForumTags: (channelId: string, tags: string[]) => request<{ tags: string[] }>(`/channels/${encodeURIComponent(channelId)}/forum-tags`, { method: 'PUT', data: { tags } }),
+  createPoll: (channelId: string, data: { question: string; options: string[]; multi?: boolean; durationHours?: number }) =>
+    request<{ poll: Poll }>(`/channels/${encodeURIComponent(channelId)}/polls`, { method: 'POST', data }),
+  getPoll: (pollId: string) => request<Poll>(`/polls/${encodeURIComponent(pollId)}`),
+  votePoll: (pollId: string, optionIds: string[]) => request<Poll>(`/polls/${encodeURIComponent(pollId)}/vote`, { method: 'POST', data: { optionIds } }),
+  closePoll: (pollId: string) => request<Poll>(`/polls/${encodeURIComponent(pollId)}/close`, { method: 'POST', data: {} }),
+  createExpression: (spaceId: string, data: { kind: 'emoji' | 'sticker'; name: string; url: string }) =>
+    request<{ id: string }>(`/servers/${encodeURIComponent(spaceId)}/expressions`, { method: 'POST', data }),
+  deleteExpression: (id: string) => request<{ ok: true }>(`/expressions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  getChannelAccess: (channelId: string) => request<ChannelAccess>(`/channels/${encodeURIComponent(channelId)}/access`),
+  setChannelAccess: (channelId: string, data: ChannelAccess) => request<ChannelAccess>(`/channels/${encodeURIComponent(channelId)}/access`, { method: 'PUT', data }),
+  getPushKey: () => request<{ publicKey: string }>('/push/key'),
+  subscribePush: (subscription: PushSubscriptionJSON) => request<{ ok: true }>('/push/subscribe', { method: 'POST', data: subscription }),
+  unsubscribePush: (endpoint: string) => request<{ ok: true }>('/push/unsubscribe', { method: 'POST', data: { endpoint } }),
   getMusic: (channelId: string) => request<MusicState>(`/voice/${encodeURIComponent(channelId)}/music`),
   controlMusic: (channelId: string, data: Record<string, unknown>) => request<MusicState>(`/voice/${encodeURIComponent(channelId)}/music`, { method: 'POST', data }),
   getEvents: (spaceId: string) => request<SpaceEvent[]>(`/spaces/${encodeURIComponent(spaceId)}/events`),
@@ -281,4 +299,18 @@ export type MusicTrack = { id: string; kind: 'youtube' | 'audio'; ref: string; u
 export type MusicState = {
   channelId: string | null; current: MusicTrack | null; queue: MusicTrack[]; playing: boolean;
   startedAt: string | null; offsetMs: number; serverNow: number; updatedBy?: string;
+};
+
+export type ChannelAccess = { private: boolean; viewRoles: string[]; readOnly: boolean; sendRoles: string[] };
+
+export type Poll = {
+  id: string; channelId: string; authorId: string; question: string;
+  options: Array<{ id: string; label: string; votes: number }>;
+  multi: boolean; endsAt?: string; closed: boolean; voters: number; myVotes: string[];
+};
+
+export type ForumPost = {
+  id: string; channelId: string; title: string; tags: string[]; content: string; createdAt: string;
+  pinned: boolean; replies: number; lastActivityAt: string;
+  author: { id: string; username: string; displayName: string; avatar: string; status: 'online'; verified?: boolean };
 };

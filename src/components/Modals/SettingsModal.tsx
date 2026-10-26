@@ -26,13 +26,14 @@ import { useApp } from '../../context/AppContext';
 import '../../styles/settings.css';
 import { ProfileExtras, MuteSoundPicker, BlockedList } from '../Settings/ProfileExtras';
 import { LANGUAGES } from '../../data/languages';
+import { PushSetting } from '../Settings/PushSetting';
 import { Avatar } from '../Common/Avatar';
 import { BackgroundTheme } from '../Themes/ThemeBackground';
 import { isDesktopApp } from '../../utils/platform';
 import { checkForKovaUpdate } from '../../services/updateService';
 import { uploadFile } from '../../services/apiClient';
 
-function PreferenceToggle({
+export function PreferenceToggle({
   label,
   description,
   checked,
@@ -820,6 +821,7 @@ export const SettingsModal: React.FC = () => {
                 title="Notificaciones & Avisos"
                 description="Elige cuándo Kova debe avisarte de nueva actividad."
               >
+                <PushSetting Toggle={PreferenceToggle} />
                 <PreferenceToggle
                   label="Avisos de menciones (@nombre)"
                   description="Sonido, aviso y notificación cuando alguien te menciona con @tunombre, @everyone o @here."

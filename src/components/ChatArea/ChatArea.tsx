@@ -3,6 +3,7 @@ import {
   Hash,
   Clock,
   Languages,
+  BarChart3,
   Sparkles,
   Users,
   Search,
@@ -26,6 +27,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
+import { PollComposer } from './PollCard';
+import { ChannelAccessPanel } from '../Settings/ChannelAccessPanel';
 import { MessageSearch } from './MessageSearch';
 import { CatchUpBar } from './CatchUpBar';
 import { WhenPicker } from '../Common/WhenPicker';
@@ -261,6 +264,7 @@ export const ChatArea: React.FC = () => {
   const [isChannelPinned, setIsChannelPinned] = useState(false);
   const [isChannelMuted, setIsChannelMuted] = useState(false);
   const [isChannelInfoOpen, setIsChannelInfoOpen] = useState(false);
+  const [isPollOpen, setIsPollOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   // Ctrl+F searches messages (the browser's own find bar is disabled).
@@ -807,6 +811,12 @@ export const ChatArea: React.FC = () => {
             sendMessage(gifUrl);
             setIsEmojiPickerOpen(false);
           }}
+          expressions={activeServer?.expressions}
+          onSelectSticker={(sticker) => {
+            if (activeChannel.canSend === false) return;
+            sendMessage(`[sticker:${sticker.id}]`);
+            setIsEmojiPickerOpen(false);
+          }}
         />
 
         {/* Kova quick-action autocomplete */}
@@ -950,11 +960,13 @@ export const ChatArea: React.FC = () => {
                   }
                 }}
                 placeholder={
-                  slowmodeCooldown > 0
+                  activeChannel.canSend === false
+                    ? '🔒 Solo lectura: no puedes escribir en este canal'
+                    : slowmodeCooldown > 0
                     ? `Modo pausado (${slowmodeCooldown}s)...`
                     : `Escribe un mensaje...`
                 }
-                disabled={slowmodeCooldown > 0}
+                disabled={slowmodeCooldown > 0 || activeChannel.canSend === false}
                 className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-white/35 focus:outline-none min-w-0 px-2 font-medium"
               />
 
@@ -968,6 +980,18 @@ export const ChatArea: React.FC = () => {
                 >
                   <Paperclip size={16} />
                 </button>
+
+                {activeChannel.type !== 'voice' && activeChannel.canSend !== false && !activeChannel.id.startsWith('dm') && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPollOpen(true)}
+                    title="Crear encuesta"
+                    aria-label="Crear encuesta"
+                    className="kova-composer-extra w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <BarChart3 size={16} />
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1073,6 +1097,7 @@ export const ChatArea: React.FC = () => {
                 <p className="text-slate-400 mt-0.5">{visibleMessages.length} mensajes compartidos</p>
               </div>
 
+              <ChannelAccessPanel server={activeServer} channel={activeChannel} />
               <div className="pt-2 border-t border-white/[0.06]">
                 <button
                   onClick={() => {
@@ -1090,6 +1115,7 @@ export const ChatArea: React.FC = () => {
         </div>
       )}
       <MessageSearch open={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      {isPollOpen && <PollComposer channelId={activeChannel.id} onClose={() => setIsPollOpen(false)} />}
     </main>
   );
 };

@@ -1,3 +1,4 @@
+import { channelRights } from './channelperms.mjs';
 // Unread counts, @mentions and message search.
 // A channel's unread count is what arrived after the person last read it.
 
@@ -166,7 +167,9 @@ ${transcript}
       FROM messages m JOIN signals c ON c.id = m.signal_id JOIN users u ON u.id = m.author_id
       WHERE ${where.join(' AND ')}
       ORDER BY m.created_at DESC LIMIT 50`).all(...args);
-    send(res, 200, rows.map((row) => ({
+    const allowed = new Map();
+    for (const row of rows) if (!allowed.has(row.signal_id)) allowed.set(row.signal_id, (await channelRights(db, { id: row.signal_id, space_id: spaceId }, me)).view);
+    send(res, 200, rows.filter((row) => allowed.get(row.signal_id)).map((row) => ({
       id: row.id,
       channelId: row.signal_id,
       channelName: row.channel_name,

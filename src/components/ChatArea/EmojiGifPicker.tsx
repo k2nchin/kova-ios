@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { Search, Smile, Image as ImageIcon, X } from 'lucide-react';
+import { Search, Smile, Image as ImageIcon, Sparkles, X } from 'lucide-react';
+import type { Expression } from '../../types';
 
 interface EmojiGifPickerProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectEmoji: (emoji: string) => void;
   onSelectGif: (gifUrl: string) => void;
+  /** Custom emojis/stickers of the active space. */
+  expressions?: Expression[];
+  onSelectSticker?: (sticker: Expression) => void;
 }
 
 const EMOJI_CATEGORIES = [
@@ -56,8 +60,10 @@ export const EmojiGifPicker: React.FC<EmojiGifPickerProps> = ({
   onClose,
   onSelectEmoji,
   onSelectGif,
+  expressions = [],
+  onSelectSticker,
 }) => {
-  const [activeTab, setActiveTab] = useState<'emoji' | 'gif'>('emoji');
+  const [activeTab, setActiveTab] = useState<'emoji' | 'gif' | 'space'>('emoji');
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredEmoji, setHoveredEmoji] = useState<string | null>(null);
 
@@ -95,6 +101,20 @@ export const EmojiGifPicker: React.FC<EmojiGifPickerProps> = ({
             <ImageIcon size={13} />
             <span>GIFs</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('space')}
+            title="Emojis y stickers de este espacio"
+            className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'space'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Sparkles size={13} />
+            <span>Espacio</span>
+          </button>
         </div>
 
         <button
@@ -114,7 +134,7 @@ export const EmojiGifPicker: React.FC<EmojiGifPickerProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={activeTab === 'emoji' ? 'Buscar emojis...' : 'Buscar GIFs...'}
+            placeholder={activeTab === 'gif' ? 'Buscar GIFs...' : 'Buscar emojis...'}
             className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/10 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-purple-500 font-sans"
             autoFocus
           />
@@ -123,7 +143,35 @@ export const EmojiGifPicker: React.FC<EmojiGifPickerProps> = ({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2.5 space-y-3">
-        {activeTab === 'emoji' ? (
+        {activeTab === 'space' ? (
+          <div className="kova-space-expressions">
+            {expressions.length === 0 && (
+              <p className="text-xs text-slate-400 p-2 leading-relaxed">Este espacio aún no tiene emojis ni stickers propios. Quien gestiona el espacio puede subirlos en Ajustes del espacio → Expresiones.</p>
+            )}
+            {(['emoji', 'sticker'] as const).map((kind) => {
+              const items = expressions.filter((item) => item.kind === kind && (!query || item.name.includes(query)));
+              if (!items.length) return null;
+              return (
+                <div key={kind} className="space-y-1 mb-3">
+                  <div className="text-[10px] font-bold uppercase text-slate-400 font-mono tracking-wider px-1">{kind === 'emoji' ? 'Emojis' : 'Stickers'}</div>
+                  <div className={kind === 'emoji' ? 'grid grid-cols-7 gap-1' : 'grid grid-cols-3 gap-2'}>
+                    {items.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        title={kind === 'emoji' ? `:${item.name}:` : item.name}
+                        onClick={() => (kind === 'emoji' ? onSelectEmoji(`:${item.name}: `) : onSelectSticker?.(item))}
+                        className={kind === 'emoji' ? 'w-8 h-8 rounded-lg hover:bg-white/[0.1] flex items-center justify-center hover:scale-125 transition-transform cursor-pointer' : 'aspect-square rounded-xl hover:bg-white/[0.08] p-1.5 flex items-center justify-center cursor-pointer'}
+                      >
+                        <img src={item.url} alt={item.name} className={kind === 'emoji' ? 'w-6 h-6 object-contain' : 'max-w-full max-h-full object-contain'} draggable={false} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : activeTab === 'emoji' ? (
           <div>
             {EMOJI_CATEGORIES.map((cat) => {
               const matchedEmojis = query

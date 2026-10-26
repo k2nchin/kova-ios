@@ -10,6 +10,11 @@ import { fileURLToPath } from 'node:url';
 const updatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'updater-static', 'updates');
 import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
 import { askKovaAI, AiError, transcribeAudio, classifyMessage } from './ai.mjs';
+import { forumsSchema, handleForumRoutes } from './forums.mjs';
+import { pollsSchema, handlePollRoutes } from './polls.mjs';
+import { expressionsSchema, expressionsOf, handleExpressionRoutes } from './expressions.mjs';
+import { channelPermsSchema, channelRights, visibleChannels, channelViewers, channelFromPath, handleChannelAccessRoutes } from './channelperms.mjs';
+import { pushSchema, sendPush, handlePushRoutes } from './push.mjs';
 import { musicSchema, handleMusicRoutes } from './music.mjs';
 import { eventsSchema, handleEventRoutes, runEventReminders } from './events.mjs';
 import { automodSchema, screenMessage, logBlocked, handleAutomodRoutes } from './automod.mjs';
@@ -94,6 +99,11 @@ await db.exec(callNotesSchema);
 await db.exec(automodSchema);
 await db.exec(eventsSchema);
 await db.exec(musicSchema);
+await db.exec(pushSchema);
+await db.exec(channelPermsSchema);
+await db.exec(expressionsSchema);
+await db.exec(pollsSchema);
+await db.exec(forumsSchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -162,9 +172,15 @@ const deliverMessage = async ({ channelId, spaceId, authorId, content, replyToId
   const created = { id, channelId, author: publicUser(author), content, replyToId: replyToId || undefined, replyTo: await replyPreview(replyToId), attachments, createdAt, reactions: [] };
   await emitToChannel(channelId, 'message:created', created);
   const owner = await db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(spaceId);
-  const mentions = await mentionedUserIds(db, spaceId, owner?.owner_id, content);
-  const audience = await spaceAudience(db, spaceId);
+  const channelRow = { id: channelId, space_id: spaceId };
+  const mentions = await channelViewers(db, channelRow, await mentionedUserIds(db, spaceId, owner?.owner_id, content));
+  const audience = await channelViewers(db, channelRow, await spaceAudience(db, spaceId));
   void emitToUsers(audience, 'channel:activity', { channelId, spaceId, messageId: id, authorId, authorName: author.displayName, preview: content.slice(0, 120), mentions });
+  const pinged = mentions.filter((userId) => userId !== authorId).slice(0, 200);
+  if (pinged.length) {
+    const where = await db.prepare('SELECT c.name AS channel, s.name AS space FROM signals c JOIN spaces s ON s.id = c.space_id WHERE c.id = ?').get(channelId);
+    await sendPush(db, pinged, { title: `${author.displayName} te mencionó en #${where?.channel || 'canal'}`, body: content.slice(0, 200), url: `/app?space=${spaceId}&channel=${channelId}`, tag: `ch-${channelId}` });
+  }
   return created;
 };
 // Tells everyone in a space that something changed; clients refetch it.
@@ -172,21 +188,22 @@ const notifySpace = async (spaceId, kind) => {
   const audience = await spaceAudience(db, spaceId);
   if (audience.length) await emitToUsers(audience, 'space:changed', { serverId: spaceId, kind });
 };
-const CHANNEL_TYPES = new Set(['text', 'voice', 'announcements', 'notes']);
+const CHANNEL_TYPES = new Set(['text', 'voice', 'announcements', 'notes', 'forum']);
 const channelType = (value) => (CHANNEL_TYPES.has(String(value)) ? String(value) : 'text');
 // Everything a member needs to render a space.
-const spacePayload = async (s) => {
+const spacePayload = async (s, viewerId) => {
   const members = await spaceMembers(s.id, s.owner_id);
   const roleMap = await memberRoleMap(db, s.id, s.owner_id);
-  const channels = await db.prepare('SELECT * FROM signals WHERE space_id = ? ORDER BY created_at').all(s.id);
+  const channels = await visibleChannels(db, s.id, viewerId, await db.prepare('SELECT * FROM signals WHERE space_id = ? ORDER BY created_at').all(s.id));
   const categories = await db.prepare('SELECT * FROM categories WHERE space_id = ? ORDER BY position, created_at').all(s.id);
   return {
     id: s.id, name: s.name, description: s.description, visibility: s.visibility || 'private', icon: s.icon_url || '', banner: s.banner_url || '', ownerId: s.owner_id,
     verified: await isVerifiedUserId(s.owner_id),
     roles: await rolesOf(db, s.id),
+    expressions: await expressionsOf(db, s.id),
     members: members.map((m) => ({ ...m, roles: roleMap.get(m.id) || [] })),
     categories: categories.map((c) => ({ id: c.id, name: c.name, channelIds: channels.filter((channel) => channel.category_id === c.id).map((channel) => channel.id) })),
-    channels: channels.map((c) => ({ id: c.id, name: c.name, type: c.type, topic: c.topic, categoryId: c.category_id })),
+    channels: channels.map((c) => ({ id: c.id, name: c.name, type: c.type, topic: c.topic, categoryId: c.category_id, private: c.private, readOnly: c.readOnly, canSend: c.canSend })),
   };
 };
 const spaceMembers = async (spaceId, ownerId) => {
@@ -480,11 +497,26 @@ const handleRequest = async (req, res) => {
       throw error;
     }
   }
+  // Private / read-only channels: one check for every channel- or message-scoped route.
+  if (session && requestPath.startsWith('/api/')) {
+    const scoped = await channelFromPath(db, requestPath);
+    if (scoped && await canAccessSpace(scoped.space_id, session.user_id)) {
+      const rights = await channelRights(db, scoped, session.user_id);
+      if (!rights.view) return send(res, 404, { message: 'No encontramos ese canal o no tienes acceso.' });
+      const writes = req.method === 'POST' && /\/(messages|scheduled|thread|posts|polls)$/.test(requestPath);
+      if (writes && !rights.send) return send(res, 403, { message: 'Este canal es de solo lectura para ti.', code: 'READ_ONLY_CHANNEL' });
+    }
+  }
+  if (await handleForumRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, deliverMessage, notifySpace, isVerifiedEmail })) return;
+  if (await handlePollRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, channelRights, deliverMessage, emitToChannel, crypto })) return;
+  if (await handleExpressionRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, notifySpace, hostedImageUrl, crypto })) return;
+  if (await handleChannelAccessRoutes({ db, req, res, requestPath, session, send, readBody, can, notifySpace })) return;
   if (await handleCallNotesRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, transcribeAudio, askKovaAI, AiError, deliverMessage, spaceAudience, emitToUsers, crypto })) return;
   if (await handleTranslateRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, askKovaAI, AiError })) return;
   if (await handleSchedulingRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace })) return;
   if (await handleThreadRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, can, publicUser, userFromRow, emitToChannel })) return;
   if (await handleActivityRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, isVerifiedEmail, askKovaAI, AiError })) return;
+  if (await handlePushRoutes({ db, req, res, requestPath, session, send, readBody })) return;
   if (await handleMusicRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers })) return;
   if (await handleEventRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers, crypto })) return;
   if (await handleAutomodRoutes({ db, req, res, requestPath, session, send, readBody, can })) return;
@@ -497,6 +529,7 @@ const handleRequest = async (req, res) => {
     const channel = channelId && await db.prepare('SELECT id, space_id, type FROM signals WHERE id = ?').get(channelId);
     if (!channel || !(await canAccessSpace(channel.space_id, session.user_id))) return send(res, 404, { message: 'No encontramos ese canal o no tienes acceso.' });
     if (channel.type !== 'voice') return send(res, 400, { message: 'Ese canal no es de voz.', code: 'NOT_VOICE_CHANNEL' });
+    if (!(await channelRights(db, channel, session.user_id)).view) return send(res, 404, { message: 'No encontramos ese canal o no tienes acceso.' });
     try {
       const user = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
       const token = createVoiceToken({ user, channelId });
@@ -576,6 +609,8 @@ const handleRequest = async (req, res) => {
     await db.prepare('INSERT INTO direct_messages (id, sender_id, receiver_id, content, created_at) VALUES (?, ?, ?, ?, ?)').run(id, session.user_id, peerId, content, createdAt);
     const directMessage = { id, authorId: session.user_id, content, createdAt };
     await emitToUsers([session.user_id, peerId], 'dm:created', { ...directMessage, peerIds: [session.user_id, peerId] });
+    const sender = await db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(session.user_id);
+    await sendPush(db, [peerId], { title: sender?.display_name || sender?.username || 'Mensaje directo', body: content.slice(0, 200), url: `/app?dm=${session.user_id}`, tag: `dm-${session.user_id}` });
     return send(res, 201, directMessage);
   }
   const removeFriendMatch = requestPath.match(/^\/api\/friends\/([^/]+)$/);
@@ -735,7 +770,7 @@ const handleRequest = async (req, res) => {
     if (joined.error) return send(res, joined.error.status, { message: joined.error.message });
     const { space } = joined;
     await notifySpace(space.id, 'members');
-    return send(res, 200, await spacePayload(space));
+    return send(res, 200, await spacePayload(space, session.user_id));
   }
   if (requestPath === '/api/servers/discover' && req.method === 'GET') {
     if (!session) return send(res, 401, { message: 'Inicia sesión para explorar comunidades.' });
@@ -766,7 +801,7 @@ const handleRequest = async (req, res) => {
   if (requestPath === '/api/servers' && req.method === 'GET') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const spaces = await db.prepare('SELECT DISTINCT s.* FROM spaces s LEFT JOIN space_members m ON m.space_id = s.id WHERE s.owner_id = ? OR m.user_id = ? ORDER BY s.created_at DESC').all(session.user_id, session.user_id);
-    const result = []; for (const space of spaces) result.push(await spacePayload(space));
+    const result = []; for (const space of spaces) result.push(await spacePayload(space, session.user_id));
     return send(res, 200, result);
   }
   if (requestPath === '/api/servers' && req.method === 'POST') {
@@ -1024,9 +1059,15 @@ if (!process.env.VERCEL) {
   await attachRealtime(server, { db, canAccessSpace, allowedOrigins });
   server.listen(port, () => console.log(`Kova API listening on http://localhost:${port}`));
   // Long-running host only (Render / local): send scheduled messages and reminders.
+  // Reminders and event heads-ups also go out as push notifications.
+  const emitAndPush = async (userIds, event, payload) => {
+    await emitToUsers(userIds, event, payload);
+    if (event === 'reminder:due') await sendPush(db, userIds, { title: '⏰ Recordatorio', body: payload.note || 'Tienes un recordatorio.', url: payload.channelId ? `/app?space=${payload.serverId}&channel=${payload.channelId}` : '/app', tag: `rem-${payload.id}` });
+    if (event === 'event:starting') await sendPush(db, userIds, { title: `📅 ${payload.title}`, body: 'Empieza en unos minutos', url: `/app?space=${payload.serverId}`, tag: `ev-${payload.id}` });
+  };
   const tick = () => Promise.all([
-    runDueJobs({ db, canAccessSpace, deliverMessage, emitToUsers }),
-    runEventReminders({ db, emitToUsers }),
+    runDueJobs({ db, canAccessSpace, deliverMessage, emitToUsers: emitAndPush }),
+    runEventReminders({ db, emitToUsers: emitAndPush }),
   ]).catch((error) => console.error('[Kova scheduling]', error?.message || error));
   setInterval(tick, Number(process.env.KOVA_JOBS_INTERVAL_MS) || 30_000);
   void tick();

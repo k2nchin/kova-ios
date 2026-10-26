@@ -49,6 +49,12 @@ export interface Channel {
   categoryId?: string;
   unreadCount?: number;
   isPrivate?: boolean;
+  /** Only some roles can see it (server-side). */
+  private?: boolean;
+  /** Only some roles can write. */
+  readOnly?: boolean;
+  /** Whether *you* can write here. */
+  canSend?: boolean;
   userLimit?: number;
   connectedUsers?: string[];
   slowmode?: number;
@@ -86,6 +92,8 @@ export interface Server {
   channels: Channel[];
   roles: Role[];
   members: User[];
+  /** Custom emojis and stickers of the space. */
+  expressions?: Expression[];
   unread?: boolean;
   mentionCount?: number;
 }
@@ -227,4 +235,11 @@ export interface KovaBot {
   createdBy?: string;
   developerName?: string;
   verified?: boolean;
+}
+
+export interface Expression {
+  id: string;
+  kind: 'emoji' | 'sticker';
+  name: string;
+  url: string;
 }

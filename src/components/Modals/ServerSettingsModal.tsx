@@ -11,12 +11,14 @@ import {
   Upload,
   Crown,
   ShieldAlert,
+  Smile,
 } from 'lucide-react';
 import { useApp, permissionsIn } from '../../context/AppContext';
 import { uploadFile } from '../../services/apiClient';
 import { toast } from 'sonner';
 import { Avatar } from '../Common/Avatar';
 import { AutomodPanel } from '../Settings/AutomodPanel';
+import { ExpressionsPanel } from '../Settings/ExpressionsPanel';
 import '../../styles/serverSettings.css';
 
 const DISCORD_ROLE_COLORS = [
@@ -305,7 +307,7 @@ export const ServerSettingsModal: React.FC = () => {
               { id: 'overview', label: 'General', icon: Settings },
               { id: 'roles', label: 'Roles', icon: Shield, count: roles.length },
               { id: 'members', label: 'Miembros', icon: Users, count: members.length },
-              ...(myPerms.has('MANAGE_SERVER') ? [{ id: 'automod', label: 'AutoMod IA', icon: ShieldAlert }] as const : []),
+              ...(myPerms.has('MANAGE_SERVER') ? [{ id: 'expressions', label: 'Expresiones', icon: Smile }, { id: 'automod', label: 'AutoMod IA', icon: ShieldAlert }] as const : []),
             ] as const).map((item) => (
               <button
                 key={item.id}
@@ -733,6 +735,7 @@ export const ServerSettingsModal: React.FC = () => {
             )}
 
             {/* ======================= TAB: MEMBERS ======================= */}
+            {serverSettingsTab === 'expressions' && <ExpressionsPanel spaceId={activeServer.id} expressions={activeServer.expressions || []} />}
             {serverSettingsTab === 'automod' && <AutomodPanel spaceId={activeServer.id} channels={activeServer.channels} />}
             {serverSettingsTab === 'members' && (
               <div className="h-full flex flex-col gap-4">

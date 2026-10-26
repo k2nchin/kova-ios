@@ -1,9 +1,9 @@
-﻿// Kova service worker — offline shell for the installed PWA.
+// Kova service worker — offline shell for the installed PWA.
 // Strategy: network-first for navigations, cache-first for immutable static
 // assets, and full passthrough for API, updater binaries and downloads.
 // Bump CACHE_VERSION on every release so stale shells never linger.
 
-const CACHE_VERSION = 'kova-v1.0.13';
+const CACHE_VERSION = 'kova-v1.0.25';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const SHELL_URL = '/index.html';
 
@@ -66,4 +66,35 @@ self.addEventListener('fetch', (event) => {
       })
     );
   }
+});
+
+// Push: shown only when no Kova window is in front (the open app already shows it).
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { title: 'Kova', body: event.data?.text() || '' }; }
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      if (windows.some((client) => client.visibilityState === 'visible' && client.focused)) return undefined;
+      return self.registration.showNotification(data.title || 'Kova', {
+        body: data.body || '',
+        icon: '/pwa-192.png',
+        badge: '/pwa-192.png',
+        tag: data.tag,
+        renotify: Boolean(data.tag),
+        data: { url: data.url || '/app' },
+      });
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || '/app', self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((client) => new URL(client.url).origin === self.location.origin);
+      if (open) return open.focus().then(() => open.navigate(target));
+      return self.clients.openWindow(target);
+    })
+  );
 });

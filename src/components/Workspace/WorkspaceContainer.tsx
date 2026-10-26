@@ -6,6 +6,7 @@ import { NotesChannel } from '../NotesChannel/NotesChannel';
 import { PulseFeed } from '../Pulse/PulseFeed';
 import { RightWidgetsSidebar } from '../RightSidebar/RightWidgetsSidebar';
 import { ThreadDrawer } from '../ChatArea/ThreadDrawer';
+import { ForumView } from '../ChatArea/ForumView';
 import { DirectMessagesView } from '../DirectMessages/DirectMessagesView';
 import { EmptyServerView } from './EmptyServerView';
 import { useApp } from '../../context/AppContext';
@@ -60,6 +61,8 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
               <PulseFeed />
             ) : activeChannel?.type === 'voice' ? (
               <VoiceRoom />
+            ) : activeChannel?.type === 'forum' ? (
+              <ForumView key={activeChannel.id} />
             ) : activeChannel?.type === 'notes' ? (
               <NotesChannel />
             ) : (

@@ -12,8 +12,10 @@ import {
   FileText,
   Hash,
   Headphones,
+  Lock,
   HeadphoneOff,
   Megaphone,
+  MessagesSquare,
   Mic,
   MicOff,
   PhoneOff,
@@ -43,6 +45,7 @@ const monogram = (name: string) => name.trim().split(/\s+/).slice(0, 2).map((par
 const channelIcon = (channel: Channel) => {
   if (channel.type === 'voice') return Volume2;
   if (channel.type === 'announcements') return Megaphone;
+  if (channel.type === 'forum') return MessagesSquare;
   if (channel.type === 'notes') return FileText;
   return Hash;
 };
@@ -351,6 +354,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                     >
                       <Icon size={16} />
                       <span className="kova-channel-name">{cleanName(channel.name)}</span>
+                      {channel.private && <Lock size={11} className="kova-channel-lock" aria-label="Privado" />}
                       {unreadByChannel[channel.id]?.mentions ? (
                         <b className="kova-channel-badge is-mention" aria-label="Te mencionaron">@{unreadByChannel[channel.id].mentions}</b>
                       ) : preferences.channelActivity && unreadByChannel[channel.id]?.unread ? (

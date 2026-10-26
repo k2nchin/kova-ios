@@ -87,6 +87,7 @@ before(async () => {
       KOVA_JOBS_INTERVAL_MS: '300',
       KOVA_SCHEDULE_MIN_AHEAD_MS: '0',
       KOVA_OFFLINE_TESTS: '1',
+      KOVA_DISABLE_PUSH: '1',
       GEMINI_API_KEY: 'test-gemini-key',
       GEMINI_API_BASE: `http://localhost:${geminiPort}`,
       KOVA_REALTIME_SECRET: 'relay-test-secret',
@@ -609,4 +610,113 @@ test('escuchar juntos: cola compartida y posición sincronizada', async () => {
   assert.equal(skipped.body.queue.length, 0);
   assert.equal((await call('GET', `/voice/${voice.id}/music`, undefined, member.token)).body.current.title, 'cancion.mp3');
   assert.equal((await music(owner, { action: 'stop' })).body.current, null);
+});
+
+test('notificaciones push: clave pública y suscripción por dispositivo', async () => {
+  const user = await register('push');
+  const key = await call('GET', '/push/key');
+  assert.equal(key.status, 200);
+  assert.ok(key.body.publicKey.length > 40);
+  assert.equal((await call('GET', '/push/key')).body.publicKey, key.body.publicKey, 'la clave es estable');
+  const sub = { endpoint: 'https://push.example.com/abc', keys: { p256dh: 'BPk', auth: 'xyz' } };
+  assert.equal((await call('POST', '/push/subscribe', sub)).status, 401);
+  assert.equal((await call('POST', '/push/subscribe', { endpoint: 'http://inseguro' }, user.token)).status, 400);
+  assert.equal((await call('POST', '/push/subscribe', sub, user.token)).status, 200);
+  assert.equal((await call('POST', '/push/unsubscribe', { endpoint: sub.endpoint }, user.token)).status, 200);
+});
+
+test('permisos por canal: privados y de solo lectura', async () => {
+  const owner = await register('permcanal');
+  const vip = await register('vip1');
+  const normal = await register('normal1');
+  const space = await createSpace(owner, vip, normal);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  const role = (await call('POST', `/servers/${space.id}/roles`, { name: 'VIP', permissions: [] }, owner.token)).body;
+  await call('PUT', `/servers/${space.id}/members/${vip.id}/roles/${role.id}`, {}, owner.token);
+  const channelsOf = async (who) => (await call('GET', '/servers', undefined, who.token)).body.find((s) => s.id === space.id).channels;
+
+  assert.equal((await call('PUT', `/channels/${text.id}/access`, { private: true, viewRoles: [role.id] }, normal.token)).status, 403);
+  const set = await call('PUT', `/channels/${text.id}/access`, { private: true, viewRoles: [role.id, 'inventado'] }, owner.token);
+  assert.deepEqual(set.body.viewRoles, [role.id]);
+  assert.ok(!(await channelsOf(normal)).some((c) => c.id === text.id), 'oculto para quien no tiene el rol');
+  assert.ok((await channelsOf(vip)).find((c) => c.id === text.id).private);
+  assert.equal((await call('GET', `/channels/${text.id}/messages`, undefined, normal.token)).status, 404);
+  assert.equal((await call('POST', `/channels/${text.id}/messages`, { content: 'hola' }, normal.token)).status, 404);
+  assert.equal((await call('POST', `/channels/${text.id}/messages`, { content: 'hola vip' }, vip.token)).status, 201);
+  const found = (await call('GET', `/servers/${space.id}/search?q=vip`, undefined, normal.token)).body;
+  assert.equal(found.length, 0, 'la búsqueda no filtra contenido privado');
+
+  await call('PUT', `/channels/${text.id}/access`, { readOnly: true, sendRoles: [role.id] }, owner.token);
+  const visible = (await channelsOf(normal)).find((c) => c.id === text.id);
+  assert.equal(visible.readOnly, true);
+  assert.equal(visible.canSend, false);
+  assert.equal((await call('POST', `/channels/${text.id}/messages`, { content: 'no puedo' }, normal.token)).status, 403);
+  assert.equal((await call('POST', `/channels/${text.id}/messages`, { content: 'anuncio' }, vip.token)).status, 201);
+  assert.equal((await call('POST', `/channels/${text.id}/messages`, { content: 'dueño' }, owner.token)).status, 201);
+});
+
+test('emojis y stickers propios del espacio', async () => {
+  const owner = await register('emojis');
+  const member = await register('miembro12');
+  const space = await createSpace(owner, member);
+  const img = 'https://cdn.example.com/kova.png';
+  assert.equal((await call('POST', `/servers/${space.id}/expressions`, { name: 'kova', url: img }, member.token)).status, 403);
+  assert.equal((await call('POST', `/servers/${space.id}/expressions`, { name: 'k', url: img }, owner.token)).status, 400);
+  assert.equal((await call('POST', `/servers/${space.id}/expressions`, { name: 'kova', url: 'javascript:alert(1)' }, owner.token)).status, 400);
+  const emoji = await call('POST', `/servers/${space.id}/expressions`, { name: 'Kova Fuego', url: img }, owner.token);
+  assert.equal(emoji.status, 201);
+  assert.equal(emoji.body.name, 'kova_fuego');
+  assert.equal((await call('POST', `/servers/${space.id}/expressions`, { name: 'kova_fuego', url: img }, owner.token)).status, 409);
+  const sticker = await call('POST', `/servers/${space.id}/expressions`, { kind: 'sticker', name: 'kova_fuego', url: img }, owner.token);
+  assert.equal(sticker.status, 201, 'un sticker puede llamarse igual que un emoji');
+  const payload = (await call('GET', '/servers', undefined, member.token)).body.find((s) => s.id === space.id);
+  assert.equal(payload.expressions.length, 2);
+  assert.equal((await call('DELETE', `/expressions/${emoji.body.id}`, undefined, member.token)).status, 404);
+  assert.equal((await call('DELETE', `/expressions/${emoji.body.id}`, undefined, owner.token)).status, 200);
+});
+
+test('encuestas: votar, cambiar el voto y cerrar', async () => {
+  const owner = await register('encuesta');
+  const member = await register('miembro13');
+  const space = await createSpace(owner, member);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  assert.equal((await call('POST', `/channels/${text.id}/polls`, { question: '¿Qué juego?', options: ['A'] }, member.token)).status, 400);
+  const created = await call('POST', `/channels/${text.id}/polls`, { question: '¿Qué juego?', options: ['Valorant', 'Minecraft', 'Valorant'] }, member.token);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.poll.options.length, 2, 'opciones repetidas fuera');
+  const pollId = created.body.poll.id;
+  const msgs = (await call('GET', `/channels/${text.id}/messages`, undefined, owner.token)).body;
+  assert.ok(msgs.some((m) => m.content.startsWith(`[poll:${pollId}]`)));
+  const v1 = await call('POST', `/polls/${pollId}/vote`, { optionIds: ['o1', 'o2'] }, owner.token);
+  assert.deepEqual(v1.body.myVotes, ['o1'], 'una sola opción si no es múltiple');
+  await call('POST', `/polls/${pollId}/vote`, { optionIds: ['o2'] }, member.token);
+  const v2 = await call('POST', `/polls/${pollId}/vote`, { optionIds: ['o2'] }, owner.token);
+  assert.equal(v2.body.options[1].votes, 2);
+  assert.equal(v2.body.voters, 2);
+  const stranger = await register('ajeno7');
+  assert.equal((await call('GET', `/polls/${pollId}`, undefined, stranger.token)).status, 404);
+  assert.equal((await call('POST', `/polls/${pollId}/close`, {}, member.token)).status, 200, 'quien la creó puede cerrarla');
+  assert.equal((await call('POST', `/polls/${pollId}/vote`, { optionIds: ['o1'] }, owner.token)).status, 400);
+});
+
+test('foros: publicaciones con título, etiquetas y respuestas en hilo', async () => {
+  const owner = await register('foro');
+  const member = await register('miembro14');
+  const space = await createSpace(owner, member);
+  const forum = (await call('POST', '/channels', { serverId: space.id, name: 'ayuda', type: 'forum' }, owner.token)).body;
+  assert.equal(forum.type, 'forum');
+  assert.equal((await call('PUT', `/channels/${forum.id}/forum-tags`, { tags: ['Bug', 'Idea'] }, member.token)).status, 403);
+  assert.deepEqual((await call('PUT', `/channels/${forum.id}/forum-tags`, { tags: ['Bug', 'Idea', 'Bug'] }, owner.token)).body.tags, ['Bug', 'Idea']);
+  assert.equal((await call('POST', `/channels/${forum.id}/posts`, { title: '', content: 'x' }, member.token)).status, 400);
+  const post = await call('POST', `/channels/${forum.id}/posts`, { title: 'No carga el chat', content: 'Pasos…', tags: ['Bug', 'Inventada'] }, member.token);
+  assert.equal(post.status, 201);
+  assert.deepEqual(post.body.tags, ['Bug']);
+  await call('POST', `/channels/${forum.id}/posts`, { title: 'Modo oscuro', content: '¿Más?', tags: ['Idea'] }, owner.token);
+  await call('POST', `/messages/${post.body.id}/thread`, { content: 'A mí también' }, owner.token);
+  const list = (await call('GET', `/channels/${forum.id}/posts`, undefined, member.token)).body;
+  assert.equal(list.posts.length, 2);
+  assert.equal(list.posts.find((p) => p.id === post.body.id).replies, 1);
+  assert.equal((await call('GET', `/channels/${forum.id}/posts?tag=Idea`, undefined, member.token)).body.posts.length, 1);
+  const text = space.channels.find((c) => c.type !== 'voice');
+  assert.equal((await call('GET', `/channels/${text.id}/posts`, undefined, member.token)).status, 404, 'solo en canales de foro');
 });

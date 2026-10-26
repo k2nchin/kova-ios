@@ -24,6 +24,7 @@ import { playJoinSound } from '../utils/voiceSounds';
 import { systemLanguage, languageName } from '../data/languages';
 import { startNativeCapture, type ShareQuality } from '../services/screenCapture';
 import { startCallNotes } from '../services/callNotes';
+import { refreshPush } from '../services/pushService';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
@@ -280,8 +281,8 @@ interface AppContextType {
   // Server Settings & Roles
   isServerSettingsOpen: boolean;
   setIsServerSettingsOpen: (open: boolean) => void;
-  serverSettingsTab: 'overview' | 'roles' | 'members' | 'automod';
-  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'automod') => void;
+  serverSettingsTab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions';
+  setServerSettingsTab: (tab: 'overview' | 'roles' | 'members' | 'automod' | 'expressions') => void;
   createRole: (serverId: string, roleData: { name: string; color: string; hoist: boolean; permissions: string[] }) => Promise<Role | null>;
   updateRole: (serverId: string, roleId: string, updates: Partial<Role>) => void;
   deleteRole: (serverId: string, roleId: string) => Promise<void>;
@@ -402,7 +403,7 @@ const storyFromApi = (item: any, fallbackUser: User): Story => ({
   likes: Number(item.likes) || 0,
 });
 
-const messageFromApi = (item: any, fallbackUser: User): Message => {
+export const messageFromApi = (item: any, fallbackUser: User): Message => {
   const author: User = !item.author ? fallbackUser : item.author.id === fallbackUser.id ? { ...fallbackUser } : {
     id: item.author.id,
     userId: item.author.userId || item.author.id,
@@ -984,12 +985,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const handleMessageCreated = (msg: any) => {
       if (!msg?.channelId || !msg.id) return;
-      // Our own messages are reconciled by the REST response (local_ → persisted id).
-      if (msg.author?.id === currentUser.id) return;
       const incoming = messageFromApi(msg, currentUser);
       setAllMessages((prev) => {
         const channelMsgs = prev[msg.channelId] || [];
         if (channelMsgs.some((m) => m.id === msg.id)) return prev;
+        // Our own typed messages are reconciled by the REST response (local_ → persisted id);
+        // ones the server creates for us (polls, scheduled, forum posts) arrive only here.
+        if (msg.author?.id === currentUser.id && channelMsgs.some((m) => m.id.startsWith('local_') && m.content.trim() === String(msg.content).trim())) return prev;
         return { ...prev, [msg.channelId]: [...channelMsgs, incoming] };
       });
       setTypingByChannel((prev) => {
@@ -1759,6 +1761,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => { socket.off('reminder:due', onDue); socket.off('event:starting', onEvent); window.removeEventListener('focus', onFocus); };
   }, [isAuthenticated, currentUser.id]);
 
+  // Push notifications: keep this device's subscription fresh and open the
+  // space/channel/DM a notification points to (?space=…&channel=… or ?dm=…).
+  useEffect(() => { if (isAuthenticated) void refreshPush(); }, [isAuthenticated]);
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || deepLinkHandled.current || servers.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const space = params.get('space');
+    const channel = params.get('channel');
+    const dm = params.get('dm');
+    if (!space && !dm) return;
+    deepLinkHandled.current = true;
+    if (dm) { setIsDMViewActive(true); setActiveDMUserId(dm); }
+    else if (space && servers.some((server) => server.id === space)) {
+      setActiveServerId(space);
+      setIsDMViewActive(false);
+      if (channel) setActiveChannelId(channel);
+    }
+    window.history.replaceState(null, '', window.location.pathname);
+  }, [isAuthenticated, servers]);
+
   // ---- Call notes (opt-in transcription of your own voice) ----
   const [callNotesOn, setCallNotesOn] = useState(false);
   const [notesTakers, setNotesTakers] = useState<Record<string, string[]>>({});
@@ -2121,7 +2144,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       void api.sendMessage(activeChannel.id, { content, replyToId: replyId, attachments })
         .then((saved) => {
           const persisted = messageFromApi(saved, currentUser);
-          setAllMessages((previous) => ({ ...previous, [activeChannel.id]: (previous[activeChannel.id] || []).map((message) => message.id === localId ? persisted : message) }));
+          setAllMessages((previous) => {
+            const list = previous[activeChannel.id] || [];
+            // Realtime may have delivered it first: then just drop the local copy.
+            if (list.some((message) => message.id === persisted.id)) return { ...previous, [activeChannel.id]: list.filter((message) => message.id !== localId) };
+            return { ...previous, [activeChannel.id]: list.map((message) => message.id === localId ? persisted : message) };
+          });
         })
         .catch((error) => {
           setAllMessages((previous) => ({ ...previous, [activeChannel.id]: (previous[activeChannel.id] || []).filter((message) => message.id !== localId) }));
@@ -3341,7 +3369,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Server Settings & Roles State & Handlers
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
-  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'automod'>('roles');
+  const [serverSettingsTab, setServerSettingsTab] = useState<'overview' | 'roles' | 'members' | 'automod' | 'expressions'>('roles');
 
   const applyRoles = (serverId: string, update: (server: Server) => Server) =>
     setServers((prev) => prev.map((server) => (server.id === serverId ? update(server) : server)));

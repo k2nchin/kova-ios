@@ -1,3 +1,4 @@
+import { channelRights } from './channelperms.mjs';
 import crypto from 'node:crypto';
 // Kova realtime gateway (Socket.IO): messages, presence and typing.
 // Only runs on a long-lived Node host. Instances without it (Vercel) relay their
@@ -48,7 +49,7 @@ export const emitToUsers = async (userIds, event, payload) => {
 
 /** Receives a relayed event (POST /api/realtime/emit) and broadcasts it locally. */
 export const broadcastRelayed = ({ channelId, userIds, event, payload } = {}) => {
-  const allowed = ['message:created', 'message:updated', 'message:deleted', 'message:reactions', 'dm:created', 'space:nickname', 'space:changed', 'friends:changed', 'channel:activity', 'voice:changed', 'thread:message', 'notes:changed', 'reminder:due', 'voice:notes', 'event:changed', 'event:starting', 'voice:music'];
+  const allowed = ['message:created', 'message:updated', 'message:deleted', 'message:reactions', 'dm:created', 'space:nickname', 'space:changed', 'friends:changed', 'channel:activity', 'voice:changed', 'thread:message', 'notes:changed', 'reminder:due', 'voice:notes', 'event:changed', 'event:starting', 'voice:music', 'poll:updated'];
   if (!io || !allowed.includes(event)) return false;
   if (typeof channelId === 'string' && channelId) io.to(channelRoom(channelId)).emit(event, payload);
   if (Array.isArray(userIds)) for (const id of new Set(userIds.map(String).slice(0, 50))) io.to(userRoom(id)).emit(event, payload);
@@ -117,8 +118,8 @@ export async function attachRealtime(httpServer, { db, canAccessSpace, allowedOr
     socket.on('channel:join', async ({ channelId } = {}, ack) => {
       try {
         const id = String(channelId || '');
-        const channel = id && await db.prepare('SELECT space_id FROM signals WHERE id = ?').get(id);
-        if (!channel || !(await canAccessSpace(channel.space_id, user.id))) return ack?.({ ok: false });
+        const channel = id && await db.prepare('SELECT id, space_id FROM signals WHERE id = ?').get(id);
+        if (!channel || !(await canAccessSpace(channel.space_id, user.id)) || !(await channelRights(db, channel, user.id)).view) return ack?.({ ok: false });
         stopTyping();
         if (socket.data.channelId) socket.leave(channelRoom(socket.data.channelId));
         socket.data.channelId = id;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Sparkles,
   Smile,
@@ -20,10 +20,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Message } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useApp, permissionsIn } from '../../context/AppContext';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { WhenPicker } from '../Common/WhenPicker';
 import { LANGUAGES, languageName } from '../../data/languages';
+import { PollCard, POLL_MESSAGE } from './PollCard';
+import { expressionIndex, renderWithEmojis, STICKER_MESSAGE } from '../../utils/expressions';
 import { VoiceMessagePlayer } from '../Audio/VoiceMessagePlayer';
 import { Avatar } from '../Common/Avatar';
 
@@ -55,7 +57,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
     toggleSaveMessage,
     remindMe,
     preferences,
+    servers,
   } = useApp();
+  const { emojis: customEmojis, stickers: customStickers } = useMemo(() => expressionIndex(servers, activeServer?.id), [servers, activeServer?.id]);
+  const stickerId = message.content.match(STICKER_MESSAGE)?.[1];
+  const sticker = stickerId ? customStickers.get(stickerId) : undefined;
+  const pollId = message.content.match(POLL_MESSAGE)?.[1];
   const [copiedCode, setCopiedCode] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
@@ -220,7 +227,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
         ) : (
           message.content && !message.botCard && (
             <div className="text-[#dbdee1] text-[14px] leading-relaxed whitespace-pre-wrap select-text">
-              {message.content}
+              {pollId
+                ? <PollCard pollId={pollId} canClose={message.author.id === currentUser.id || permissionsIn(activeServer, currentUser.id).has('MANAGE_MESSAGES')} />
+                : stickerId
+                ? (sticker ? <img src={sticker.url} alt={`Sticker ${sticker.name}`} title={sticker.name} className="kova-sticker" draggable={false} /> : <span className="kova-sticker-missing">🏷️ Sticker no disponible</span>)
+                : renderWithEmojis(message.content, customEmojis)}
               {message.edited && (
                 <span className="text-[10px] text-[#949ba4] ml-1.5 select-none font-normal" title="Mensaje editado">
                   (editado)

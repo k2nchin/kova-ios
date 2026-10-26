@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Hash, Volume2, FileText, Megaphone, X } from 'lucide-react';
+import { Hash, Volume2, FileText, Megaphone,
+  MessagesSquare, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ChannelType } from '../../types';
 
@@ -56,6 +57,12 @@ export const CreateChannelModal: React.FC = () => {
       label: 'Canal de Anuncios',
       desc: 'Noticias oficiales y actualizaciones importantes',
       icon: <Megaphone className="w-5 h-5 text-rose-400" />,
+    },
+    {
+      type: 'forum',
+      label: 'Foro',
+      desc: 'Temas con título y etiquetas; cada uno con su propia conversación',
+      icon: <MessagesSquare className="w-5 h-5 text-violet-400" />,
     },
   ];
 
