@@ -1,12 +1,12 @@
 {
-  "version": "1.0.30",
-  "notes": "Kova 1.0.30: auditoría, webhooks con GitHub, plantillas y estadísticas; conexión más fiable cuando Vercel bloquea la red y captura de pantalla más robusta.",
-  "pub_date": "2026-10-26T19:24:19Z",
+  "version": "1.0.31",
+  "notes": "Kova 1.0.31: arreglado el error al compartir pantalla y la app sigue conectada aunque Vercel bloquee la red.",
+  "pub_date": "2026-10-26T19:49:21Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.30_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFcxTTE1VFY1cXVJMFVhR2E3VEZVNEExWVorQXg4WStRQ2NSR1R1dTF6RHZkVDRJem1OZ2d2NkdUKysvRTJKeTlnTHV3SlFSRGVyMkczeWZQRUFvYUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDQwNjMyCWZpbGU6S292YV8xLjAuMzBfeDY0LXNldHVwLmV4ZQpqL1IvMGIxbmlheVJ4NjRRNXRzVmxtQmt6WGc3aDJGazVCazlFVzRTaEJzN1pVZHBsMGpxS2Z0RjJ0SHkxQjRRMEEyUXM1L1JKV3ZmZ0RvRjZITEdBUT09Cg==",
-      "sha256": "A8968E2AA59D00EF588107BA2B2FA7D02F255149EC8DFF1E4F9CCAA657948953"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.31_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFdKeGhVY1pJbHBNaHh0UjVZRXRqV1o1RERKMXgvbVZsaVl5eXBuT1RJaUtKZVpobkx4VXdYRHp3L3BIbUxOTzJ0emtZeGhkTWRRZ3pZbVYxQjlveUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDQ0MTEzCWZpbGU6S292YV8xLjAuMzFfeDY0LXNldHVwLmV4ZQp0bzVra1RLNjI1Wndra09VZFBCRjl4T3hTVnRscXczVjV6aXdqSTgwNHQzQ1pkNGlScWFDMEhDQmFzUE1sWGhZZzZmdEJOMUpUdWRXZ0xjUktKQWxCdz09Cg==",
+      "sha256": "A9C400EF3E899682DFA398717E528B8D2FFE120AF3EA776FEBD03A5F29234580"
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Kova",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "identifier": "com.kova.desktop",
   "build": {
     "frontendDist": "../dist",
