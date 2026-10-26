@@ -1,12 +1,12 @@
 {
-  "version": "1.0.29",
-  "notes": "Kova 1.0.29: registro de auditoría, webhooks con GitHub, plantillas de espacio y estadísticas.",
-  "pub_date": "2026-10-26T18:36:08Z",
+  "version": "1.0.30",
+  "notes": "Kova 1.0.30: auditoría, webhooks con GitHub, plantillas y estadísticas; conexión más fiable cuando Vercel bloquea la red y captura de pantalla más robusta.",
+  "pub_date": "2026-10-26T19:24:19Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.29_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGFWWXpLeEhsa1AvRkJWdFB5STVybUpSQmlsMWhMM05ISmFqOFgvR1EycGEzSkZyc2tidGZIQ2REYlByZ0NWMDNaWXRBakxJclFmNU9ld0twSGhIcncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDM5NDczCWZpbGU6S292YV8xLjAuMjlfeDY0LXNldHVwLmV4ZQpYNXRJZUdob29FN2w3UUJ3WmNRNGJlUmVpb0xlQ1lRTEVzdzhtWDRmcXFETFBOYzczb2NrUS9xT1dtT1F1RDlMR2RHOEw1UTBOUHZ2ZGNoblJqcUZBQT09Cg==",
-      "sha256": "5EBB76AF69A4C2EB20850EB815880EC75B6F4F5CBDDE0CA94476152FA5EB3999"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.30_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFcxTTE1VFY1cXVJMFVhR2E3VEZVNEExWVorQXg4WStRQ2NSR1R1dTF6RHZkVDRJem1OZ2d2NkdUKysvRTJKeTlnTHV3SlFSRGVyMkczeWZQRUFvYUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDQwNjMyCWZpbGU6S292YV8xLjAuMzBfeDY0LXNldHVwLmV4ZQpqL1IvMGIxbmlheVJ4NjRRNXRzVmxtQmt6WGc3aDJGazVCazlFVzRTaEJzN1pVZHBsMGpxS2Z0RjJ0SHkxQjRRMEEyUXM1L1JKV3ZmZ0RvRjZITEdBUT09Cg==",
+      "sha256": "A8968E2AA59D00EF588107BA2B2FA7D02F255149EC8DFF1E4F9CCAA657948953"
     }
   }
 }
