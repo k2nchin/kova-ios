@@ -236,6 +236,9 @@ interface AppContextType {
   ) => Promise<Server | null>;
   setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
   removeFromSpace: (serverId: string, userId: string, ban?: boolean) => Promise<boolean>;
+  unreadByChannel: Record<string, { unread: number; mentions: number }>;
+  markChannelRead: (channelId: string) => void;
+  loadOlderMessages: (channelId: string) => Promise<number>;
   connectingVoiceChannelId: string | null;
   refreshServers: () => Promise<void>;
   joinServerByInvite: (inviteCodeOrId: string) => Promise<{ ok: true } | { ok: false; message: string }>;
@@ -1613,6 +1616,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPendingFriendRequests((prev) => prev.filter((r) => r.id !== id));
       toast.info('Solicitud eliminada');
     } catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la solicitud.'); }
+  };
+
+  // ---- Unread counts & @mentions ----
+  const [unreadByChannel, setUnreadByChannel] = useState<Record<string, { unread: number; mentions: number }>>({});
+  const viewingChannelId = !isDMViewActive ? activeChannelId : '';
+  const viewingRef = useRef(viewingChannelId);
+  useEffect(() => { viewingRef.current = viewingChannelId; }, [viewingChannelId]);
+
+  const markChannelRead = (channelId: string) => {
+    if (!channelId) return;
+    setUnreadByChannel((prev) => {
+      if (!prev[channelId]) return prev;
+      const next = { ...prev };
+      delete next[channelId];
+      return next;
+    });
+    if (getAuthToken()) void api.markChannelRead(channelId).catch(() => undefined);
+  };
+  const markChannelReadRef = useRef(markChannelRead);
+  useEffect(() => { markChannelReadRef.current = markChannelRead; });
+
+  // Load counts at sign-in, when the window comes back, and every couple of minutes.
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken()) return;
+    const load = () => api.getUnread().then((counts) => {
+      const viewing = viewingRef.current;
+      setUnreadByChannel(viewing && document.hasFocus() ? Object.fromEntries(Object.entries(counts).filter(([id]) => id !== viewing)) : counts);
+    }).catch(() => undefined);
+    void load();
+    const timer = window.setInterval(load, 120_000);
+    const onFocus = () => { void load(); };
+    window.addEventListener('focus', onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [isAuthenticated, currentUser.id]);
+
+  // Opening a channel (or coming back to the window) reads it.
+  useEffect(() => {
+    if (!viewingChannelId || !isAuthenticated) return;
+    markChannelReadRef.current(viewingChannelId);
+    const onFocus = () => markChannelReadRef.current(viewingRef.current);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [viewingChannelId, isAuthenticated]);
+
+  // Live: new messages elsewhere raise badges; @mentions also notify.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    const onActivity = (event: { channelId: string; spaceId: string; authorId: string; authorName: string; preview: string; mentions: string[] }) => {
+      if (event.authorId === currentUser.id) return;
+      const mentioned = event.mentions?.includes(currentUser.id);
+      const looking = viewingRef.current === event.channelId && document.hasFocus();
+      if (looking) { markChannelReadRef.current(event.channelId); return; }
+      setUnreadByChannel((prev) => {
+        const current = prev[event.channelId] || { unread: 0, mentions: 0 };
+        return { ...prev, [event.channelId]: { unread: current.unread + 1, mentions: current.mentions + (mentioned ? 1 : 0) } };
+      });
+      if (mentioned) {
+        const space = serversRef.current.find((server) => server.id === event.spaceId);
+        const channel = space?.channels.find((item) => item.id === event.channelId);
+        const where = channel ? `#${channel.name}${space ? ` · ${space.name}` : ''}` : 'Kova';
+        soundFx.playReactionAdded();
+        toast(`${event.authorName} te mencionó`, { description: `${where}: ${event.preview}` });
+        if (!document.hasFocus()) void showNotification(`${event.authorName} te mencionó en ${where}`, event.preview);
+      }
+    };
+    socket.on('channel:activity', onActivity);
+    return () => { socket.off('channel:activity', onActivity); };
+  }, [isAuthenticated, currentUser.id]);
+
+  // Older history: prepends up to 50 messages before the oldest loaded one.
+  const loadOlderMessages = async (channelId: string) => {
+    const loaded = (allMessages[channelId] || []).filter((message) => message.id.startsWith('message_'));
+    const oldest = loaded[0];
+    if (!oldest) return 0;
+    const older = await api.getMessages(channelId, 50, oldest.id);
+    if (!Array.isArray(older) || older.length === 0) return 0;
+    const normalized = older.map((item: any) => messageFromApi(item, currentUser));
+    setAllMessages((prev) => {
+      const current = prev[channelId] || [];
+      const ids = new Set(current.map((message) => message.id));
+      return { ...prev, [channelId]: [...normalized.filter((message) => !ids.has(message.id)), ...current] };
+    });
+    return normalized.length;
   };
 
   // Friends' online state (they may share no space with us).
@@ -3178,6 +3265,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinServerByInvite,
         setSpaceNickname,
         removeFromSpace,
+        unreadByChannel,
+        markChannelRead,
+        loadOlderMessages,
         connectingVoiceChannelId,
         isCameraPickerOpen,
         setIsCameraPickerOpen,

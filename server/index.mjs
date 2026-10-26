@@ -12,6 +12,7 @@ import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcas
 import { askKovaAI, AiError } from './ai.mjs';
 import { createVoiceToken, VoiceError } from './voice.mjs';
 import { contentSchema, contentUserColumns, handleContentRoute } from './content.mjs';
+import { activitySchema, handleActivityRoutes, mentionedUserIds } from './activity.mjs';
 import { spacesSchema, handleSpaceRoutes, can, rolesOf, memberRoleMap, ensureRoles, spaceAudience, deleteSpaceExtras } from './spaces.mjs';
 import { uploadsSchema, createUploadTicket, receiveLocalUpload, serveLocalFile, UploadError } from './storage.mjs';
 import { twoFactorSchema, twoFactorUserColumns, sealSecret, openSecret, generateSecret, otpauthUrl, verifyTotp, hashBackupCode, generateBackupCodes, looksLikeBackupCode, loginLockedFor, recordLoginFailure, clearLoginFailures, CHALLENGE_TTL_MS, CHALLENGE_MAX_ATTEMPTS } from './twoFactor.mjs';
@@ -78,6 +79,7 @@ await db.exec(schema);
 await db.exec(twoFactorSchema);
 await db.exec(contentSchema);
 await db.exec(spacesSchema);
+await db.exec(activitySchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -444,6 +446,7 @@ const handleRequest = async (req, res) => {
       throw error;
     }
   }
+  if (await handleActivityRoutes({ db, req, res, requestPath, session, send, canAccessSpace, isVerifiedEmail })) return;
   if (await handleSpaceRoutes({ db, req, res, requestPath, session, send, readBody, notifySpace, emitToUsers })) return;
   if (await handleContentRoute({ req, res, requestPath, session, db, send, readBody, userFromRow, publicUser, canAccessSpace })) return;
   if (requestPath === '/api/voice/token' && req.method === 'POST') {
@@ -741,7 +744,12 @@ const handleRequest = async (req, res) => {
     if (req.method === 'GET') {
       const requested = Number(new URL(req.url || '/', 'http://localhost').searchParams.get('limit')) || 50;
       const limit = Math.min(100, Math.max(1, Math.floor(requested)));
-      const rows = await db.prepare('SELECT m.*, u.username, u.display_name, u.avatar, u.email AS author_email FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, limit);
+      // ?before=<messageId> pages back through older history.
+      const beforeId = new URL(req.url || '/', 'http://localhost').searchParams.get('before');
+      const before = beforeId ? await db.prepare('SELECT created_at FROM messages WHERE id = ? AND signal_id = ?').get(beforeId, channelId) : null;
+      const rows = before
+        ? await db.prepare('SELECT m.*, u.username, u.display_name, u.avatar, u.email AS author_email FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? AND m.created_at < ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, before.created_at, limit)
+        : await db.prepare('SELECT m.*, u.username, u.display_name, u.avatar, u.email AS author_email FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, limit);
       const messages = [];
       for (const row of rows.reverse()) {
         const reactions = await db.prepare('SELECT emoji, user_id FROM message_reactions WHERE message_id = ?').all(row.id);
@@ -770,6 +778,11 @@ const handleRequest = async (req, res) => {
     const author = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
     const created = { id, channelId, author: publicUser(author), content, replyToId: replyToId || undefined, replyTo: await replyPreview(replyToId), attachments, createdAt, reactions: [] };
     await emitToChannel(channelId, 'message:created', created);
+    // Badges for people not looking at this channel, plus who was @mentioned.
+    const owner = await db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(channel.space_id);
+    const mentions = await mentionedUserIds(db, channel.space_id, owner?.owner_id, content);
+    const audience = await spaceAudience(db, channel.space_id);
+    void emitToUsers(audience, 'channel:activity', { channelId, spaceId: channel.space_id, messageId: id, authorId: session.user_id, authorName: author.displayName, preview: content.slice(0, 120), mentions });
     return send(res, 201, created);
   }
   const messageReactionMatch = requestPath.match(/^\/api\/messages\/([^/]+)\/reactions$/);

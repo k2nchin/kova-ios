@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
+import { MessageSearch } from './MessageSearch';
 import { MessageItem } from './MessageItem';
 import { EmojiGifPicker } from './EmojiGifPicker';
 import { Avatar } from '../Common/Avatar';
@@ -236,6 +237,7 @@ export const ChatArea: React.FC = () => {
     realtimeConnected,
     presenceByUser,
     currentUser,
+    loadOlderMessages,
   } = useApp();
 
   // People here now: you, plus members the realtime gateway reports online.
@@ -251,6 +253,18 @@ export const ChatArea: React.FC = () => {
   const [isChannelPinned, setIsChannelPinned] = useState(false);
   const [isChannelMuted, setIsChannelMuted] = useState(false);
   const [isChannelInfoOpen, setIsChannelInfoOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // Ctrl+F searches messages (the browser's own find bar is disabled).
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [slowmodeCooldown, setSlowmodeCooldown] = useState(0);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
@@ -284,6 +298,29 @@ export const ChatArea: React.FC = () => {
     }, 1000);
     return () => clearInterval(interval);
   }, [slowmodeCooldown]);
+
+  // Older history: loads when you reach the top (or press the button) and
+  // keeps the message you were reading in place.
+  const [olderState, setOlderState] = useState<'idle' | 'loading' | 'end'>('idle');
+  useEffect(() => { setOlderState('idle'); }, [activeChannel?.id]);
+  const loadOlder = async () => {
+    const el = scrollRef.current;
+    if (!el || olderState !== 'idle' || !activeChannel) return;
+    setOlderState('loading');
+    const previousHeight = el.scrollHeight;
+    try {
+      const added = await loadOlderMessages(activeChannel.id);
+      requestAnimationFrame(() => { el.scrollTop += el.scrollHeight - previousHeight; });
+      setOlderState(added < 50 ? 'end' : 'idle');
+    } catch {
+      setOlderState('idle');
+      toast.error('No se pudieron cargar los mensajes anteriores.');
+    }
+  };
+  const onConversationScroll = () => {
+    const el = scrollRef.current;
+    if (el && el.scrollTop < 80 && messages.length >= 50) void loadOlder();
+  };
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -548,7 +585,7 @@ export const ChatArea: React.FC = () => {
               <span>{onlineMembers.length} en línea</span>
             </button>
           )}
-          <button type="button" className="kova-stage-desktop" onClick={() => setIsCommandPaletteOpen(true)} title="Buscar (Ctrl+K)" aria-label="Buscar">
+          <button type="button" onClick={() => setIsSearchOpen(true)} title="Buscar mensajes (Ctrl+F)" aria-label="Buscar mensajes">
             <Search size={17} />
           </button>
           <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes fijados" aria-label="Mensajes fijados">
@@ -570,7 +607,7 @@ export const ChatArea: React.FC = () => {
       </header>
 
       {/* 2. Conversation Scroll Area */}
-      <div ref={scrollRef} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
+      <div ref={scrollRef} onScroll={onConversationScroll} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
 
         {/* Reglas destacadas en canal de reglas */}
         {activeChannel?.name.toLowerCase().includes('regla') && (
@@ -637,6 +674,14 @@ export const ChatArea: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-1">
+            {messages.length >= 50 && olderState !== 'end' && (
+              <div className="kova-older">
+                <button type="button" onClick={() => void loadOlder()} disabled={olderState === 'loading'}>
+                  {olderState === 'loading' ? 'Cargando mensajes anteriores…' : 'Cargar mensajes anteriores'}
+                </button>
+              </div>
+            )}
+            {olderState === 'end' && <p className="kova-older-end">Este es el principio de #{activeChannel?.name}.</p>}
             {visibleMessages.map((message, index) => (
               <MessageItem
                 key={message.id}
@@ -995,6 +1040,7 @@ export const ChatArea: React.FC = () => {
           </div>
         </div>
       )}
+      <MessageSearch open={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </main>
   );
 };

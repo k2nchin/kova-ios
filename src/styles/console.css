@@ -389,3 +389,20 @@
 .kova-channel-peer.is-connecting { opacity: 0.7; cursor: default; }
 .kova-channel-peer.is-connecting small { margin-left: auto; font-size: 11px; color: var(--c-pewter); animation: kova-console-fade 1.2s ease-in-out infinite alternate; }
 @keyframes kova-console-fade { from { opacity: 0.45; } to { opacity: 1; } }
+
+/* Unread & mention indicators */
+.kova-rail-space { position: relative; }
+.kova-rail-unread {
+  position: absolute; left: -9px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
+  border-radius: 50%; background: var(--c-mirror);
+}
+.kova-rail-mentions {
+  position: absolute; right: -4px; bottom: -4px; min-width: 18px; height: 18px; padding: 0 5px;
+  display: grid; place-items: center; border-radius: 999px; font-size: 10px; font-weight: 800; line-height: 1;
+  color: #fff; background: #d64545; box-shadow: 0 0 0 3px var(--c-obsidian);
+}
+.kova-channel-badge {
+  margin-left: auto; min-width: 20px; padding: 2px 7px; border-radius: 999px; text-align: center;
+  font-size: 11px; font-weight: 800; color: #0a0a0b; background: #c2c4c8;
+}
+.kova-channel-badge.is-mention { color: #fff; background: #d64545; }

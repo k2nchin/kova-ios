@@ -346,3 +346,38 @@ test('mensajes: fijar solo con permiso y respuestas con cita', async () => {
   assert.equal(pinned.edited, true);
   assert.equal(history.find((m) => m.id === reply.body.id).replyTo.authorName.length > 0, true);
 });
+
+test('no leídos, menciones, búsqueda e historial paginado', async () => {
+  const owner = await register('lectora');
+  const guest = await register('escritor');
+  const space = await createSpace(owner, guest);
+  const channel = space.channels.find((c) => c.type !== 'voice');
+  const ownerName = (await call('GET', '/auth/me', undefined, owner.token)).body.username;
+
+  await call('PUT', `/channels/${channel.id}/read`, undefined, owner.token);
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  await call('POST', `/channels/${channel.id}/messages`, { content: 'hola a todos' }, guest.token);
+  await call('POST', `/channels/${channel.id}/messages`, { content: `oye @${ownerName} mira esto 50% gratis` }, guest.token);
+  await call('POST', `/channels/${channel.id}/messages`, { content: 'mi propio mensaje' }, owner.token);
+
+  const unread = (await call('GET', '/unread', undefined, owner.token)).body[channel.id];
+  assert.deepEqual(unread, { unread: 2, mentions: 1 }, 'los propios no cuentan');
+  await call('PUT', `/channels/${channel.id}/read`, undefined, owner.token);
+  assert.equal((await call('GET', '/unread', undefined, owner.token)).body[channel.id], undefined);
+
+  // Search: literal %, author filter, outsiders blocked.
+  const found = (await call('GET', `/servers/${space.id}/search?q=${encodeURIComponent('50%')}`, undefined, owner.token)).body;
+  assert.equal(found.length, 1);
+  assert.equal(found[0].channelName, channel.name);
+  assert.equal((await call('GET', `/servers/${space.id}/search?author=${guest.id}`, undefined, owner.token)).body.length, 2);
+  const stranger = await register('ajeno');
+  assert.equal((await call('GET', `/servers/${space.id}/search?q=hola`, undefined, stranger.token)).status, 404);
+
+  // History pages back with ?before=
+  for (let i = 0; i < 5; i += 1) await call('POST', `/channels/${channel.id}/messages`, { content: `relleno ${i}` }, guest.token);
+  const latest = (await call('GET', `/channels/${channel.id}/messages?limit=3`, undefined, owner.token)).body;
+  assert.equal(latest.length, 3);
+  const older = (await call('GET', `/channels/${channel.id}/messages?limit=50&before=${latest[0].id}`, undefined, owner.token)).body;
+  assert.equal(older.length, 5);
+  assert.ok(older.every((m) => !latest.some((l) => l.id === m.id)));
+});

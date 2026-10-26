@@ -181,8 +181,18 @@ export const api = {
   deleteCategory: (categoryId: string) => request<{ ok: boolean }>(`/categories/${encodeURIComponent(categoryId)}`, { method: 'DELETE' }),
 
   // Messages
-  getMessages: (channelId: string, limit = 50) =>
-    request<any[]>(`/channels/${channelId}/messages?limit=${limit}`, { method: 'GET' }),
+  getMessages: (channelId: string, limit = 50, before?: string) =>
+    request<any[]>(`/channels/${channelId}/messages?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}`, { method: 'GET' }),
+  markChannelRead: (channelId: string) => request<{ channelId: string; lastReadAt: string }>(`/channels/${encodeURIComponent(channelId)}/read`, { method: 'PUT' }),
+  getUnread: () => request<Record<string, { unread: number; mentions: number }>>('/unread', { method: 'GET' }),
+  searchMessages: (serverId: string, params: { q?: string; author?: string; channel?: string; hasFile?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params.q) query.set('q', params.q);
+    if (params.author) query.set('author', params.author);
+    if (params.channel) query.set('channel', params.channel);
+    if (params.hasFile) query.set('has', 'file');
+    return request<Array<{ id: string; channelId: string; channelName: string; content: string; hasAttachments: boolean; createdAt: string; author: { id: string; username: string; displayName: string; avatar: string; verified: boolean } }>>(`/servers/${encodeURIComponent(serverId)}/search?${query}`, { method: 'GET' });
+  },
   sendMessage: (channelId: string, data: { content: string; replyToId?: string; attachments?: Array<{ id: string; url: string; name: string; type: string; size: string }> }) =>
     request<any>(`/channels/${channelId}/messages`, { method: 'POST', data }),
   updateMessage: (messageId: string, content: string) =>

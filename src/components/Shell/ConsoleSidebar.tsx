@@ -56,6 +56,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
     isInVoice,
     activeVoiceChannelId,
     voicePeers,
+    unreadByChannel,
     connectingVoiceChannelId,
     setActiveServerId,
     setActiveChannelId,
@@ -131,6 +132,10 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
         <div className="kova-rail-spaces custom-scrollbar">
           {servers.map((server) => {
             const active = !isDMViewActive && activeServer?.id === server.id;
+            // A dot for unread messages, a number for @mentions (like Discord).
+            const counts = server.channels.map((channel) => unreadByChannel[channel.id]).filter(Boolean);
+            const spaceMentions = counts.reduce((sum, count) => sum + (count?.mentions || 0), 0);
+            const spaceUnread = counts.some((count) => (count?.unread || 0) > 0);
             return (
               <button
                 type="button"
@@ -141,6 +146,8 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                 aria-current={active ? 'true' : undefined}
               >
                 {server.icon ? <img src={server.icon} alt="" /> : <span>{monogram(server.name)}</span>}
+                {!active && spaceUnread && !spaceMentions && <i className="kova-rail-unread" aria-label="Mensajes sin leer" />}
+                {spaceMentions > 0 && <b className="kova-rail-mentions" aria-label={`${spaceMentions} menciones`}>{spaceMentions > 99 ? '99+' : spaceMentions}</b>}
               </button>
             );
           })}
@@ -216,7 +223,11 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
                     >
                       <Icon size={16} />
                       <span className="kova-channel-name">{cleanName(channel.name)}</span>
-                      {channel.unreadCount ? <b className="kova-channel-badge">{channel.unreadCount}</b> : null}
+                      {unreadByChannel[channel.id]?.mentions ? (
+                        <b className="kova-channel-badge is-mention" aria-label="Te mencionaron">@{unreadByChannel[channel.id].mentions}</b>
+                      ) : unreadByChannel[channel.id]?.unread ? (
+                        <b className="kova-channel-badge" aria-label="Mensajes sin leer">{unreadByChannel[channel.id].unread > 99 ? '99+' : unreadByChannel[channel.id].unread}</b>
+                      ) : null}
                     </button>
                     {channel.type === 'voice' && connectingVoiceChannelId === channel.id && !isLive && (
                       <ul className="kova-channel-peers" aria-live="polite">

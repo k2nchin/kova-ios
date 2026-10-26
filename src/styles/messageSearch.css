@@ -1,0 +1,40 @@
+/* Message search panel. */
+.kms-overlay {
+  position: fixed; inset: 0; z-index: 95; display: flex; justify-content: center; align-items: flex-start;
+  padding: 72px 16px 16px; background: rgba(5, 5, 6, 0.6); font-family: "Plus Jakarta Sans", sans-serif;
+}
+.kms {
+  display: flex; flex-direction: column; width: min(680px, 100%); max-height: calc(100dvh - 100px); overflow: hidden;
+  border-radius: 18px; border: 1px solid rgba(194, 196, 200, 0.16); background: #0f1011; color: #c2c4c8;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+}
+.kms button, .kms select, .kms input { font: inherit; }
+.kms-head { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 18px; border-bottom: 1px solid rgba(194, 196, 200, 0.1); color: #8b8d91; }
+.kms-head input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: #f4f5f7; font-size: 16px; }
+.kms-close { display: grid; place-items: center; width: 32px; height: 32px; min-height: 0 !important; border: 0; border-radius: 9px; background: none; color: #8b8d91; cursor: pointer; }
+.kms-close:hover { color: #f4f5f7; background: rgba(194, 196, 200, 0.08); }
+.kms-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px; border-bottom: 1px solid rgba(194, 196, 200, 0.08); }
+.kms-filters button, .kms-filters select {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; min-height: 0 !important;
+  border-radius: 999px; border: 1px solid rgba(194, 196, 200, 0.16); background: none; color: #b4b6ba; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.kms-filters select { background: #141516; outline: none; }
+.kms-filters button.is-on { color: #0a0a0b; border-color: transparent; background: linear-gradient(180deg, #ffffff, #b8babe); }
+.kms-results { flex: 1; overflow-y: auto; padding: 6px; }
+.kms-empty { margin: 0; padding: 28px 16px; text-align: center; font-size: 14px; color: #8b8d91; }
+.kms-result {
+  display: flex; gap: 10px; width: 100%; padding: 10px 12px; min-height: 0 !important; text-align: left;
+  border: 0; border-radius: 12px; background: none; color: inherit; cursor: pointer;
+}
+.kms-result:hover { background: rgba(194, 196, 200, 0.07); }
+.kms-result .kova-avatar { border-radius: 50% !important; flex-shrink: 0; }
+.kms-body { min-width: 0; display: grid; gap: 3px; }
+.kms-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: #8b8d91; }
+.kms-meta strong { color: #f4f5f7; font-size: 14px; }
+.kms-meta em { font-style: normal; }
+.kms-text { font-size: 14px; line-height: 1.45; color: #d8d9dc; overflow-wrap: anywhere; }
+.kms-text mark { padding: 0 2px; border-radius: 4px; color: #0a0a0b; background: #e8e9eb; }
+@media (max-width: 767px) {
+  .kms-overlay { padding: 0; align-items: stretch; }
+  .kms { width: 100%; max-height: none; border-radius: 0; border: 0; }
+}
