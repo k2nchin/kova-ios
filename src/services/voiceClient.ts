@@ -1,6 +1,6 @@
 // Real voice transport for Kova: a thin wrapper over a LiveKit room.
 // The backend (/api/voice/token) decides who may join; LiveKit carries the audio.
-import { Room, RoomEvent, Track, VideoPresets, type Participant, type RemoteTrack } from 'livekit-client';
+import { LocalVideoTrack, Room, RoomEvent, Track, VideoPresets, type Participant, type RemoteTrack } from 'livekit-client';
 
 export interface VoicePeer {
   id: string;
@@ -17,8 +17,11 @@ export interface VoicePeer {
 export interface VoiceSession {
   setMicrophoneEnabled: (enabled: boolean) => Promise<void>;
   setDeafened: (deafened: boolean) => void;
-  /** Publish or stop the camera. Resolves to the final state. */
-  setCameraEnabled: (enabled: boolean) => Promise<boolean>;
+  /** Publish or stop the camera (optionally a specific device). Resolves to the final state. */
+  setCameraEnabled: (enabled: boolean, deviceId?: string) => Promise<boolean>;
+  /** Publish a ready-made screen track (desktop native capture); stopping it unpublishes. */
+  publishScreenTrack: (track: MediaStreamTrack) => Promise<void>;
+  unpublishScreenTrack: () => Promise<void>;
   /** Publish or stop a screen share (the browser asks what to share). */
   setScreenShareEnabled: (enabled: boolean) => Promise<boolean>;
   disconnect: () => Promise<void>;
@@ -142,10 +145,20 @@ export async function connectVoice(options: ConnectOptions): Promise<VoiceSessio
         element.muted = value;
       });
     },
-    setCameraEnabled: async (enabled) => {
-      await room.localParticipant.setCameraEnabled(enabled);
+    setCameraEnabled: async (enabled, deviceId) => {
+      await room.localParticipant.setCameraEnabled(enabled, deviceId ? { deviceId: { exact: deviceId } } : undefined);
       emitPeers();
       return room.localParticipant.isCameraEnabled;
+    },
+    publishScreenTrack: async (mediaTrack) => {
+      const track = new LocalVideoTrack(mediaTrack, undefined, true);
+      await room.localParticipant.publishTrack(track, { source: Track.Source.ScreenShare, simulcast: false });
+      emitPeers();
+    },
+    unpublishScreenTrack: async () => {
+      const publication = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+      if (publication?.track) await room.localParticipant.unpublishTrack(publication.track as LocalVideoTrack, true);
+      emitPeers();
     },
     setScreenShareEnabled: async (enabled) => {
       await room.localParticipant.setScreenShareEnabled(enabled, { audio: true, selfBrowserSurface: 'exclude' });

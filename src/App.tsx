@@ -12,6 +12,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { isDesktopApp, isTauriApp } from './utils/platform';
 import { startAutoUpdates, checkAtLaunch, type LaunchUpdateState } from './services/updateService';
 import { DesktopSplash } from './components/Brand/DesktopSplash';
+import { ScreenSharePicker, CameraPicker } from './components/VoiceRoom/MediaPickers';
 
 // Heavy app views are split into on-demand chunks: landing visitors never
 // download the chat workspace, and desktop keeps its instant local load.
@@ -332,6 +333,8 @@ export const MainLayout: React.FC = () => {
       </Suspense>
       <Suspense fallback={null}>
         {isCreateServerOpen && <CreateServerModal />}
+        <ScreenSharePicker />
+        <CameraPicker />
         {isCreateChannelOpen && <CreateChannelModal />}
         {isCreateCategoryOpen && <CreateCategoryModal />}
         {isSettingsOpen && <SettingsModal />}

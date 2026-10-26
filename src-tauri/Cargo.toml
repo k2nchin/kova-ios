@@ -1,6 +1,6 @@
 [package]
 name = "kova"
-version = "1.0.20"
+version = "1.0.21"
 description = "Kova — espacios de voz, mensajes y señales"
 authors = ["Kova"]
 license = "LicenseRef-Proprietary"
@@ -37,3 +37,9 @@ tauri-plugin-single-instance = { version = "2.4.4", features = ["deep-link"] }
 xcap = { version = "0.9.8", features = ["image"] }
 image = { version = "0.25.8", default-features = false, features = ["jpeg"] }
 base64 = "0.22.1"
+
+[target.'cfg(windows)'.dependencies]
+# Same versions Tauri uses: lets Kova grant camera/mic to its own window
+# without the browser-style permission prompt.
+webview2-com = "0.38"
+windows = "0.61"

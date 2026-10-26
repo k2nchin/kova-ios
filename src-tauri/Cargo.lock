@@ -2643,7 +2643,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kova"
-version = "1.0.20"
+version = "1.0.21"
 dependencies = [
  "base64 0.22.1",
  "image",
@@ -2662,6 +2662,8 @@ dependencies = [
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
  "url",
+ "webview2-com",
+ "windows 0.61.3",
  "xcap",
 ]
 

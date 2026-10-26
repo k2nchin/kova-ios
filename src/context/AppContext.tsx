@@ -21,6 +21,7 @@ import { INITIAL_NOTES, CURRENT_USER } from '../data/defaults';
 import { buildSpaceStructure, type SpaceTemplateId } from '../data/spaceTemplates';
 import { soundFx } from '../utils/soundEffects';
 import { playJoinSound } from '../utils/voiceSounds';
+import { startNativeCapture, type ShareQuality } from '../services/screenCapture';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
@@ -134,6 +135,12 @@ interface AppContextType {
   toggleDeafen: () => void;
   toggleCamera: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
+  isCameraPickerOpen: boolean;
+  setIsCameraPickerOpen: (open: boolean) => void;
+  startCamera: (deviceId?: string) => Promise<boolean>;
+  isScreenPickerOpen: boolean;
+  setIsScreenPickerOpen: (open: boolean) => void;
+  startScreenShare: (sourceId: string, quality: ShareQuality) => Promise<boolean>;
   // Push-to-talk (desktop)
   pushToTalkEnabled: boolean;
   pushToTalkKey: string;
@@ -1942,6 +1949,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const leaveVoiceChannel = () => {
     soundFx.playLeaveVoice();
+    nativeShareRef.current?.stop();
+    nativeShareRef.current = null;
     void voiceSessionRef.current?.disconnect();
     voiceSessionRef.current = null;
     knownPeerIdsRef.current = new Set();
@@ -2060,32 +2069,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Camera and screen go through LiveKit so everyone in the room sees them.
+  // Turning them on opens Kova's own pickers (like Discord), never the browser's.
+  const [isCameraPickerOpen, setIsCameraPickerOpen] = useState(false);
+  const [isScreenPickerOpen, setIsScreenPickerOpen] = useState(false);
+  const nativeShareRef = useRef<{ stop: () => void } | null>(null);
+
+  const stopNativeShare = () => {
+    nativeShareRef.current?.stop();
+    nativeShareRef.current = null;
+  };
+
   const toggleCamera = async () => {
     const session = voiceSessionRef.current;
     if (!session) { toast.error('Entra a una sala de voz para encender la cámara.'); return; }
+    if (!currentUser.isCameraOn) { setIsCameraPickerOpen(true); return; }
+    try { await session.setCameraEnabled(false); } catch { /* already off */ }
+    setCurrentUser((prev) => ({ ...prev, isCameraOn: false }));
+  };
+
+  const startCamera = async (deviceId?: string) => {
+    const session = voiceSessionRef.current;
+    if (!session) { toast.error('Entra a una sala de voz para encender la cámara.'); return false; }
     try {
-      const on = await session.setCameraEnabled(!currentUser.isCameraOn);
+      const on = await session.setCameraEnabled(true, deviceId);
       setCurrentUser((prev) => ({ ...prev, isCameraOn: on }));
+      return on;
     } catch (error) {
       setCurrentUser((prev) => ({ ...prev, isCameraOn: false }));
       toast.error(/denied|NotAllowed/i.test(String(error)) ? 'Kova no tiene permiso para usar la cámara.' : 'No se pudo encender la cámara.');
+      return false;
     }
   };
 
   const toggleScreenShare = async () => {
     const session = voiceSessionRef.current;
     if (!session) { toast.error('Entra a una sala de voz para compartir pantalla.'); return; }
-    if (!currentUser.isScreenSharing && !navigator.mediaDevices?.getDisplayMedia) {
-      toast.error('Este dispositivo no permite compartir pantalla.');
+    if (currentUser.isScreenSharing) {
+      if (nativeShareRef.current) {
+        stopNativeShare();
+        await session.unpublishScreenTrack().catch(() => undefined);
+      } else {
+        await session.setScreenShareEnabled(false).catch(() => undefined);
+      }
+      setCurrentUser((prev) => ({ ...prev, isScreenSharing: false }));
       return;
     }
+    if (isDesktopApp()) { setIsScreenPickerOpen(true); return; }
+    // Web: the browser has its own picker and nothing can replace it there.
+    if (!navigator.mediaDevices?.getDisplayMedia) { toast.error('Este dispositivo no permite compartir pantalla.'); return; }
     try {
-      const on = await session.setScreenShareEnabled(!currentUser.isScreenSharing);
+      const on = await session.setScreenShareEnabled(true);
       setCurrentUser((prev) => ({ ...prev, isScreenSharing: on }));
     } catch (error) {
       setCurrentUser((prev) => ({ ...prev, isScreenSharing: false }));
-      // Cancelling the browser's picker is not an error worth shouting about.
       if (!/NotAllowed|AbortError|Permission denied/i.test(String(error))) toast.error('No se pudo compartir la pantalla.');
+    }
+  };
+
+  /** Desktop: share the window/screen chosen in Kova's picker. */
+  const startScreenShare = async (sourceId: string, quality: ShareQuality) => {
+    const session = voiceSessionRef.current;
+    if (!session) return false;
+    try {
+      stopNativeShare();
+      const capture = await startNativeCapture(sourceId, quality, () => {
+        nativeShareRef.current = null;
+        void session.unpublishScreenTrack().catch(() => undefined);
+        setCurrentUser((prev) => ({ ...prev, isScreenSharing: false }));
+        toast.info('Se dejó de compartir: la ventana ya no está disponible.');
+      });
+      nativeShareRef.current = capture;
+      await session.publishScreenTrack(capture.track);
+      setCurrentUser((prev) => ({ ...prev, isScreenSharing: true }));
+      return true;
+    } catch (error) {
+      stopNativeShare();
+      toast.error(error instanceof Error ? error.message : 'No se pudo compartir la pantalla.');
+      return false;
     }
   };
 
@@ -3119,6 +3179,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSpaceNickname,
         removeFromSpace,
         connectingVoiceChannelId,
+        isCameraPickerOpen,
+        setIsCameraPickerOpen,
+        startCamera,
+        isScreenPickerOpen,
+        setIsScreenPickerOpen,
+        startScreenShare,
         refreshServers,
         createChannel,
         deleteServer,
