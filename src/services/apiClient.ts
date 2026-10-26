@@ -15,7 +15,15 @@ const fetchApi = async (endpoint: string, config: RequestInit): Promise<Response
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), PRIMARY_TIMEOUT_MS);
   try {
-    return await fetch(`${activeApiBase}${endpoint}`, { ...config, signal: controller.signal });
+    const res = await fetch(`${activeApiBase}${endpoint}`, { ...config, signal: controller.signal });
+    // Vercel's bot checkpoint answers 403 with an HTML challenge the app can't solve:
+    // the request never reached Kova, so it's safe to send it to Render instead.
+    if (res.status === 403 && (res.headers.get('x-vercel-mitigated') || (res.headers.get('content-type') || '').includes('text/html'))) {
+      console.warn('[Kova API] Vercel bloqueó la petición; usando el servidor de reserva.');
+      activeApiBase = FALLBACK_API_URL;
+      return fetch(`${activeApiBase}${endpoint}`, config);
+    }
+    return res;
   } catch (error) {
     const timedOut = controller.signal.aborted;
     const isRead = !config.method || config.method === 'GET';

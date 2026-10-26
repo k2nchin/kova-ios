@@ -42,8 +42,11 @@ export async function startNativeCapture(sourceId: string, quality: ShareQuality
   if (!context) throw new Error('No se pudo preparar la captura.');
 
   const drawFrame = async () => {
-    const bytes = await invoke<ArrayBuffer>('capture_source_frame', { id: sourceId, maxWidth: quality.maxWidth, jpegQuality: quality.jpeg });
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }));
+    const raw = await invoke<ArrayBuffer | number[] | Uint8Array>('capture_source_frame', { id: sourceId, maxWidth: quality.maxWidth, jpegQuality: quality.jpeg });
+    // Some WebView IPC paths hand binary back as a plain number array.
+    const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw instanceof Uint8Array ? raw : Uint8Array.from(raw);
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new Error('No llegó una imagen válida de la pantalla.');
+    const bitmap = await createImageBitmap(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' }));
     if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
       canvas.width = bitmap.width;
       canvas.height = bitmap.height;
@@ -52,7 +55,13 @@ export async function startNativeCapture(sourceId: string, quality: ShareQuality
     bitmap.close();
   };
 
-  await drawFrame(); // fails fast if the source is gone
+  // Fails fast if the source is gone; a couple of retries cover a window that is still drawing.
+  for (let attempt = 0; ; attempt += 1) {
+    try { await drawFrame(); break; } catch (error) {
+      if (attempt >= 2) throw new Error(`No se pudo capturar esa pantalla o ventana. Prueba con otra o vuelve a abrirla. (${error instanceof Error ? error.message : 'error'})`);
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+    }
+  }
   const stream = canvas.captureStream(quality.fps);
   const [track] = stream.getVideoTracks();
   track.contentHint = quality.hint;
