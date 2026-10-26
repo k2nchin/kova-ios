@@ -70,6 +70,8 @@ before(async () => {
       KOVA_DATA_DIR: dataDir,
       KOVA_ENCRYPTION_KEY: 'test-encryption-key',
       KOVA_AUTH_RATE_LIMIT: '1000',
+      KOVA_JOBS_INTERVAL_MS: '300',
+      KOVA_SCHEDULE_MIN_AHEAD_MS: '0',
       GEMINI_API_KEY: 'test-gemini-key',
       GEMINI_API_BASE: `http://localhost:${geminiPort}`,
       KOVA_REALTIME_SECRET: 'relay-test-secret',
@@ -430,4 +432,61 @@ test('hilos y notas: guardados y visibles para el espacio', async () => {
   assert.equal(notes[0].content, 'Respeto y buen humor', 'cualquier miembro puede editar');
   assert.equal((await call('DELETE', `/notes/${note.id}`, undefined, guest.token)).status, 403, 'borrar: autor o moderador');
   assert.equal((await call('DELETE', `/notes/${note.id}`, undefined, owner.token)).status, 200);
+});
+
+test('¿qué me perdí?: resumen con IA solo para miembros', async () => {
+  const owner = await register('resumen');
+  const stranger = await register('curioso');
+  const space = await createSpace(owner);
+  const channel = space.channels.find((c) => c.type !== 'voice');
+  assert.equal((await call('POST', `/channels/${channel.id}/catchup`, { count: 10 }, owner.token)).status, 400, 'sin mensajes no hay resumen');
+  for (const text of ['Quedamos el viernes', 'Yo llevo la pizza', 'Perfecto']) await call('POST', `/channels/${channel.id}/messages`, { content: text }, owner.token);
+  assert.equal((await call('POST', `/channels/${channel.id}/catchup`, { count: 10 }, stranger.token)).status, 404);
+  const summary = await call('POST', `/channels/${channel.id}/catchup`, { count: 10 }, owner.token);
+  assert.equal(summary.status, 200);
+  assert.equal(summary.body.count, 3);
+  assert.ok(summary.body.summary.length > 0);
+});
+
+test('mensajes guardados: personales y solo de espacios accesibles', async () => {
+  const owner = await register('guarda');
+  const guest = await register('guardado');
+  const space = await createSpace(owner, guest);
+  const channel = space.channels.find((c) => c.type !== 'voice');
+  const message = (await call('POST', `/channels/${channel.id}/messages`, { content: 'Link importante' }, owner.token)).body;
+  assert.equal((await call('PUT', `/messages/${message.id}/save`, undefined, guest.token)).status, 200);
+  let saved = (await call('GET', '/saved', undefined, guest.token)).body;
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].channelName, channel.name);
+  assert.equal((await call('GET', '/saved', undefined, owner.token)).body.length, 0, 'es personal');
+  // Leaving the space hides it.
+  await call('DELETE', `/servers/${space.id}/members/${guest.id}`, undefined, guest.token);
+  saved = (await call('GET', '/saved', undefined, guest.token)).body;
+  assert.equal(saved.length, 0);
+});
+
+test('mensajes programados y recordatorios: se envían a su hora', async () => {
+  const owner = await register('programa');
+  const space = await createSpace(owner);
+  const channel = space.channels.find((c) => c.type !== 'voice');
+  const soon = new Date(Date.now() + 600).toISOString();
+  assert.equal((await call('POST', `/channels/${channel.id}/scheduled`, { content: 'hola', sendAt: '2000-01-01T00:00:00Z' }, owner.token)).status, 400, 'no al pasado');
+  const scheduled = await call('POST', `/channels/${channel.id}/scheduled`, { content: 'Mensaje programado', sendAt: soon }, owner.token);
+  assert.equal(scheduled.status, 201);
+  const cancel = await call('POST', `/channels/${channel.id}/scheduled`, { content: 'Este se cancela', sendAt: new Date(Date.now() + 60_000).toISOString() }, owner.token);
+  assert.equal((await call('GET', '/scheduled', undefined, owner.token)).body.length, 2);
+  await call('DELETE', `/scheduled/${cancel.body.id}`, undefined, owner.token);
+
+  const message = (await call('POST', `/channels/${channel.id}/messages`, { content: 'Revisar el presupuesto' }, owner.token)).body;
+  assert.equal((await call('POST', '/reminders', { messageId: message.id, remindAt: soon }, owner.token)).status, 201);
+
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+  const history = (await call('GET', `/channels/${channel.id}/messages`, undefined, owner.token)).body;
+  assert.ok(history.some((m) => m.content === 'Mensaje programado'), 'se publicó solo');
+  assert.ok(!history.some((m) => m.content === 'Este se cancela'));
+  assert.equal((await call('GET', '/scheduled', undefined, owner.token)).body.length, 0);
+  const due = (await call('GET', '/reminders?due=1', undefined, owner.token)).body;
+  assert.equal(due.length, 1);
+  assert.equal(due[0].note, 'Revisar el presupuesto');
+  assert.equal((await call('GET', '/reminders?due=1', undefined, owner.token)).body.length, 0, 'se muestra una vez');
 });

@@ -12,6 +12,7 @@ import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcas
 import { askKovaAI, AiError } from './ai.mjs';
 import { createVoiceToken, VoiceError, voiceOccupancy, forgetVoiceOccupancy } from './voice.mjs';
 import { contentSchema, contentUserColumns, handleContentRoute } from './content.mjs';
+import { schedulingSchema, handleSchedulingRoutes, runDueJobs } from './scheduling.mjs';
 import { threadsSchema, handleThreadRoutes, threadCounts } from './threads.mjs';
 import { activitySchema, handleActivityRoutes, mentionedUserIds } from './activity.mjs';
 import { spacesSchema, handleSpaceRoutes, can, rolesOf, memberRoleMap, ensureRoles, spaceAudience, deleteSpaceExtras } from './spaces.mjs';
@@ -82,6 +83,7 @@ await db.exec(contentSchema);
 await db.exec(spacesSchema);
 await db.exec(activitySchema);
 await db.exec(threadsSchema);
+await db.exec(schedulingSchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -139,6 +141,21 @@ const replyPreview = async (replyToId) => {
 const notifyVoice = async (spaceId) => {
   const audience = await spaceAudience(db, spaceId);
   if (audience.length) await emitToUsers(audience, 'voice:changed', { serverId: spaceId });
+};
+// Stores a channel message and tells everyone: the live message, unread
+// badges and @mentions. Used by the send route and by scheduled messages.
+const deliverMessage = async ({ channelId, spaceId, authorId, content, replyToId = null, attachments = [] }) => {
+  const id = `message_${crypto.randomUUID()}`;
+  const createdAt = new Date().toISOString();
+  await db.prepare('INSERT INTO messages (id, signal_id, author_id, content, reply_to_id, attachments, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, channelId, authorId, content, replyToId, JSON.stringify(attachments), createdAt);
+  const author = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(authorId));
+  const created = { id, channelId, author: publicUser(author), content, replyToId: replyToId || undefined, replyTo: await replyPreview(replyToId), attachments, createdAt, reactions: [] };
+  await emitToChannel(channelId, 'message:created', created);
+  const owner = await db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(spaceId);
+  const mentions = await mentionedUserIds(db, spaceId, owner?.owner_id, content);
+  const audience = await spaceAudience(db, spaceId);
+  void emitToUsers(audience, 'channel:activity', { channelId, spaceId, messageId: id, authorId, authorName: author.displayName, preview: content.slice(0, 120), mentions });
+  return created;
 };
 // Tells everyone in a space that something changed; clients refetch it.
 const notifySpace = async (spaceId, kind) => {
@@ -453,8 +470,9 @@ const handleRequest = async (req, res) => {
       throw error;
     }
   }
+  if (await handleSchedulingRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace })) return;
   if (await handleThreadRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, can, publicUser, userFromRow, emitToChannel })) return;
-  if (await handleActivityRoutes({ db, req, res, requestPath, session, send, canAccessSpace, isVerifiedEmail })) return;
+  if (await handleActivityRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, isVerifiedEmail, askKovaAI, AiError })) return;
   if (await handleSpaceRoutes({ db, req, res, requestPath, session, send, readBody, notifySpace, emitToUsers })) return;
   if (await handleContentRoute({ req, res, requestPath, session, db, send, readBody, userFromRow, publicUser, canAccessSpace })) return;
   if (requestPath === '/api/voice/token' && req.method === 'POST') {
@@ -817,17 +835,7 @@ const handleRequest = async (req, res) => {
     if (content.length > 10_000) return send(res, 413, { message: 'El mensaje supera el límite de 10 000 caracteres.' });
     const replyToId = String(body.replyToId || '').trim() || null;
     if (replyToId && !await db.prepare('SELECT id FROM messages WHERE id = ? AND signal_id = ?').get(replyToId, channelId)) return send(res, 400, { message: 'El mensaje al que respondes ya no existe.' });
-    const id = `message_${crypto.randomUUID()}`;
-    const createdAt = new Date().toISOString();
-    await db.prepare('INSERT INTO messages (id, signal_id, author_id, content, reply_to_id, attachments, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, channelId, session.user_id, content, replyToId, JSON.stringify(attachments), createdAt);
-    const author = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
-    const created = { id, channelId, author: publicUser(author), content, replyToId: replyToId || undefined, replyTo: await replyPreview(replyToId), attachments, createdAt, reactions: [] };
-    await emitToChannel(channelId, 'message:created', created);
-    // Badges for people not looking at this channel, plus who was @mentioned.
-    const owner = await db.prepare('SELECT owner_id FROM spaces WHERE id = ?').get(channel.space_id);
-    const mentions = await mentionedUserIds(db, channel.space_id, owner?.owner_id, content);
-    const audience = await spaceAudience(db, channel.space_id);
-    void emitToUsers(audience, 'channel:activity', { channelId, spaceId: channel.space_id, messageId: id, authorId: session.user_id, authorName: author.displayName, preview: content.slice(0, 120), mentions });
+    const created = await deliverMessage({ channelId, spaceId: channel.space_id, authorId: session.user_id, content, replyToId, attachments });
     return send(res, 201, created);
   }
   const messageReactionMatch = requestPath.match(/^\/api\/messages\/([^/]+)\/reactions$/);
@@ -993,6 +1001,10 @@ if (!process.env.VERCEL) {
   const allowedOrigins = String(process.env.KOVA_SOCKET_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
   await attachRealtime(server, { db, canAccessSpace, allowedOrigins });
   server.listen(port, () => console.log(`Kova API listening on http://localhost:${port}`));
+  // Long-running host only (Render / local): send scheduled messages and reminders.
+  const tick = () => runDueJobs({ db, canAccessSpace, deliverMessage, emitToUsers }).catch((error) => console.error('[Kova scheduling]', error?.message || error));
+  setInterval(tick, Number(process.env.KOVA_JOBS_INTERVAL_MS) || 30_000);
+  void tick();
   // Hosts stop containers with SIGTERM: finish in-flight requests, then exit.
   const shutdown = () => {
     console.log('Kova API shutting down');

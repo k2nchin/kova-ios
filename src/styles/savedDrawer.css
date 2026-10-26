@@ -1,0 +1,33 @@
+/* Saved & pinned messages drawer. */
+.ksd-overlay { position: fixed; inset: 0; z-index: 90; display: flex; justify-content: flex-end; background: rgba(5, 5, 6, 0.55); font-family: "Plus Jakarta Sans", sans-serif; }
+.ksd {
+  display: flex; flex-direction: column; width: min(420px, 100%); height: 100%;
+  border-left: 1px solid rgba(194, 196, 200, 0.14); background: #0f1011; color: #c2c4c8; box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
+}
+.ksd button, .ksd input { font: inherit; }
+.ksd-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 14px 10px 18px; }
+.ksd-head h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 18px/1.2 "Outfit", sans-serif; color: #f4f5f7; }
+.ksd-close { display: grid; place-items: center; width: 32px; height: 32px; min-height: 0 !important; border: 0; border-radius: 9px; background: none; color: #8b8d91; cursor: pointer; }
+.ksd-close:hover { color: #f4f5f7; background: rgba(194, 196, 200, 0.08); }
+.ksd-tabs { display: flex; gap: 6px; padding: 0 18px 10px; }
+.ksd-tabs button {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; min-height: 0 !important; border-radius: 999px;
+  border: 1px solid rgba(194, 196, 200, 0.14); background: none; color: #b4b6ba; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.ksd-tabs button.is-on { color: #0a0a0b; border-color: transparent; background: linear-gradient(180deg, #ffffff, #b8babe); }
+.ksd-search { display: flex; align-items: center; gap: 8px; margin: 0 14px 8px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(194, 196, 200, 0.14); background: #141516; color: #8b8d91; }
+.ksd-search input { flex: 1; min-width: 0; border: 0; outline: none; background: none; color: #f4f5f7; font-size: 13px; }
+.ksd-list { flex: 1; overflow-y: auto; padding: 4px 10px 16px; }
+.ksd-empty { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 30px 16px; text-align: center; font-size: 13px; line-height: 1.5; color: #8b8d91; }
+.ksd-item { display: flex; gap: 10px; padding: 10px; border-radius: 12px; }
+.ksd-item:hover { background: rgba(194, 196, 200, 0.05); }
+.ksd-item .kova-avatar { border-radius: 50% !important; flex-shrink: 0; }
+.ksd-body { min-width: 0; flex: 1; }
+.ksd-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; color: #8b8d91; }
+.ksd-meta strong { font-size: 14px; color: #f4f5f7; }
+.ksd-body p { margin: 4px 0 6px; font-size: 14px; line-height: 1.45; color: #d8d9dc; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ksd-actions { display: flex; gap: 6px; }
+.ksd-actions button { padding: 4px 10px; min-height: 0 !important; border-radius: 999px; border: 1px solid rgba(194, 196, 200, 0.16); background: none; color: #c2c4c8; font-size: 12px; font-weight: 600; cursor: pointer; }
+.ksd-actions button:hover { color: #f4f5f7; background: rgba(194, 196, 200, 0.08); }
+@media (max-width: 767px) { .ksd { width: 100%; border-left: 0; } }
+.ksd-icon { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: #1d1e20; color: #c2c4c8; }

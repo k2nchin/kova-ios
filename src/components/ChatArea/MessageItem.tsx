@@ -15,11 +15,14 @@ import {
   Pencil,
   FileText,
   ChevronRight,
+  Bookmark,
+  AlarmClock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Message } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
+import { WhenPicker } from '../Common/WhenPicker';
 import { VoiceMessagePlayer } from '../Audio/VoiceMessagePlayer';
 import { Avatar } from '../Common/Avatar';
 
@@ -47,6 +50,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
     openUserProfile,
     sendMessage,
     blockedUserIds,
+    savedMessageIds,
+    toggleSaveMessage,
+    remindMe,
   } = useApp();
   const [copiedCode, setCopiedCode] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -57,6 +63,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
   // Touch screens have no hover: tapping a message shows its actions.
   const [showActions, setShowActions] = useState(false);
   const [revealBlocked, setRevealBlocked] = useState(false);
+  const [isRemindOpen, setIsRemindOpen] = useState(false);
   const toggleActionsOnTouch = (event: React.MouseEvent) => {
     if (!window.matchMedia('(hover: none)').matches) return;
     if ((event.target as HTMLElement).closest('a, button, input, textarea, video, audio, img')) return;
@@ -415,7 +422,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
       </div>
 
       {/* 3. Floating Quick Action Toolbar on Hover */}
-      <div className={`absolute top-2 right-3 ${showActions ? 'flex' : 'hidden'} group-hover:flex items-center gap-0.5 bg-[#121520] border border-white/[0.1] rounded-xl p-1 shadow-2xl z-20 backdrop-blur-xl`}>
+      <div className={`absolute top-2 right-3 ${showActions || isRemindOpen ? 'flex' : 'hidden'} group-hover:flex items-center gap-0.5 bg-[#121520] border border-white/[0.1] rounded-xl p-1 shadow-2xl z-20 backdrop-blur-xl`}>
         {/* Emoji picker */}
         <div className="relative">
           <button
@@ -498,6 +505,40 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
             <Pencil className="w-3.5 h-3.5" />
           </button>
         )}
+
+        <span className="relative">
+          <button
+            type="button"
+            onClick={() => setIsRemindOpen((open) => !open)}
+            className="p-1 rounded-lg hover:bg-white/[0.08] transition-colors text-slate-400 hover:text-white"
+            title="Recordármelo más tarde"
+            aria-label="Recordármelo más tarde"
+            aria-expanded={isRemindOpen}
+          >
+            <AlarmClock className="w-3.5 h-3.5" />
+          </button>
+          {isRemindOpen && (
+            <span className="kwp-anchor-down">
+              <WhenPicker
+                quick="short"
+                title="Recordármelo"
+                confirmLabel="Crear recordatorio"
+                onClose={() => setIsRemindOpen(false)}
+                onPick={(when) => { setIsRemindOpen(false); void remindMe(message.id, when); }}
+              />
+            </span>
+          )}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => void toggleSaveMessage(message.id)}
+          className={`p-1 rounded-lg hover:bg-white/[0.08] transition-colors ${savedMessageIds.has(message.id) ? 'text-[#f4f5f7] bg-white/[0.08]' : 'text-slate-400 hover:text-white'}`}
+          title={savedMessageIds.has(message.id) ? 'Quitar de guardados' : 'Guardar para después'}
+          aria-pressed={savedMessageIds.has(message.id)}
+        >
+          <Bookmark className="w-3.5 h-3.5" fill={savedMessageIds.has(message.id) ? 'currentColor' : 'none'} />
+        </button>
 
         <button
           onClick={() => togglePinMessage(message.id)}

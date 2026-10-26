@@ -1,7 +1,7 @@
 // Unread counts, @mentions and message search.
 // A channel's unread count is what arrived after the person last read it.
 
-export const activitySchema = `CREATE TABLE IF NOT EXISTS channel_reads (user_id TEXT NOT NULL, channel_id TEXT NOT NULL, last_read_at TEXT NOT NULL, PRIMARY KEY(user_id, channel_id));`;
+export const activitySchema = `CREATE TABLE IF NOT EXISTS channel_reads (user_id TEXT NOT NULL, channel_id TEXT NOT NULL, last_read_at TEXT NOT NULL, PRIMARY KEY(user_id, channel_id)); CREATE TABLE IF NOT EXISTS saved_messages (user_id TEXT NOT NULL, message_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(user_id, message_id));`;
 
 const MENTION = /@([\p{L}\p{N}_.-]{2,32})/gu;
 
@@ -26,10 +26,12 @@ const mentionsUser = (content, username) => {
  *   GET /api/servers/:id/search?q=&author=&has=file&channel=   message search in a space
  * Returns true when it answered.
  */
-export async function handleActivityRoutes({ db, req, res, requestPath, session, send, canAccessSpace, isVerifiedEmail }) {
+export async function handleActivityRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, isVerifiedEmail, askKovaAI, AiError }) {
   const readMatch = requestPath.match(/^\/api\/channels\/([^/]+)\/read$/);
   const searchMatch = requestPath.match(/^\/api\/servers\/([^/]+)\/search$/);
-  if (!readMatch && requestPath !== '/api/unread' && !searchMatch) return false;
+  const catchupMatch = requestPath.match(/^\/api\/channels\/([^/]+)\/catchup$/);
+  const saveMatch = requestPath.match(/^\/api\/messages\/([^/]+)\/save$/);
+  if (!readMatch && requestPath !== '/api/unread' && !searchMatch && !catchupMatch && !saveMatch && requestPath !== '/api/saved') return false;
   if (!session) { send(res, 401, { message: 'Sesión no válida.' }); return true; }
   const me = session.user_id;
 
@@ -40,6 +42,75 @@ export async function handleActivityRoutes({ db, req, res, requestPath, session,
     const now = new Date().toISOString();
     await db.prepare('INSERT INTO channel_reads (user_id, channel_id, last_read_at) VALUES (?, ?, ?) ON CONFLICT (user_id, channel_id) DO UPDATE SET last_read_at = excluded.last_read_at').run(me, channelId, now);
     send(res, 200, { channelId, lastReadAt: now });
+    return true;
+  }
+
+  // Saved messages: a personal list across all your spaces.
+  if (saveMatch && ['PUT', 'DELETE'].includes(req.method)) {
+    const messageId = decodeURIComponent(saveMatch[1]);
+    const message = await db.prepare('SELECT m.id, s.space_id FROM messages m JOIN signals s ON s.id = m.signal_id WHERE m.id = ?').get(messageId);
+    if (!message || !await canAccessSpace(message.space_id, me)) { send(res, 404, { message: 'No encontramos ese mensaje.' }); return true; }
+    if (req.method === 'PUT') {
+      const total = Number((await db.prepare('SELECT COUNT(*) AS total FROM saved_messages WHERE user_id = ?').get(me))?.total || 0);
+      if (total >= 500) { send(res, 400, { message: 'Has llegado al máximo de 500 mensajes guardados.' }); return true; }
+      await db.prepare('INSERT INTO saved_messages (user_id, message_id, created_at) VALUES (?, ?, ?) ON CONFLICT (user_id, message_id) DO NOTHING').run(me, messageId, new Date().toISOString());
+    } else {
+      await db.prepare('DELETE FROM saved_messages WHERE user_id = ? AND message_id = ?').run(me, messageId);
+    }
+    send(res, 200, { messageId, saved: req.method === 'PUT' });
+    return true;
+  }
+  if (requestPath === '/api/saved' && req.method === 'GET') {
+    // Only messages you can still see (you may have left a space since).
+    const rows = await db.prepare(`
+      SELECT sv.created_at AS saved_at, m.id, m.content, m.created_at, m.signal_id, c.name AS channel_name, c.space_id, sp.name AS space_name,
+             u.id AS author_id, u.username, u.display_name, u.avatar, u.email
+      FROM saved_messages sv
+      JOIN messages m ON m.id = sv.message_id
+      JOIN signals c ON c.id = m.signal_id
+      JOIN spaces sp ON sp.id = c.space_id
+      JOIN users u ON u.id = m.author_id
+      LEFT JOIN space_members sm ON sm.space_id = sp.id AND sm.user_id = ?
+      WHERE sv.user_id = ? AND (sp.owner_id = ? OR sm.user_id IS NOT NULL)
+      ORDER BY sv.created_at DESC LIMIT 500`).all(me, me, me);
+    send(res, 200, rows.map((row) => ({
+      id: row.id, content: row.content, createdAt: row.created_at, savedAt: row.saved_at,
+      channelId: row.signal_id, channelName: row.channel_name, serverId: row.space_id, serverName: row.space_name,
+      author: { id: row.author_id, username: row.username, displayName: row.display_name, avatar: row.avatar, verified: isVerifiedEmail(row.email) },
+    })));
+    return true;
+  }
+
+  // "¿Qué me perdí?": AI summary of the last N messages of a channel.
+  if (catchupMatch && req.method === 'POST') {
+    const channelId = decodeURIComponent(catchupMatch[1]);
+    const channel = await db.prepare('SELECT c.name, c.space_id, s.name AS space_name FROM signals c JOIN spaces s ON s.id = c.space_id WHERE c.id = ?').get(channelId);
+    if (!channel || !await canAccessSpace(channel.space_id, me)) { send(res, 404, { message: 'No encontramos ese canal.' }); return true; }
+    const body = await readBody(req);
+    const count = Math.min(150, Math.max(3, Math.floor(Number(body.count) || 30)));
+    const rows = (await db.prepare('SELECT m.content, m.created_at, u.display_name, u.username FROM messages m JOIN users u ON u.id = m.author_id WHERE m.signal_id = ? ORDER BY m.created_at DESC LIMIT ?').all(channelId, count)).reverse();
+    if (rows.length < 2) { send(res, 400, { message: 'No hay suficientes mensajes para resumir.' }); return true; }
+    const me_ = await db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(me);
+    // Newest lines win when the transcript is too long for the model.
+    let transcript = rows.map((row) => `${row.display_name || row.username}: ${String(row.content || '[archivo]').replace(/\s+/g, ' ').slice(0, 400)}`).join('\n');
+    if (transcript.length > 10_000) transcript = transcript.slice(-10_000);
+    const prompt = `Resume en español lo que pasó en el canal #${channel.name} del espacio "${channel.space_name}" mientras ${me_?.display_name || 'la persona'} (@${me_?.username || ''}) no estaba.
+Formato (Markdown, breve, máximo 8 viñetas en total):
+**En resumen:** una frase.
+**Lo importante:** viñetas con los temas, decisiones o planes.
+**Pendiente para ti:** solo si alguien te mencionó o te preguntó algo; si no, omite esta sección.
+No inventes nada que no esté en los mensajes.
+
+<mensajes>
+${transcript}
+</mensajes>`;
+    try {
+      const { text } = await askKovaAI(me, { prompt });
+      send(res, 200, { summary: text, count: rows.length, from: rows[0].created_at, to: rows[rows.length - 1].created_at });
+    } catch (error) {
+      if (error instanceof AiError) { send(res, error.status, { message: error.message, code: error.code }); return true; }
+      throw error;
+    }
     return true;
   }
 

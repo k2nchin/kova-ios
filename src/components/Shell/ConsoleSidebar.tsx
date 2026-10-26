@@ -57,6 +57,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
     activeVoiceChannelId,
     voicePeers,
     voiceOccupancy,
+    savedMessageIds,
     unreadByChannel,
     preferences,
     connectingVoiceChannelId,
@@ -82,7 +83,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
   const canManageChannels = permissionsIn(activeServer, currentUser.id).has('MANAGE_CHANNELS');
 
   const [query, setQuery] = useState('');
-  const pinnedCount = messages.filter((message) => message.pinned).length;
+  const savedCount = savedMessageIds.size;
   const isPulseActive = layoutMode === 'pulse_feed' && !isDMViewActive;
 
   const sections = useMemo(() => {
@@ -185,7 +186,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
             <Activity size={15} /> Pulse
           </button>
           <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes guardados">
-            <Bookmark size={15} /> Guardado {pinnedCount > 0 && <b>{pinnedCount}</b>}
+            <Bookmark size={15} /> Guardado {savedCount > 0 && <b>{savedCount}</b>}
           </button>
           <button type="button" onClick={() => setIsNotificationsOpen(true)} title="Actividad">
             <Bell size={15} /> {unreadNotificationsCount > 0 && <b>{unreadNotificationsCount}</b>}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Hash,
+  Clock,
   Sparkles,
   Users,
   Search,
@@ -25,6 +26,9 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { MessageSearch } from './MessageSearch';
+import { CatchUpBar } from './CatchUpBar';
+import { WhenPicker } from '../Common/WhenPicker';
+import '../../styles/messageSearch.css';
 import { MessageItem } from './MessageItem';
 import { EmojiGifPicker } from './EmojiGifPicker';
 import { Avatar } from '../Common/Avatar';
@@ -238,6 +242,7 @@ export const ChatArea: React.FC = () => {
     presenceByUser,
     currentUser,
     loadOlderMessages,
+    scheduleMessage,
   } = useApp();
 
   // People here now: you, plus members the realtime gateway reports online.
@@ -254,6 +259,7 @@ export const ChatArea: React.FC = () => {
   const [isChannelMuted, setIsChannelMuted] = useState(false);
   const [isChannelInfoOpen, setIsChannelInfoOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   // Ctrl+F searches messages (the browser's own find bar is disabled).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -607,6 +613,7 @@ export const ChatArea: React.FC = () => {
       </header>
 
       {/* 2. Conversation Scroll Area */}
+      <CatchUpBar />
       <div ref={scrollRef} onScroll={onConversationScroll} className="conversation-scroll flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
 
         {/* Reglas destacadas en canal de reglas */}
@@ -968,6 +975,35 @@ export const ChatArea: React.FC = () => {
                 >
                   <Sparkles size={16} />
                 </button>
+
+                {draft.trim() && !draft.trim().startsWith('/') && pendingAttachments.length === 0 && (
+                  <span className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsScheduleOpen((open) => !open)}
+                      title="Programar envío"
+                      aria-label="Programar envío"
+                      aria-expanded={isScheduleOpen}
+                      className="w-8 h-8 flex items-center justify-center rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    >
+                      <Clock size={16} />
+                    </button>
+                    {isScheduleOpen && (
+                      <span className="kwp-anchor-up">
+                        <WhenPicker
+                          title="Programar envío"
+                          confirmLabel="Programar"
+                          onClose={() => setIsScheduleOpen(false)}
+                          onPick={(when) => {
+                            setIsScheduleOpen(false);
+                            const text = draft.trim();
+                            void scheduleMessage(activeChannel.id, text, when).then((ok) => { if (ok) setDraft(''); });
+                          }}
+                        />
+                      </span>
+                    )}
+                  </span>
+                )}
 
                 <button
                   type="button"

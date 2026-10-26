@@ -183,6 +183,19 @@ export const api = {
   // Messages
   getMessages: (channelId: string, limit = 50, before?: string) =>
     request<any[]>(`/channels/${channelId}/messages?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}`, { method: 'GET' }),
+  catchUpChannel: (channelId: string, count: number) =>
+    request<{ summary: string; count: number; from: string; to: string }>(`/channels/${encodeURIComponent(channelId)}/catchup`, { method: 'POST', data: { count } }),
+  saveMessage: (messageId: string, saved: boolean) =>
+    request<{ messageId: string; saved: boolean }>(`/messages/${encodeURIComponent(messageId)}/save`, { method: saved ? 'PUT' : 'DELETE' }),
+  getSaved: () => request<Array<{ id: string; content: string; createdAt: string; savedAt: string; channelId: string; channelName: string; serverId: string; serverName: string; author: { id: string; username: string; displayName: string; avatar: string; verified: boolean } }>>('/saved', { method: 'GET' }),
+  scheduleMessage: (channelId: string, content: string, sendAt: string) =>
+    request<{ id: string; channelId: string; content: string; sendAt: string }>(`/channels/${encodeURIComponent(channelId)}/scheduled`, { method: 'POST', data: { content, sendAt } }),
+  getScheduled: () => request<Array<{ id: string; channelId: string; channelName: string; serverId: string; serverName: string; content: string; sendAt: string }>>('/scheduled', { method: 'GET' }),
+  cancelScheduled: (id: string) => request<{ ok: true }>(`/scheduled/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  createReminder: (data: { messageId?: string; note?: string; remindAt: string }) => request<{ id: string; remindAt: string }>('/reminders', { method: 'POST', data }),
+  getReminders: () => request<Array<{ id: string; note: string; messageId: string | null; channelId: string | null; remindAt: string }>>('/reminders', { method: 'GET' }),
+  getDueReminders: () => request<Array<{ id: string; note: string; messageId: string | null; channelId: string | null; serverId: string | null; remindAt: string }>>('/reminders?due=1', { method: 'GET' }),
+  cancelReminder: (id: string) => request<{ ok: true }>(`/reminders/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   markChannelRead: (channelId: string) => request<{ channelId: string; lastReadAt: string }>(`/channels/${encodeURIComponent(channelId)}/read`, { method: 'PUT' }),
   getUnread: () => request<Record<string, { unread: number; mentions: number }>>('/unread', { method: 'GET' }),
   searchMessages: (serverId: string, params: { q?: string; author?: string; channel?: string; hasFile?: boolean }) => {

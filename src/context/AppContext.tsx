@@ -236,12 +236,18 @@ interface AppContextType {
   ) => Promise<Server | null>;
   setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
   removeFromSpace: (serverId: string, userId: string, ban?: boolean) => Promise<boolean>;
+  scheduleMessage: (channelId: string, content: string, sendAt: Date) => Promise<boolean>;
+  remindMe: (messageId: string, remindAt: Date) => Promise<void>;
+  savedMessageIds: Set<string>;
+  toggleSaveMessage: (messageId: string) => Promise<void>;
   voiceOccupancy: Record<string, Array<{ id: string; name: string; avatar: string }>>;
   blockedUsers: Array<{ id: string; username: string; displayName: string; avatar: string }>;
   blockedUserIds: Set<string>;
   blockUser: (user: { id: string; username?: string; displayName?: string; avatar?: string }) => Promise<boolean>;
   unblockUser: (userId: string) => Promise<void>;
   unreadByChannel: Record<string, { unread: number; mentions: number }>;
+  catchUpByChannel: Record<string, number>;
+  dismissCatchUp: (channelId: string) => void;
   markChannelRead: (channelId: string) => void;
   loadOlderMessages: (channelId: string) => Promise<number>;
   connectingVoiceChannelId: string | null;
@@ -1650,6 +1656,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => { cancelled = true; window.clearInterval(timer); window.clearTimeout(again); socket.off('voice:changed', onVoice); };
   }, [isAuthenticated, activeServerId]);
 
+  // ---- Saved messages (personal bookmarks) ----
+  const [savedMessageIds, setSavedMessageIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken()) { setSavedMessageIds(new Set()); return; }
+    api.getSaved().then((items) => setSavedMessageIds(new Set(items.map((item) => item.id)))).catch(() => undefined);
+  }, [isAuthenticated, currentUser.id]);
+  const toggleSaveMessage = async (messageId: string) => {
+    if (!messageId.startsWith('message_')) { toast.error('Espera a que el mensaje se envíe para guardarlo.'); return; }
+    const saved = !savedMessageIds.has(messageId);
+    const apply = (value: boolean) => setSavedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (value) next.add(messageId); else next.delete(messageId);
+      return next;
+    });
+    apply(saved);
+    try {
+      await api.saveMessage(messageId, saved);
+      toast.success(saved ? 'Mensaje guardado' : 'Quitado de guardados');
+    } catch (error) {
+      apply(!saved);
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar el mensaje.');
+    }
+  };
+
+  // ---- Scheduled messages & reminders ----
+  const scheduleMessage = async (channelId: string, content: string, sendAt: Date) => {
+    try {
+      await api.scheduleMessage(channelId, content, sendAt.toISOString());
+      toast.success(`Programado para ${sendAt.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo programar el mensaje.');
+      return false;
+    }
+  };
+  const remindMe = async (messageId: string, remindAt: Date) => {
+    try {
+      await api.createReminder({ messageId, remindAt: remindAt.toISOString() });
+      toast.success(`Te lo recordaré ${remindAt.toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el recordatorio.');
+    }
+  };
+  // Reminders: live while Kova is open, and the ones you missed when you come back.
+  const shownReminders = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isAuthenticated || !getAuthToken()) return;
+    const show = (reminder: { id: string; note: string; channelId: string | null; serverId?: string | null }) => {
+      if (shownReminders.current.has(reminder.id)) return;
+      shownReminders.current.add(reminder.id);
+      soundFx.playReactionAdded();
+      toast('⏰ Recordatorio', {
+        description: reminder.note || 'Tienes un recordatorio.',
+        duration: 15_000,
+        action: reminder.channelId ? { label: 'Ver', onClick: () => {
+          if (reminder.serverId) setActiveServerId(reminder.serverId);
+          setIsDMViewActive(false);
+          setActiveChannelId(reminder.channelId!);
+        } } : undefined,
+      });
+      if (!document.hasFocus()) void showNotification('⏰ Recordatorio de Kova', reminder.note || 'Tienes un recordatorio.');
+    };
+    const loadDue = () => api.getDueReminders().then((items) => items.forEach(show)).catch(() => undefined);
+    void loadDue();
+    const socket = getSocket();
+    const onDue = (reminder: { id: string; note: string; channelId: string | null; serverId: string | null }) => {
+      show(reminder);
+      void api.getDueReminders().catch(() => undefined); // marks it as seen
+    };
+    socket.on('reminder:due', onDue);
+    const onFocus = () => { void loadDue(); };
+    window.addEventListener('focus', onFocus);
+    return () => { socket.off('reminder:due', onDue); window.removeEventListener('focus', onFocus); };
+  }, [isAuthenticated, currentUser.id]);
+
   // ---- Blocked people ----
   const [blockedUsers, setBlockedUsers] = useState<Array<{ id: string; username: string; displayName: string; avatar: string }>>([]);
   const blockedUserIds = React.useMemo(() => new Set(blockedUsers.map((user) => user.id)), [blockedUsers]);
@@ -1687,10 +1768,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const viewingRef = useRef(viewingChannelId);
   useEffect(() => { viewingRef.current = viewingChannelId; }, [viewingChannelId]);
 
+  // "¿Qué me perdí?": how many messages were new when a busy channel was opened.
+  const [catchUpByChannel, setCatchUpByChannel] = useState<Record<string, number>>({});
+  const dismissCatchUp = (channelId: string) => setCatchUpByChannel((prev) => {
+    if (!(channelId in prev)) return prev;
+    const next = { ...prev };
+    delete next[channelId];
+    return next;
+  });
+
   const markChannelRead = (channelId: string) => {
     if (!channelId) return;
     setUnreadByChannel((prev) => {
       if (!prev[channelId]) return prev;
+      const missed = prev[channelId].unread;
+      if (missed >= 5) setCatchUpByChannel((current) => ({ ...current, [channelId]: Math.max(current[channelId] || 0, missed) }));
       const next = { ...prev };
       delete next[channelId];
       return next;
@@ -3375,12 +3467,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinServerByInvite,
         setSpaceNickname,
         removeFromSpace,
+        scheduleMessage,
+        remindMe,
+        savedMessageIds,
+        toggleSaveMessage,
         voiceOccupancy,
         blockedUsers,
         blockedUserIds,
         blockUser,
         unblockUser,
         unreadByChannel,
+        catchUpByChannel,
+        dismissCatchUp,
         markChannelRead,
         loadOlderMessages,
         connectingVoiceChannelId,
