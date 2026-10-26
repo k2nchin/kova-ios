@@ -1,3 +1,4 @@
+import { ActivityLine, ActivityEditor, PrivateNote, SpaceProfileEditor } from '../Community/ProfileSocial';
 import { MemberLevel } from '../Community/Levels';
 import React, { useEffect, useState } from 'react';
 import { X, Pencil, Send, UserPlus, Ban, Flag, Check, Volume2, MicOff, Plus } from 'lucide-react';
@@ -28,6 +29,8 @@ export const UserProfileModal: React.FC = () => {
     realtimeConnected,
     presenceByUser,
     blockUser,
+    activityOf,
+    setMyActivity,
   } = useApp();
 
   const [quickMsg, setQuickMsg] = useState('');
@@ -105,7 +108,7 @@ export const UserProfileModal: React.FC = () => {
 
         <div className="kpf-head">
           <span className="kpf-avatar">
-            <Avatar src={user.avatar} name={shownName} size={84} />
+            <Avatar src={user.spaceProfile?.avatar || user.avatar} name={shownName} size={84} />
             <i className={`kpf-dot is-${status}`} title={STATUS_LABEL[status] || ''} />
           </span>
         </div>
@@ -115,6 +118,7 @@ export const UserProfileModal: React.FC = () => {
           <p className="kpf-sub">
             {user.nickname && <span>{user.displayName}</span>}
             <span>@{user.username}</span>
+            {user.spaceProfile?.pronouns && <span>{user.spaceProfile.pronouns}</span>}
             <span>{STATUS_LABEL[status] || ''}</span>
           </p>
           {(user.customStatus || user.thoughtBubble) && <p className="kpf-status">{user.customStatus || user.thoughtBubble}</p>}
@@ -128,6 +132,21 @@ export const UserProfileModal: React.FC = () => {
           )}
 
           {activeServer && member && <MemberLevel spaceId={activeServer.id} userId={user.id} />}
+
+          <ActivityLine activity={activityOf(user)} />
+          {isMe && (
+            <section className="kpf-section">
+              <h3>Qué estás haciendo</h3>
+              <ActivityEditor current={activityOf(user)} onChange={setMyActivity} />
+            </section>
+          )}
+
+          {!isMe && user.spaceProfile?.bio && activeServer && (
+            <section className="kpf-section">
+              <h3>En {activeServer.name}</h3>
+              <p>{user.spaceProfile.bio}</p>
+            </section>
+          )}
 
           {user.bio && (
             <section className="kpf-section">
@@ -153,6 +172,9 @@ export const UserProfileModal: React.FC = () => {
               )}
             </section>
           )}
+
+          {isMe && activeServer && <SpaceProfileEditor key={activeServer.id} spaceId={activeServer.id} spaceName={activeServer.name} initial={member?.spaceProfile} name={shownName} />}
+          {!isMe && <PrivateNote userId={user.id} />}
 
           {activeServer && (memberRoles.length > 0 || canManageRoles || isSpaceOwner) && (
             <section className="kpf-section">

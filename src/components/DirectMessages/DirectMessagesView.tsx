@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Users,
   MessageSquare,
@@ -11,6 +11,7 @@ import {
   X,
   Check,
   ArrowLeft,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
@@ -18,6 +19,11 @@ import type { User } from '../../types';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { StoriesBar } from '../Stories/StoriesBar';
 import '../../styles/friends.css';
+import '../../styles/community.css';
+import { api, type DmGroup } from '../../services/apiClient';
+import { getSocket } from '../../services/socketClient';
+import { GroupChat, GroupPicker, groupTitle } from './GroupChat';
+import { PrivateCallBar, dmRoomId } from './PrivateCall';
 
 export const DirectMessagesView: React.FC = () => {
   const {
@@ -39,7 +45,26 @@ export const DirectMessagesView: React.FC = () => {
     acceptFriendRequest,
     realtimeConnected,
     presenceByUser,
+    activeVoiceChannelId,
+    toggleCamera,
   } = useApp();
+
+  // Group DMs
+  const [groups, setGroups] = useState<DmGroup[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const loadGroups = useCallback(() => api.getGroups().then(setGroups).catch(() => undefined), []);
+  useEffect(() => {
+    void loadGroups();
+    const socket = getSocket();
+    const refresh = () => { void loadGroups(); };
+    const open = (event: Event) => { setActiveGroupId(String((event as CustomEvent).detail)); setActiveDMUserId(null); };
+    socket.on('group:changed', refresh);
+    socket.on('group:message', refresh);
+    window.addEventListener('kova:open-group', open);
+    return () => { socket.off('group:changed', refresh); socket.off('group:message', refresh); window.removeEventListener('kova:open-group', open); };
+  }, [loadGroups, setActiveDMUserId]);
+  const activeGroup = groups.find((group) => group.id === activeGroupId) || null;
 
   // The server can't know who is online; live presence comes from the realtime
   // gateway (unknown = offline, so nobody looks online by default).
@@ -83,6 +108,19 @@ export const DirectMessagesView: React.FC = () => {
   };
 
   return (
+    <>
+    {creatingGroup && (
+      <GroupPicker title="Nuevo grupo" withName onClose={() => setCreatingGroup(false)} onDone={async (ids, name) => {
+        try {
+          const group = await api.createGroup(name, ids);
+          await loadGroups();
+          setActiveGroupId(group.id);
+          setActiveDMUserId(null);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'No se pudo crear el grupo.');
+        }
+      }} />
+    )}
     <div className={`kova-direct-view ${activeUser ? 'has-chat' : ''} ${dmConversations.length === 0 ? 'no-dms' : ''} flex-1 h-full flex overflow-hidden select-none font-['Plus_Jakarta_Sans',sans-serif] bg-[#07020f]`}>
       {/* 1. Left DMs / Friends Navigation Column */}
       <div className="kova-dm-nav w-64 border-r border-purple-950/40 bg-[#090414] flex flex-col justify-between shrink-0">
@@ -105,7 +143,28 @@ export const DirectMessagesView: React.FC = () => {
 
           <div className="kova-dm-label flex items-center justify-between text-[11px] font-bold text-purple-400 uppercase tracking-wider px-1 pt-2">
             <span>MENSAJES DIRECTOS</span>
+            <button type="button" onClick={() => setCreatingGroup(true)} title="Nuevo grupo" aria-label="Nuevo grupo" className="p-1 rounded-md hover:bg-white/10 text-purple-300"><Plus size={13} /></button>
           </div>
+
+          {groups.length > 0 && (
+            <div className="kova-dm-list space-y-1">
+              {groups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => { setActiveGroupId(group.id); setActiveDMUserId(null); }}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs transition-all cursor-pointer text-left ${activeGroupId === group.id && !activeDMUserId ? 'bg-purple-600/25 border border-purple-500/40 text-white' : 'text-slate-400 hover:text-white hover:bg-purple-950/20'}`}
+                >
+                  <span className="kgl-avatar"><Users size={15} /></span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-bold truncate">{groupTitle(group, currentUser.id)}</span>
+                    <span className="block text-[10px] text-slate-500 truncate">{group.lastMessage?.content || `${group.members.length} miembros`}</span>
+                  </span>
+                  {activeVoiceChannelId === group.id && <Phone size={12} className="text-emerald-400" />}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* DM Conversations List */}
           <div className="kova-dm-list space-y-1">
@@ -175,8 +234,10 @@ export const DirectMessagesView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Main Center Content: Either Friends Tab OR 1-on-1 Private Chat */}
-      {activeUser ? (
+      {/* 2. Main Center Content: group chat, 1-on-1 private chat, or Friends */}
+      {activeGroup && !activeUser ? (
+        <GroupChat key={activeGroup.id} group={activeGroup} onChanged={() => void loadGroups()} onLeft={() => { setActiveGroupId(null); void loadGroups(); }} />
+      ) : activeUser ? (
         /* Private DM Chat Area */
         <div className="flex-1 flex flex-col justify-between overflow-hidden bg-[#07020f]">
           {/* Header */}
@@ -220,29 +281,27 @@ export const DirectMessagesView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  if (isInVoice) {
+                  if (activeVoiceChannelId === dmRoomId(currentUser.id, activeUser.id)) {
                     leaveVoiceChannel();
                     toast.info('Llamada finalizada');
                   } else {
-                    joinVoiceChannel('chan_voice_main');
-                    toast.success(`Iniciando llamada privada con ${activeUser.displayName}...`);
+                    void joinVoiceChannel(dmRoomId(currentUser.id, activeUser.id), { private: true, ring: true });
                   }
                 }}
                 className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                  isInVoice
+                  activeVoiceChannelId === dmRoomId(currentUser.id, activeUser.id)
                     ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
                     : 'bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border-white/[0.08]'
                 }`}
-                title={isInVoice ? 'Colgar llamada' : 'Iniciar llamada de voz'}
+                title={activeVoiceChannelId === dmRoomId(currentUser.id, activeUser.id) ? 'Colgar llamada' : 'Iniciar llamada de voz'}
               >
-                {isInVoice ? <PhoneOff size={15} /> : <Phone size={15} />}
+                {activeVoiceChannelId === dmRoomId(currentUser.id, activeUser.id) ? <PhoneOff size={15} /> : <Phone size={15} />}
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  toast.success(`Iniciando videollamada HD con ${activeUser.displayName}...`);
-                  joinVoiceChannel('chan_voice_main');
+                  void joinVoiceChannel(dmRoomId(currentUser.id, activeUser.id), { private: true, ring: true }).then(() => toggleCamera());
                 }}
                 className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/[0.08] transition-all cursor-pointer"
                 title="Iniciar videollamada"
@@ -251,6 +310,8 @@ export const DirectMessagesView: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {activeVoiceChannelId === dmRoomId(currentUser.id, activeUser.id) && <PrivateCallBar title={activeUser.displayName} />}
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-3">
@@ -553,8 +614,8 @@ export const DirectMessagesView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
-                            toast.success(`Llamando a ${f.displayName}...`);
-                            joinVoiceChannel('chan_voice_main');
+                            setActiveDMUserId(f.id);
+                            void joinVoiceChannel(dmRoomId(currentUser.id, f.id), { private: true, ring: true });
                           }}
                           className="p-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/[0.08] transition-colors cursor-pointer"
                           title="Llamada de voz"
@@ -579,5 +640,6 @@ export const DirectMessagesView: React.FC = () => {
         </div>
       )}
     </div>
+    </>
   );
 };

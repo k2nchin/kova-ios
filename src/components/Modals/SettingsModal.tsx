@@ -843,6 +843,14 @@ export const SettingsModal: React.FC = () => {
                 title="Privacidad & Seguridad"
                 description="Controla la visibilidad de tu cuenta y la seguridad de inicio de sesión."
               >
+                {isDesktopApp() && (
+                  <PreferenceToggle
+                    label="Mostrar a qué estoy jugando"
+                    description="Kova detecta el juego abierto y muestra «Jugando a …» a tus amigos y en tus espacios. Solo se comparte el nombre del juego."
+                    checked={preferences.shareGameActivity !== false}
+                    onChange={() => updatePreference('shareGameActivity', preferences.shareGameActivity === false)}
+                  />
+                )}
                 <BlockedList />
                 {/* Two-Factor Authentication */}
                 <div

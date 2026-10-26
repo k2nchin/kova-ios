@@ -147,6 +147,41 @@ async fn capture_source_frame(id: String, max_width: u32, jpeg_quality: Option<u
     Ok(tauri::ipc::Response::new(jpeg))
 }
 
+/// Names of running programs (lower-case .exe names), so Kova can show
+/// "Jugando a …" automatically. Only names leave this function, nothing else.
+#[cfg(desktop)]
+#[tauri::command]
+async fn running_processes() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            let output = std::process::Command::new("tasklist")
+                .args(["/FO", "CSV", "/NH"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output()
+                .map_err(|e| e.to_string())?;
+            let text = String::from_utf8_lossy(&output.stdout);
+            let mut names: Vec<String> = text
+                .lines()
+                .filter_map(|line| line.split(',').next())
+                .map(|name| name.trim_matches('"').to_lowercase())
+                .filter(|name| !name.is_empty())
+                .collect();
+            names.sort();
+            names.dedup();
+            Ok(names)
+        }
+        #[cfg(not(windows))]
+        {
+            Ok(Vec::new())
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Camera and microphone are allowed for Kova's own window, so no
 /// browser-style "tauri.localhost wants to use…" prompt ever shows.
 #[cfg(windows)]
@@ -262,7 +297,8 @@ pub fn run() {
         capture_primary_screen_frame,
         list_capture_sources,
         capture_source_frame,
-        set_close_to_tray
+        set_close_to_tray,
+        running_processes
     ]);
 
     #[cfg(mobile)]

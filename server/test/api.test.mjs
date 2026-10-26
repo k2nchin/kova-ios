@@ -875,3 +875,58 @@ test('actividades en la llamada: tres en raya y trivia sin trampas', async () =>
   assert.equal((await act(a, { action: 'stop' })).status, 200);
   assert.equal((await call('GET', `/voice/${voice.id}/activity`, undefined, b.token)).body, null);
 });
+
+test('social: notas privadas, estado de actividad y perfil por espacio', async () => {
+  const a = await register('social1');
+  const b = await register('social2');
+  const space = await createSpace(a, b);
+  assert.equal((await call('PUT', `/users/${b.id}/note`, { note: 'Le gusta Valorant' }, a.token)).body.note, 'Le gusta Valorant');
+  assert.equal((await call('GET', `/users/${b.id}/note`, undefined, b.token)).body.note, '', 'nadie más ve tu nota');
+  assert.equal((await call('PUT', '/me/activity', { kind: 'hacking', name: 'x' }, b.token)).status, 400);
+  const playing = await call('PUT', '/me/activity', { kind: 'playing', name: 'Valorant', details: 'Competitivo' }, b.token);
+  assert.equal(playing.body.activity.name, 'Valorant');
+  const again = await call('PUT', '/me/activity', { kind: 'playing', name: 'Valorant' }, b.token);
+  assert.equal(again.body.activity.startedAt, playing.body.activity.startedAt, 'mantiene desde cuándo juega');
+  assert.equal((await call('GET', `/activities?ids=${b.id}`, undefined, a.token)).body[b.id].kind, 'playing');
+  assert.equal((await call('PUT', `/servers/${space.id}/profile`, { avatar: 'javascript:x' }, b.token)).status, 400);
+  await call('PUT', `/servers/${space.id}/profile`, { bio: 'Main support', pronouns: 'él' }, b.token);
+  const member = (await call('GET', '/servers', undefined, a.token)).body.find((s) => s.id === space.id).members.find((m) => m.id === b.id);
+  assert.equal(member.spaceProfile.bio, 'Main support');
+  assert.equal(member.activity.name, 'Valorant');
+  await call('PUT', '/me/activity', { clear: true }, b.token);
+  assert.equal((await call('GET', `/activities?ids=${b.id}`, undefined, a.token)).body[b.id], undefined);
+});
+
+test('grupos de DM: solo amigos, mensajes y llamada del grupo', async () => {
+  const befriend = async (x, y) => {
+    const meY = (await call('GET', '/auth/me', undefined, y.token)).body;
+    await call('POST', '/friends/requests', { identity: `@${meY.username}` }, x.token);
+    const incoming = (await call('GET', '/friends', undefined, y.token)).body.incoming;
+    await call('POST', `/friends/requests/${incoming[0].id}/accept`, undefined, y.token);
+  };
+  const a = await register('grupo1');
+  const b = await register('grupo2');
+  const c = await register('grupo3');
+  const stranger = await register('grupo4');
+  await befriend(a, b);
+  await befriend(a, c);
+  assert.equal((await call('POST', '/groups', { memberIds: [stranger.id] }, a.token)).status, 403);
+  const group = await call('POST', '/groups', { name: 'Squad', memberIds: [b.id, c.id] }, a.token);
+  assert.equal(group.status, 201);
+  assert.equal(group.body.members.length, 3);
+  await call('POST', `/groups/${group.body.id}/messages`, { content: '¿partida?' }, b.token);
+  const msgs = (await call('GET', `/groups/${group.body.id}/messages`, undefined, c.token)).body;
+  assert.equal(msgs[0].content, '¿partida?');
+  assert.equal((await call('GET', `/groups/${group.body.id}/messages`, undefined, stranger.token)).status, 404);
+  const token = await call('POST', '/voice/token', { channelId: group.body.id }, c.token);
+  assert.equal(JSON.parse(Buffer.from(token.body.token.split('.')[1], 'base64url').toString()).video.room, `kova_${group.body.id}`);
+  assert.equal((await call('POST', '/voice/token', { channelId: group.body.id }, stranger.token)).status, 404);
+  assert.equal((await call('POST', `/groups/${group.body.id}/call`, {}, a.token)).status, 200);
+  const pair = [a.id, b.id].sort().join('__');
+  assert.equal((await call('POST', '/voice/token', { channelId: `dm_${pair}`, ring: true }, a.token)).status, 200, 'llamada 1 a 1 real');
+  assert.equal((await call('POST', '/voice/token', { channelId: `dm_${pair}` }, c.token)).status, 404, 'nadie más entra');
+  assert.equal((await call('DELETE', `/groups/${group.body.id}/members/me`, undefined, a.token)).status, 200);
+  const list = (await call('GET', '/groups', undefined, b.token)).body;
+  assert.equal(list[0].members.length, 2);
+  assert.notEqual(list[0].ownerId, a.id, 'pasa la propiedad al salir');
+});

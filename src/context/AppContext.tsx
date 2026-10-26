@@ -16,6 +16,7 @@ import {
   KovaBot,
   Attachment,
   WorkspaceLayoutMode,
+  UserActivity,
 } from '../types';
 import { DEFAULT_BOTS } from '../data/defaultBots';
 import { INITIAL_NOTES, CURRENT_USER } from '../data/defaults';
@@ -26,6 +27,7 @@ import { systemLanguage, languageName } from '../data/languages';
 import { startNativeCapture, type ShareQuality } from '../services/screenCapture';
 import { startCallNotes } from '../services/callNotes';
 import { refreshPush } from '../services/pushService';
+import { startGameDetection } from '../services/gameDetection';
 import { BackgroundTheme } from '../components/Themes/ThemeBackground';
 import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
@@ -76,6 +78,8 @@ export interface AppPreferences {
   confirmExternalLinks: boolean;
   /** Language messages are translated into. */
   myLanguage: string;
+  /** Desktop: show the game you're playing automatically. */
+  shareGameActivity?: boolean;
 }
 
 export interface AppNotification {
@@ -133,7 +137,8 @@ interface AppContextType {
   // Voice Call
   activeVoiceChannelId: string | null;
   isInVoice: boolean;
-  joinVoiceChannel: (channelId: string) => Promise<void>;
+  /** `private`: a DM/group call — stays on the current screen and can ring the other side. */
+  joinVoiceChannel: (channelId: string, options?: { private?: boolean; ring?: boolean }) => Promise<void>;
   voicePeers: VoicePeer[];
   isVoiceConnecting: boolean;
   leaveVoiceChannel: () => void;
@@ -242,6 +247,8 @@ interface AppContextType {
   ) => Promise<Server | null>;
   setSpaceNickname: (serverId: string, nickname: string) => Promise<boolean>;
   removeFromSpace: (serverId: string, userId: string, ban?: boolean) => Promise<boolean>;
+  activityOf: (user?: { id: string; activity?: UserActivity | null }) => UserActivity | null;
+  setMyActivity: (activity: UserActivity | null) => void;
   callNotesOn: boolean;
   notesTakers: Record<string, string[]>;
   toggleCallNotes: () => Promise<void>;
@@ -1789,6 +1796,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.history.replaceState(null, '', window.location.pathname);
   }, [isAuthenticated, servers]);
 
+  // "Jugando a… / Escuchando…": starts from the members list, then updates live.
+  const [activityByUser, setActivityByUser] = useState<Record<string, UserActivity | null>>({});
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+    const onActivity = ({ userId, activity }: { userId: string; activity: UserActivity | null }) => setActivityByUser((prev) => ({ ...prev, [userId]: activity }));
+    socket.on('activity:changed', onActivity);
+    return () => { socket.off('activity:changed', onActivity); };
+  }, [isAuthenticated]);
+  const activityOf = (user?: { id: string; activity?: UserActivity | null }) => {
+    if (!user) return null;
+    if (user.id in activityByUser) return activityByUser[user.id];
+    const member = serversRef.current.flatMap((server) => server.members || []).find((m) => m.id === user.id && m.activity);
+    return user.activity || member?.activity || null;
+  };
+  const setMyActivity = (activity: UserActivity | null) => setActivityByUser((prev) => ({ ...prev, [currentUser.id]: activity }));
+  const myActivityRef = useRef<UserActivity | null>(null);
+  myActivityRef.current = activityByUser[currentUser.id] ?? null;
+  useEffect(() => {
+    if (!isAuthenticated || preferences.shareGameActivity === false) return;
+    return startGameDetection((activity) => setActivityByUser((prev) => ({ ...prev, [currentUser.id]: activity })), () => myActivityRef.current);
+  }, [isAuthenticated, currentUser.id, preferences.shareGameActivity]);
+
   // Soundboard: sounds anyone plays in your voice room are heard by everyone in it.
   const voiceRoomRef = useRef<{ channelId: string | null; deafened: boolean }>({ channelId: null, deafened: false });
   voiceRoomRef.current = { channelId: activeVoiceChannelId, deafened: Boolean(currentUser.isDeafened) };
@@ -2253,9 +2283,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Voice Controls
-  const joinVoiceChannel = async (channelId: string) => {
-    setActiveChannelId(channelId);
-    setIsDMViewActive(false);
+  const joinVoiceChannel = async (channelId: string, options: { private?: boolean; ring?: boolean } = {}) => {
+    if (!options.private) {
+      setActiveChannelId(channelId);
+      setIsDMViewActive(false);
+    }
     if (activeVoiceChannelId === channelId || isVoiceConnecting) return;
     setIsVoiceConnecting(true);
     setConnectingVoiceChannelId(channelId);
@@ -2264,7 +2296,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       voiceSessionRef.current = null;
       knownPeerIdsRef.current = new Set();
       setCurrentUser((prev) => ({ ...prev, isCameraOn: false, isScreenSharing: false }));
-      const { token, url, canPublish } = await api.getVoiceToken(channelId);
+      const { token, url, canPublish } = await api.getVoiceToken(channelId, Boolean(options.ring));
       // Stage audience joins listening only; moderators invite them up to talk.
       if (canPublish === false) setCurrentUser((prev) => ({ ...prev, isMuted: true }));
       const muted = Boolean(currentUser.isMuted || currentUser.isDeafened || canPublish === false);
@@ -3636,6 +3668,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         joinServerByInvite,
         setSpaceNickname,
         removeFromSpace,
+        activityOf,
+        setMyActivity,
         callNotesOn,
         notesTakers,
         toggleCallNotes,

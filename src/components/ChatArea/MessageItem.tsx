@@ -25,6 +25,7 @@ import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { WhenPicker } from '../Common/WhenPicker';
 import { LANGUAGES, languageName } from '../../data/languages';
 import { PollCard, POLL_MESSAGE } from './PollCard';
+import { VoiceNotePlayer } from '../Common/VoiceNotePlayer';
 import { expressionIndex, renderWithEmojis, STICKER_MESSAGE } from '../../utils/expressions';
 import { VoiceMessagePlayer } from '../Audio/VoiceMessagePlayer';
 import { Avatar } from '../Common/Avatar';
@@ -310,6 +311,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
                 return (
                   <video key={att.id} src={att.url} controls preload="metadata" className="max-w-[280px] rounded-xl border border-white/10" />
                 );
+              }
+              if (att.type === 'audio' && att.url && att.voice) {
+                return <VoiceNotePlayer key={att.id} url={att.url} duration={att.duration} seed={att.id || att.url} />;
               }
               if (att.type === 'audio' && att.url) {
                 return (

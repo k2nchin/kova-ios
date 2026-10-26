@@ -1,3 +1,6 @@
+import type { Attachment, UserActivity } from '../types';
+
+export type { UserActivity };
 const isTauri = typeof window !== 'undefined' && ('__TAURI__' in window || '__TAURI_INTERNALS__' in window);
 const API_BASE_URL = import.meta.env.VITE_KOVA_API_URL || (isTauri ? 'https://kova-k2nchin.vercel.app/api' : '/api');
 // Same API and database, hosted on Render: the desktop app switches to it for
@@ -254,6 +257,18 @@ export const api = {
   getPushKey: () => request<{ publicKey: string }>('/push/key'),
   subscribePush: (subscription: PushSubscriptionJSON) => request<{ ok: true }>('/push/subscribe', { method: 'POST', data: subscription }),
   unsubscribePush: (endpoint: string) => request<{ ok: true }>('/push/unsubscribe', { method: 'POST', data: { endpoint } }),
+  getUserNote: (userId: string) => request<{ note: string }>(`/users/${encodeURIComponent(userId)}/note`),
+  setUserNote: (userId: string, note: string) => request<{ note: string }>(`/users/${encodeURIComponent(userId)}/note`, { method: 'PUT', data: { note } }),
+  setMyActivity: (data: { kind?: string; name?: string; details?: string; clear?: boolean }) => request<{ activity: UserActivity | null }>('/me/activity', { method: 'PUT', data }),
+  setSpaceProfile: (spaceId: string, data: { avatar: string; bio: string; pronouns: string }) => request<{ avatar: string; bio: string; pronouns: string }>(`/servers/${encodeURIComponent(spaceId)}/profile`, { method: 'PUT', data }),
+  getGroups: () => request<DmGroup[]>('/groups'),
+  createGroup: (name: string, memberIds: string[]) => request<DmGroup>('/groups', { method: 'POST', data: { name, memberIds } }),
+  renameGroup: (groupId: string, name: string) => request<DmGroup>(`/groups/${encodeURIComponent(groupId)}`, { method: 'PATCH', data: { name } }),
+  addGroupMember: (groupId: string, userId: string) => request<DmGroup>(`/groups/${encodeURIComponent(groupId)}/members`, { method: 'POST', data: { userId } }),
+  leaveGroup: (groupId: string) => request<{ ok: true }>(`/groups/${encodeURIComponent(groupId)}/members/me`, { method: 'DELETE' }),
+  getGroupMessages: (groupId: string) => request<GroupMessage[]>(`/groups/${encodeURIComponent(groupId)}/messages`),
+  sendGroupMessage: (groupId: string, content: string, attachments: Attachment[] = []) => request<GroupMessage>(`/groups/${encodeURIComponent(groupId)}/messages`, { method: 'POST', data: { content, attachments } }),
+  ringGroup: (groupId: string) => request<{ ok: true }>(`/groups/${encodeURIComponent(groupId)}/call`, { method: 'POST', data: {} }),
   getCallActivity: (channelId: string) => request<CallActivity | null>(`/voice/${encodeURIComponent(channelId)}/activity`),
   callActivityAction: (channelId: string, data: Record<string, unknown>) => request<CallActivity | null>(`/voice/${encodeURIComponent(channelId)}/activity`, { method: 'POST', data }),
   getSpaceSounds: (spaceId: string) => request<SpaceSound[]>(`/servers/${encodeURIComponent(spaceId)}/sounds`),
@@ -276,8 +291,8 @@ export const api = {
   getVoiceOccupancy: (serverId: string) =>
     request<Record<string, Array<{ id: string; name: string; avatar: string }>>>(`/servers/${encodeURIComponent(serverId)}/voice`, { method: 'GET' }),
   voiceLeft: (channelId: string) => request<{ ok: true }>('/voice/left', { method: 'POST', data: { channelId } }),
-  getVoiceToken: (channelId: string) =>
-    request<{ token: string; url: string; room: string; canPublish?: boolean }>('/voice/token', { method: 'POST', data: { channelId } }),
+  getVoiceToken: (channelId: string, ring = false) =>
+    request<{ token: string; url: string; room: string; canPublish?: boolean }>('/voice/token', { method: 'POST', data: { channelId, ring } }),
 
   // Uploads, profile and user content
   createUpload: (data: { kind: UploadKind; fileName: string; contentType: string; size: number }) =>
@@ -350,3 +365,7 @@ type ActivityBase = { hostId: string; updatedAt: string; names: Record<string, s
 export type CallActivity =
   | (ActivityBase & { kind: 'tictactoe'; players: [string, string | null]; board: Array<'X' | 'O' | null>; turn: number; winner: 'X' | 'O' | 'draw' | null })
   | (ActivityBase & { kind: 'trivia'; round: number; rounds: number; phase: 'question' | 'reveal' | 'done'; question: { text: string; options: string[] } | null; correct?: number; answered: string[]; answers?: Record<string, number>; scores: Record<string, number> });
+
+type GroupPerson = { id: string; username: string; displayName: string; avatar: string; verified?: boolean };
+export type DmGroup = { id: string; name: string; ownerId: string; members: GroupPerson[]; createdAt: string; lastMessage: { content: string; createdAt: string; authorId: string } | null };
+export type GroupMessage = { id: string; groupId: string; author: GroupPerson | null; content: string; attachments: Attachment[]; createdAt: string };

@@ -30,6 +30,7 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { PollComposer } from './PollCard';
+import { startVoiceNote, type VoiceNoteRecording } from '../../services/voiceNote';
 import { FollowChannelModal } from '../Community/FollowChannelModal';
 import { ChannelAccessPanel } from '../Settings/ChannelAccessPanel';
 import { MessageSearch } from './MessageSearch';
@@ -361,21 +362,38 @@ export const ChatArea: React.FC = () => {
     return () => clearInterval(interval);
   }, [isRecordingVoice]);
 
-  const handleStartRecording = () => {
-    setIsRecordingVoice(true);
-    toast.info('Grabando nota de voz...');
+  // Real voice notes: record the mic, upload the audio, send it as a playable attachment.
+  const voiceRecordingRef = useRef<VoiceNoteRecording | null>(null);
+  const handleStartRecording = async () => {
+    try {
+      voiceRecordingRef.current = await startVoiceNote();
+      setIsRecordingVoice(true);
+    } catch (error) {
+      toast.error(error instanceof Error && error.name !== 'NotAllowedError' ? error.message : 'Permite el micrófono para grabar notas de voz.');
+    }
   };
 
   const handleCancelRecording = () => {
+    voiceRecordingRef.current?.cancel();
+    voiceRecordingRef.current = null;
     setIsRecordingVoice(false);
-    toast.info('Grabación cancelada');
   };
 
-  const handleSendVoiceNote = () => {
-    const duration = Math.max(1, recordingSeconds);
-    sendMessage(`🎤 Nota de voz (${duration}s)`, undefined, undefined, { duration });
+  const handleSendVoiceNote = async () => {
+    const recording = voiceRecordingRef.current;
+    voiceRecordingRef.current = null;
     setIsRecordingVoice(false);
-    toast.success(`Nota de voz enviada (${duration} segundos)`);
+    if (!recording) return;
+    const result = await recording.stop();
+    if (!result) { toast.info('La nota de voz estaba vacía.'); return; }
+    const sending = toast.loading('Enviando nota de voz…');
+    try {
+      const url = await uploadFile(result.file, 'attachment');
+      sendMessage('', undefined, replyingTo?.id, undefined, [{ id: `att_voice_${Date.now()}`, url, name: result.file.name, type: 'audio', size: formatAttachmentSize(result.file.size), duration: result.duration, voice: true }]);
+      toast.dismiss(sending);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo enviar la nota de voz.', { id: sending });
+    }
   };
 
   const runAiAction = async (action: 'summary' | 'minutes') => {

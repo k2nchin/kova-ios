@@ -9,6 +9,7 @@ import { RightWidgetsSidebar } from '../RightSidebar/RightWidgetsSidebar';
 import { ThreadDrawer } from '../ChatArea/ThreadDrawer';
 import { ForumView } from '../ChatArea/ForumView';
 import { WelcomeFlow } from '../Community/WelcomeFlow';
+import { IncomingCalls } from '../DirectMessages/PrivateCall';
 import { DirectMessagesView } from '../DirectMessages/DirectMessagesView';
 import { EmptyServerView } from './EmptyServerView';
 import { useApp } from '../../context/AppContext';
@@ -75,6 +76,7 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
           {/* Threads Drawer */}
           <ThreadDrawer />
           {!isDMViewActive && activeServer && <WelcomeFlow key={activeServer.id} server={activeServer} />}
+          <IncomingCalls />
         </div>
       </div>
 

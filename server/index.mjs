@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 const updatesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'updater-static', 'updates');
 import { attachRealtime, emitToChannel, emitToUsers, isRelayAuthorized, broadcastRelayed } from './realtime.mjs';
 import { askKovaAI, AiError, transcribeAudio, classifyMessage } from './ai.mjs';
+import { groupsSchema, handleGroupRoutes, isGroupMember } from './groups.mjs';
+import { socialSchema, handleSocialRoutes, activitiesFor, spaceProfilesOf } from './social.mjs';
 import { activitiesSchema, handleActivityRoutes as handleVoiceActivityRoutes } from './activities.mjs';
 import { soundsSchema, handleSoundRoutes } from './sounds.mjs';
 import { stageSchema, handleStageRoutes, canSpeakOnStage } from './stage.mjs';
@@ -112,6 +114,8 @@ await db.exec(communitySchema);
 await db.exec(stageSchema);
 await db.exec(soundsSchema);
 await db.exec(activitiesSchema);
+await db.exec(socialSchema);
+await db.exec(groupsSchema);
 await db.exec(uploadsSchema);
 for (const statement of contentUserColumns) { try { await db.exec(statement); } catch {} }
 for (const statement of twoFactorUserColumns) { try { await db.exec(statement); } catch {} }
@@ -223,7 +227,9 @@ const spacePayload = async (s, viewerId) => {
 };
 const spaceMembers = async (spaceId, ownerId) => {
   const rows = await db.prepare('SELECT u.*, n.nickname AS space_nickname FROM users u LEFT JOIN space_nicknames n ON n.space_id = ? AND n.user_id = u.id WHERE u.id = ? OR u.id IN (SELECT user_id FROM space_members WHERE space_id = ?)').all(spaceId, ownerId, spaceId);
-  return rows.map((row) => ({ ...publicUser(userFromRow(row)), email: undefined, status: 'offline', nickname: row.space_nickname || '' }));
+  const profiles = await spaceProfilesOf(db, spaceId);
+  const activities = await activitiesFor(db, rows.map((row) => row.id));
+  return rows.map((row) => ({ ...publicUser(userFromRow(row)), email: undefined, status: 'offline', nickname: row.space_nickname || '', spaceProfile: profiles[row.id], activity: activities[row.id] }));
 };
 // Space icons/banners must be hosted images (Kova uploads or https), never
 // inline data: URLs stored in the database. Anything else becomes ''.
@@ -523,6 +529,8 @@ const handleRequest = async (req, res) => {
       if (writes && await mustAcceptRules(db, scoped.space_id, session.user_id)) return send(res, 403, { message: 'Acepta las normas del espacio para poder escribir.', code: 'RULES_NOT_ACCEPTED' });
     }
   }
+  if (await handleGroupRoutes({ db, req, res, requestPath, session, send, readBody, emitToUsers, publicUser, userFromRow, sendPush, crypto })) return;
+  if (await handleSocialRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, notifySpace, emitToUsers, hostedImageUrl })) return;
   if (await handleVoiceActivityRoutes({ db, req, res, requestPath, session, send, readBody, canAccessSpace, spaceAudience, emitToUsers })) return;
   if (await handleSoundRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers, hostedImageUrl, crypto })) return;
   if (await handleStageRoutes({ db, req, res, requestPath, session, send, readBody, can, canAccessSpace, spaceAudience, emitToUsers, setVoicePublish })) return;
@@ -546,6 +554,30 @@ const handleRequest = async (req, res) => {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
     const body = await readBody(req);
     const channelId = String(body.channelId || '');
+    // Private calls: a group DM (group_<id>) or a 1:1 DM (dm_<userA>__<userB>, ids sorted).
+    const dmPair = channelId.startsWith('dm_') ? channelId.slice(3).split('__') : null;
+    if (dmPair) {
+      const [first, second] = dmPair;
+      const blocked = await db.prepare('SELECT blocker_id FROM blocked_users WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)').get(first, second, second, first);
+      if (dmPair.length !== 2 || first >= second || ![first, second].includes(session.user_id) || blocked) return send(res, 404, { message: 'No puedes unirte a esa llamada.' });
+    }
+    if (channelId.startsWith('group_') || dmPair) {
+      if (channelId.startsWith('group_') && !await isGroupMember(db, channelId, session.user_id)) return send(res, 404, { message: 'No encontramos ese grupo.' });
+      if (dmPair && body.ring) {
+        const peer = dmPair.find((id) => id !== session.user_id);
+        const me = await db.prepare('SELECT display_name, username, avatar FROM users WHERE id = ?').get(session.user_id);
+        const caller = { id: session.user_id, displayName: me?.display_name || me?.username, avatar: me?.avatar || '' };
+        await emitToUsers([peer], 'dm:call', { roomId: channelId, caller });
+        await sendPush(db, [peer], { title: `📞 ${caller.displayName} te está llamando`, body: 'Llamada de Kova', url: `/app?dm=${session.user_id}`, tag: `call-${channelId}` });
+      }
+      try {
+        const user = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(session.user_id));
+        return send(res, 200, createVoiceToken({ user, channelId }));
+      } catch (error) {
+        if (error instanceof VoiceError) return send(res, error.status, { message: error.message, code: error.code });
+        throw error;
+      }
+    }
     const channel = channelId && await db.prepare('SELECT id, space_id, type FROM signals WHERE id = ?').get(channelId);
     if (!channel || !(await canAccessSpace(channel.space_id, session.user_id))) return send(res, 404, { message: 'No encontramos ese canal o no tienes acceso.' });
     if (channel.type !== 'voice' && channel.type !== 'stage') return send(res, 400, { message: 'Ese canal no es de voz.', code: 'NOT_VOICE_CHANNEL' });
@@ -913,7 +945,7 @@ const handleRequest = async (req, res) => {
     const body = await readBody(req);
     const content = String(body.content || '').trim();
     const attachments = Array.isArray(body.attachments) ? body.attachments.slice(0, 10).filter((item) => typeof item?.url === 'string' && /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/)/i.test(item.url) && item.url.length <= 2048)
-      .map((item) => ({ id: String(item.id || '').slice(0, 64), url: item.url, name: String(item.name || 'archivo').slice(0, 200), type: ['image', 'video', 'audio'].includes(item.type) ? item.type : 'file', size: String(item.size || '').slice(0, 20) })) : [];
+      .map((item) => ({ id: String(item.id || '').slice(0, 64), url: item.url, name: String(item.name || 'archivo').slice(0, 200), type: ['image', 'video', 'audio'].includes(item.type) ? item.type : 'file', size: String(item.size || '').slice(0, 20), duration: Number(item.duration) > 0 ? Math.min(600, Math.round(Number(item.duration))) : undefined, voice: item.voice === true || undefined })) : [];
     if (!content && attachments.length === 0) return send(res, 400, { message: 'Escribe un mensaje antes de enviarlo.' });
     if (content.length > 10_000) return send(res, 413, { message: 'El mensaje supera el límite de 10 000 caracteres.' });
     const replyToId = String(body.replyToId || '').trim() || null;

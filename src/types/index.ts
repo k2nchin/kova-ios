@@ -18,15 +18,14 @@ export interface User {
   customStatus?: string;
   /** Per-space nickname (only set on members of a space). */
   nickname?: string;
+  /** Per-space avatar, bio and pronouns. */
+  spaceProfile?: { avatar?: string; bio?: string; pronouns?: string };
+  /** What they're playing / listening to right now. */
+  activity?: UserActivity | null;
   /** Profile colour, #rrggbb. */
   accentColor?: string;
   /** Sound others hear when this person joins a voice room. */
   joinSound?: string;
-  activity?: {
-    type: 'Playing' | 'Listening' | 'Coding' | 'Streaming';
-    name: string;
-    details?: string;
-  };
   roles?: string[];
   isMuted?: boolean;
   isDeafened?: boolean;
@@ -112,6 +111,10 @@ export interface Attachment {
   name: string;
   type: 'image' | 'video' | 'file' | 'audio';
   size: string;
+  /** Seconds, for voice notes. */
+  duration?: number;
+  /** Recorded in Kova as a voice note. */
+  voice?: boolean;
 }
 
 export interface Message {
@@ -244,4 +247,11 @@ export interface Expression {
   kind: 'emoji' | 'sticker';
   name: string;
   url: string;
+}
+
+export interface UserActivity {
+  kind: 'playing' | 'listening' | 'watching' | 'streaming' | 'coding';
+  name: string;
+  details?: string;
+  startedAt: string;
 }
