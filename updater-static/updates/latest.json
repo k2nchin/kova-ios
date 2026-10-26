@@ -1,12 +1,12 @@
 {
-  "version": "1.0.26",
-  "notes": "Kova 1.0.26: anuncios que se siguen, bienvenida con normas y onboarding, niveles e insignias y nuevo Descubrir.",
-  "pub_date": "2026-10-26T16:31:40Z",
+  "version": "1.0.27",
+  "notes": "Kova 1.0.27: canales escenario, soundboard del espacio, trivia y tres en raya en la llamada y pantalla compartida en alta calidad.",
+  "pub_date": "2026-10-26T16:59:14Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.26_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFZ3dmVhN3MrQnFZa25uMlNpSTlzbUVhRHI3LzJEdHgvaFBjcm84M1REN2VKdXQyOGxSTGZWa3lEVDlVbGFiSExuTlpPYVJwWmV3WWU1bGN5WU0wWXdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDI5NTAxCWZpbGU6S292YV8xLjAuMjZfeDY0LXNldHVwLmV4ZQpLWHgzK08wOTdkK0pqbUZPQU1LT2NoVjVKazJ1YURqRUNoR3REUG1GYlJRV0o0RGVsRGUwbXhrMnVDKzZUSW14Ny9vajBsL0huR1lNYXdtTjdCSFpEUT09Cg==",
-      "sha256": "C5349EFD919357DD004F65A3820F53821877D19C8116FFC702D4796D79E26038"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.27_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFR0dHFFdUNPblphcVdPS2tpci9qSGhoMGZhcXV2c1pJZjgxWE0zOXVUK3MvQnZ4K1pycEV5ekRkSXVGdytnQ24vRnhvVzdDZlRoUUNPUHN4K2t3UUFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMDMzNzQ5CWZpbGU6S292YV8xLjAuMjdfeDY0LXNldHVwLmV4ZQo5LzR4d3hZQ1hqdXBxeFlzdkMybEFMYWhMT29STE1TcERqUEE5NEF4Kzh2K2dHMVNBeGVZeDZPVUtpUjN1d1NhMFlnVjRha3hCM2pON1BQWElMRlFCQT09Cg==",
+      "sha256": "5B28CBE1DF8E48804DC5779FE4EC2CACB25B0C8A293B023A3E2FB92060F4F881"
     }
   }
 }
