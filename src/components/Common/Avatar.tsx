@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { resolveMediaUrl } from '../../services/apiClient';
 
 interface AvatarProps {
   src?: string;
@@ -27,7 +28,7 @@ export const Avatar: React.FC<AvatarProps> = ({ src, name, size = 40, className 
       className={`kova-avatar ${showImage ? '' : 'kova-avatar-monogram'} ${className}`}
       style={style}
     >
-      {showImage ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} /> : <span aria-hidden="true">{initialsOf(name)}</span>}
+      {showImage ? <img src={resolveMediaUrl(src)} alt="" loading="lazy" onError={() => setFailed(true)} /> : <span aria-hidden="true">{initialsOf(name)}</span>}
     </Tag>
   );
 };

@@ -1,7 +1,7 @@
 // Socket.IO Realtime Client for Kova
 
 import { io, Socket } from 'socket.io-client';
-import { getAuthToken } from './apiClient';
+import { getAuthToken, FALLBACK_SOCKET_URL } from './apiClient';
 
 const SOCKET_URL = import.meta.env.VITE_KOVA_SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:4000');
 const SOCKET_CONFIGURED = Boolean(import.meta.env.VITE_KOVA_SOCKET_URL);
@@ -24,6 +24,16 @@ export function getSocket(): Socket {
       upgrade: true,
       rememberUpgrade: true,
       forceNew: false,
+    });
+    let failures = 0;
+    socket.on('connect', () => { failures = 0; });
+    socket.on('connect_error', () => {
+      failures += 1;
+      const manager = socket?.io as unknown as { uri: string } | undefined;
+      if (failures >= 2 && manager && SOCKET_CONFIGURED && manager.uri !== FALLBACK_SOCKET_URL && /vercel\.app/.test(manager.uri)) {
+        console.warn('[Kova realtime] Vercel bloquea el tiempo real; usando el servidor de reserva.');
+        manager.uri = FALLBACK_SOCKET_URL;
+      }
     });
   }
   return socket;

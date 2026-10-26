@@ -8,6 +8,13 @@ const API_BASE_URL = import.meta.env.VITE_KOVA_API_URL || (isTauri ? 'https://ko
 const FALLBACK_API_URL = 'https://kova-ios.onrender.com/api';
 const PRIMARY_TIMEOUT_MS = 6000;
 let activeApiBase = API_BASE_URL;
+const PRIMARY_ORIGIN = 'https://kova-k2nchin.vercel.app';
+const FALLBACK_ORIGIN = 'https://kova-ios.onrender.com';
+/** True once the desktop app moved to Render because Vercel blocked or didn't answer. */
+export const usingFallbackServer = () => activeApiBase === FALLBACK_API_URL;
+/** Uploaded files live on both hosts (same storage): load them from the reachable one. */
+export const resolveMediaUrl = (url?: string) => (url && usingFallbackServer() && url.startsWith(`${PRIMARY_ORIGIN}/api/`) ? FALLBACK_ORIGIN + url.slice(PRIMARY_ORIGIN.length) : url || '');
+export const FALLBACK_SOCKET_URL = FALLBACK_ORIGIN;
 
 const fetchApi = async (endpoint: string, config: RequestInit): Promise<Response> => {
   const canFallBack = isTauri && activeApiBase !== FALLBACK_API_URL && /^https:/.test(activeApiBase);
