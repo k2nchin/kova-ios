@@ -1,12 +1,12 @@
 {
-  "version": "1.0.24",
-  "notes": "Kova 1.0.24: traducción automática, resumen de llamadas, carpetas de canales, AutoMod IA, eventos con calendario y escuchar música juntos.",
-  "pub_date": "2026-10-26T05:23:19Z",
+  "version": "1.0.25",
+  "notes": "Kova 1.0.25: canales privados y de solo lectura, emojis y stickers propios, encuestas, foros y notificaciones push.",
+  "pub_date": "2026-10-26T15:16:21Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.24_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFJlK2ZEUFFRVTlVeFNqNmxLVVB2OHhMNEVPVjAzSkdPR3JLejN6RTN3OStvQWNvay9laTlkS1JtS2N5d09tWW5vdi95dFlBcFVPSG9qTXYxT1pZbXdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTkyMTY4CWZpbGU6S292YV8xLjAuMjRfeDY0LXNldHVwLmV4ZQo4MmJlV0tpQVdIL3hiSXAvc0xwdktBTUcrMFU0TUtRNWZUbHE4Y0JnMzRzcFlnZC9UZWFIMnRZeWpLc01LaWxkY0dKR2RiT0NoRnI0UU1YSjhlZDFCQT09Cg==",
-      "sha256": "0F709D3422A68B96E4D76499A82A4B26A6724F9181E19C40DB5B196E5EDD9ADF"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.25_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFYrVkY1MUtCMVRqTVU1clRSTDZNYXFUWjhZQXd2L1BIUDNsMitwUm1qdlNlMWV4R0FhdHVhQ1RNYTFOUnpjYkplcldSQmwyb2FZZ1R4WmdYS1JyS0FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTkzNjgyCWZpbGU6S292YV8xLjAuMjVfeDY0LXNldHVwLmV4ZQp6aUY3OEFheWpyS0luOWxZMm1tZ2RwQnF0YWVvalgxR1Yzb25QR21CUHl3VUFlcW1oaUdvMWFocmwyK1ZRTDUzOEVKOXNIVjJFdDhVT0M0ellLVmZBQT09Cg==",
+      "sha256": "A8FE7F27C55A3484BDF26C8E082FFE7ED9BBC186FFA1DA7F4C5049F3EA64B4D7"
     }
   }
 }
