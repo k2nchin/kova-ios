@@ -1,12 +1,12 @@
 {
-  "version": "1.0.21",
-  "notes": "Kova 1.0.21: selector propio para compartir pantalla y para la cámara, sin avisos del navegador.",
-  "pub_date": "2026-10-26T00:43:11Z",
+  "version": "1.0.22",
+  "notes": "Kova 1.0.22: no leídos y menciones, búsqueda de mensajes, historial completo, hilos y notas guardados, salas de voz visibles y lista de bloqueados.",
+  "pub_date": "2026-10-26T01:24:39Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.21_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFlFcVpzUHU0Vkt2VUJ5ZVgvN2hRMVhQNWd4cjQ4REorckE3RHphVXNoUDB1cm8vT0NKajY5c3E5UnBqRjJxbFcyNUZiZ1RncTNPeGtwdGVlcGhEZHdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTc1MzE4CWZpbGU6S292YV8xLjAuMjFfeDY0LXNldHVwLmV4ZQpGWU5UWGFSUVlsTXpYc0R2MnVucHQydE1IVUs2Y2puQ3dmU1RuaXBNanlqSnd0TlZkZldpUDU0N2dhOHplekpPUGEwQm9ac2Fac3lOS2twQWFSMlVDZz09Cg==",
-      "sha256": "A2BA7428526536963A8A7202038268ACDF23EA4101FE6B4DDAE322DCF7F0701C"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.22_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFZvL0RWeG9kemE5eTZlckJ0MlZIYmNOK21XMW9QeVNqaFIxNEthTzJqZ3h5Ni9uSWFOSFBveW5wdEtKRFpJTDJLaUZDV1FSbUp1ZzM0NnlhWS9EakFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTc3ODM3CWZpbGU6S292YV8xLjAuMjJfeDY0LXNldHVwLmV4ZQpGeXRYTFlXcTMwbUM0NUdGaW10L2J1T0tsT25iZ0E4ZFJVM0RCRXVwZlRvN2RwL3FGMFBYY0hVMzJjeGFNNEFoYURxWFMzQ1hXVUFLUXFXQVJieHVBZz09Cg==",
+      "sha256": "EC541E43541DAB18A8BB1991F83133692E06BF57CFC5BD6F8FD6F9A3FE36772E"
     }
   }
 }
