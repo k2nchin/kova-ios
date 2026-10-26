@@ -226,6 +226,7 @@ export const MainLayout: React.FC = () => {
   useEffect(() => {
     if (!isDesktop) return;
     // Like Discord: download new versions in the background, then offer a restart.
+    let stopIdleInstall = () => {};
     const stopUpdates = startAutoUpdates((version, restart) => {
       toast(`Kova ${version} está lista`, {
         id: 'kova-update',
@@ -233,12 +234,22 @@ export const MainLayout: React.FC = () => {
         duration: Infinity,
         action: { label: 'Reiniciar', onClick: () => { void restart(); } },
       });
+      // Nobody should stay on an old version: if Kova is minimised or in the
+      // tray for a couple of minutes, install and restart on its own.
+      let timer: number | undefined;
+      const schedule = () => {
+        window.clearTimeout(timer);
+        if (document.hidden) timer = window.setTimeout(() => { if (document.hidden) void restart(); }, 2 * 60 * 1000);
+      };
+      document.addEventListener('visibilitychange', schedule);
+      schedule();
+      stopIdleInstall = () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', schedule); };
     });
     const closeToTray = localStorage.getItem('kova.closeToTray') !== '0';
     import('@tauri-apps/api/core')
       .then(({ invoke }) => invoke('set_close_to_tray', { enabled: closeToTray }))
       .catch(() => undefined);
-    return stopUpdates;
+    return () => { stopUpdates(); stopIdleInstall(); };
   }, [isDesktop]);
 
   useEffect(() => {

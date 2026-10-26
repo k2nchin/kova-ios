@@ -288,3 +288,15 @@ button.kova-avatar { cursor: pointer; }
 @media (max-width: 767px) {
   .kova-palette-overlay { z-index: 95 !important; padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important; }
 }
+
+/* Desktop app: native feel (no web-page selection or image dragging on the chrome). */
+.is-desktop-app body { -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
+.is-desktop-app img { -webkit-user-drag: none; }
+.is-desktop-app input, .is-desktop-app textarea, .is-desktop-app [contenteditable],
+.is-desktop-app .kova-message-item, .is-desktop-app .kpf-section p, .is-desktop-app pre, .is-desktop-app code {
+  -webkit-user-select: text; user-select: text;
+}
+.is-desktop-app ::-webkit-scrollbar { width: 8px; height: 8px; }
+.is-desktop-app ::-webkit-scrollbar-thumb { background: rgba(194, 196, 200, 0.18); border-radius: 999px; }
+.is-desktop-app ::-webkit-scrollbar-thumb:hover { background: rgba(194, 196, 200, 0.32); }
+.is-desktop-app ::-webkit-scrollbar-track { background: transparent; }

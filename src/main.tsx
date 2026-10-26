@@ -4,8 +4,10 @@ import App from './App';
 import { AppProvider } from './context/AppContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installGlobalErrorReporting } from './services/errorReporter';
+import { installDesktopShell } from './utils/desktopShell';
 
 installGlobalErrorReporting();
+installDesktopShell();
 import './index.css';
 import './styles/chromeTheme.css';
 import './styles/appShell.css';

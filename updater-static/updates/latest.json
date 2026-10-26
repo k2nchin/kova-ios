@@ -1,12 +1,12 @@
 {
-  "version": "1.0.19",
-  "notes": "Kova 1.0.19: apareces al instante al entrar en una sala de voz.",
-  "pub_date": "2026-10-25T17:20:14Z",
+  "version": "1.0.20",
+  "notes": "Kova 1.0.20: se comporta como una app de escritorio (sin menús ni atajos de navegador) y se actualiza sola cada hora.",
+  "pub_date": "2026-10-26T00:18:39Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.19_x64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMGI0UTAyZnJFQ1pybkpTNmRMZDZYWkJBdER5cGhCdHdWQVdUaCtwenhGd0p6enc0SGhDQlM4S1JodGx0K3doN0hEYUdmTzBGOTdoZWJzaVJzN0JuR3djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTQ4MDE0CWZpbGU6S292YV8xLjAuMTlfeDY0LXNldHVwLmV4ZQpDSDY5ZHRBOXh1YXZ4STE2ZVpISldpSVhFZ0RiRnVBSDRmbWhORWcrMUZZb21VNjluelRidyt4VHZxdU1MM2RhbXBHN1B2cjJEWERUTks2azM3SE5Bdz09Cg==",
-      "sha256": "C9F6EC77E2759D006EC67B3C537E01B11E8A8F10CDB71564006C2692656BDC8E"
+      "url": "https://kova-k2nchin.vercel.app/updates/Kova_1.0.20_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUSXlzNXJZaDNmMFdqL1AyOG8zamppUHUzRlBrUDVwc0tpQlg5RW1lTysxNmVlRDBUNHlWN0JJRS9VWmFqS1pUU1Q5NFlESzR0OE9qbnNQT2FuU1VCTSszMXlsSyt5N1FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyOTczNzk5CWZpbGU6S292YV8xLjAuMjBfeDY0LXNldHVwLmV4ZQpBV0traGpCUmFvcmsxMkltMHhSOGtNYiszWkVXR2VoRjAyRC9RMXRURk9hSEdYd3BEaC9FZ1FjNlJNbUhuSXQvK0g4VFJ6ajJYR0xobHNta1luS3JCdz09Cg==",
+      "sha256": "CEB7F060A33D3AEA75DC3B59F01FFD43C7F80E5B1C8207CDB688BA92BB69B92A"
     }
   }
 }

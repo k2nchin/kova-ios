@@ -18,7 +18,7 @@ export const KovaAIPanel: React.FC = () => {
 
   const quickPrompts = [
     { label: '✨ Resumir canal actual', prompt: `Resume los puntos más relevantes del canal #${activeChannel.name}` },
-    { label: '🦀 Ejemplo Tauri v2 Rust', prompt: 'Escribe un comando tauri en Rust para medir latencia de audio WebRTC' },
+    { label: '💡 Ideas para el espacio', prompt: 'Dame ideas para animar la conversación en este espacio' },
     { label: '💡 Ideas de monetización ética', prompt: '¿Cómo puede Kova ser rentable sin vender datos ni saturar de publicidad?' },
   ];
 

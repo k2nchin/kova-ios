@@ -32,7 +32,7 @@ const PUBLIC_SERVERS: DiscoverableServer[] = [
     acronym: 'KD',
     banner: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
     icon: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=200&auto=format&fit=crop&q=80',
-    description: 'Comunidad oficial de desarrollo de Kova. Arquitectura Tauri v2, extensiones, temas y código abierto.',
+    description: 'Comunidad oficial de Kova: novedades, temas, bots y ayuda.',
     memberCount: 2450,
     onlineCount: 890,
     channels: [

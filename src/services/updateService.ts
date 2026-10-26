@@ -1,7 +1,7 @@
 import { isDesktopApp } from '../utils/platform';
 
 let updateCheckStarted = false;
-const CHECK_EVERY_MS = 4 * 60 * 60 * 1000;
+const CHECK_EVERY_MS = 60 * 60 * 1000; // every hour, like Discord
 
 /**
  * Manual check (Ajustes → "Buscar actualizaciones"): downloads, installs and
