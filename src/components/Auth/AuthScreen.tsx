@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useApp, type LoginOutcome } from '../../context/AppContext';
 import { ChromeRoom } from '../Brand/ChromeRoom';
 import { GoogleRealAuthModal } from './GoogleRealAuthModal';
+import { PasswordResetModal } from './PasswordResetModal';
 import { NavigationTabs } from '../Common/NavigationTabs';
 import {
   getStoredGoogleClientId,
@@ -24,6 +25,7 @@ import {
   getTwoFactorSecondsRemaining,
 } from '../../utils/twoFactorUtils';
 import { isDesktopApp, isTauriApp } from '../../utils/platform';
+import { listenDeepLinks } from '../../utils/deepLinks';
 
 interface AuthScreenProps {
   onShowLanding?: () => void;
@@ -92,7 +94,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
     if (!isNativeApp) return;
 
     let disposed = false;
-    let unlisten: (() => void) | undefined;
 
     const completeDesktopGoogle = async (rawUrl: string) => {
       try {
@@ -131,21 +132,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
       }
     };
 
-    void import('@tauri-apps/plugin-deep-link').then(async ({ getCurrent, onOpenUrl }) => {
-      if (disposed) return;
-      const initialUrls = await getCurrent();
-      if (initialUrls?.[0]) await completeDesktopGoogle(initialUrls[0]);
-      unlisten = await onOpenUrl((urls) => {
-        if (urls[0]) void completeDesktopGoogle(urls[0]);
-      });
-    }).catch(() => {
-      toast.error('Kova no pudo activar el retorno desde el navegador.');
-      setIsLoading(false);
-    });
+    const stopListening = listenDeepLinks((url) => { void completeDesktopGoogle(url); });
 
     return () => {
       disposed = true;
-      unlisten?.();
+      stopListening();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNativeApp]);
@@ -164,6 +155,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isResetOpen, setIsResetOpen] = useState(false);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
 
@@ -627,6 +619,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
                 </div>
               </div>
 
+              {!isRegister && (
+                <div className="flex justify-end -mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsResetOpen(true)}
+                    className="text-[11px] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={isLoading}
@@ -641,6 +645,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
 
         {/* Security Badge */}
       </div>
+
+      <PasswordResetModal
+        isOpen={isResetOpen}
+        initialEmail={email}
+        onClose={() => setIsResetOpen(false)}
+        onDone={(resetEmail) => {
+          setEmail(resetEmail);
+          setPassword('');
+        }}
+      />
 
       {/* Real Google OAuth Modal */}
       <GoogleRealAuthModal

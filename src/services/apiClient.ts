@@ -128,6 +128,12 @@ export const api = {
   login: (data: { email: string; password: string }) =>
     request<AuthResponse>('/auth/login', { method: 'POST', data }),
 
+  requestPasswordReset: (data: { email: string }) =>
+    request<{ ok: boolean; message: string }>('/auth/password-reset/request', { method: 'POST', data }),
+
+  confirmPasswordReset: (data: { email: string; code: string; password: string }) =>
+    request<{ ok: boolean; message: string }>('/auth/password-reset/confirm', { method: 'POST', data }),
+
   loginGoogle: (data: { accessToken: string; googleId: string; email: string; displayName: string; avatarUrl?: string }) =>
     request<AuthResponse>('/auth/google', { method: 'POST', data }),
 

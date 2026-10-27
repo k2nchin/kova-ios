@@ -114,7 +114,9 @@ const localRoot = () => path.resolve(process.env.KOVA_UPLOADS_DIR || path.join(p
 export async function receiveLocalUpload(db, ticketId, req) {
   const ticket = await db.prepare('SELECT * FROM upload_tickets WHERE id = ?').get(ticketId);
   if (!ticket || Number(ticket.used) || Date.parse(ticket.expires_at) < Date.now()) throw new UploadError(404, 'TICKET_EXPIRED', 'La subida expiró. Inténtalo de nuevo.');
-  await db.prepare('UPDATE upload_tickets SET used = 1 WHERE id = ?').run(ticketId);
+  // Claim atomically so two concurrent uploads can't both use one ticket.
+  const claimed = await db.prepare('UPDATE upload_tickets SET used = 1 WHERE id = ? AND used = 0').run(ticketId);
+  if (!claimed.changes) throw new UploadError(404, 'TICKET_EXPIRED', 'La subida expiró. Inténtalo de nuevo.');
   const chunks = []; let total = 0;
   for await (const chunk of req) {
     total += chunk.length;

@@ -37,6 +37,7 @@ import {
   translateTextWithGemini,
   generateMeetingMinutesWithGemini,
 } from '../services/geminiService';
+import { matchesShortcut } from '../utils/shortcuts';
 import { api, getAuthToken, setAuthToken, clearAuthToken } from '../services/apiClient';
 import { isDesktopApp, isMobileApp } from '../utils/platform';
 import { connectSocket, disconnectSocket, getSocket } from '../services/socketClient';
@@ -872,10 +873,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         banner: remoteUser.banner || undefined,
         thoughtBubble: remoteUser.thoughtBubble || previous.thoughtBubble,
       }));
-    }).catch(() => {
+    }).catch((error: { status?: number }) => {
       if (cancelled) return;
+      // Only a rejected session logs out; offline, 5xx or Vercel's 403 checkpoint must not.
+      if (error?.status !== 401) return;
       clearAuthToken();
-      localStorage.setItem('kova.auth.session', 'false');
+      try { localStorage.setItem('kova.auth.session', 'false'); } catch {}
       setIsAuthenticated(false);
       toast.error('Tu sesión expiró. Vuelve a iniciar sesión.');
     });
@@ -1127,7 +1130,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const localOnly = current.filter((message) => !message.id.startsWith('message_') && !ids.has(message.id));
           const translations = new Map(current.filter((m) => m.translatedText).map((m) => [m.id, m.translatedText]));
           const merged = normalized.map((message) => (translations.has(message.id) ? { ...message, translatedText: translations.get(message.id) } : message));
-          return { ...previous, [activeChannelId]: [...merged, ...localOnly] };
+          // Older pages loaded by scrolling up sit before the newest 100; keep them.
+          const oldestIndex = normalized.length ? current.findIndex((message) => message.id === normalized[0].id) : -1;
+          const olderPages = oldestIndex > 0 ? current.slice(0, oldestIndex).filter((message) => message.id.startsWith('message_') && !ids.has(message.id)) : [];
+          return { ...previous, [activeChannelId]: [...olderPages, ...merged, ...localOnly] };
         });
       } catch (error) {
         if (!cancelled) console.warn('[Kova messages sync]', error);
@@ -2139,16 +2145,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const messages: Message[] = allMessages[activeChannel.id] || [];
 
-  // Register Global Hotkeys (Ctrl+K, Ctrl+J)
+  const voiceTogglesRef = useRef({ toggleMute: () => {}, toggleDeafen: () => {} });
+
+  // Global hotkeys; the combos are editable in Ajustes > Atajos.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      if (matchesShortcut(e, 'commandPalette')) {
         e.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
+      } else if (matchesShortcut(e, 'kovaAI')) {
         e.preventDefault();
         setIsKovaAIOpen((prev) => !prev);
+      } else if (matchesShortcut(e, 'toggleMute')) {
+        e.preventDefault();
+        voiceTogglesRef.current.toggleMute();
+      } else if (matchesShortcut(e, 'toggleDeafen')) {
+        e.preventDefault();
+        voiceTogglesRef.current.toggleDeafen();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -2416,11 +2429,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- Push-to-talk (desktop): la tecla global controla el microfono ---
   const [pushToTalkEnabled, setPushToTalkEnabledState] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return isDesktopApp() && localStorage.getItem('kova.ptt.enabled') === '1';
+    try { return isDesktopApp() && localStorage.getItem('kova.ptt.enabled') === '1'; } catch { return false; }
   });
   const [pushToTalkKey, setPushToTalkKeyState] = useState(() => {
     if (typeof window === 'undefined') return 'Control+Space';
-    return localStorage.getItem('kova.ptt.key') || 'Control+Space';
+    try { return localStorage.getItem('kova.ptt.key') || 'Control+Space'; } catch { return 'Control+Space'; }
   });
   const [isPushToTalkHeld, setIsPushToTalkHeld] = useState(false);
 
@@ -2477,6 +2490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     soundFx.playDeafenToggle(!currentUser.isDeafened);
     setCurrentUser((prev) => ({ ...prev, isDeafened: !prev.isDeafened }));
   };
+  voiceTogglesRef.current = { toggleMute, toggleDeafen };
 
   // Camera and screen go through LiveKit so everyone in the room sees them.
   // Turning them on opens Kova's own pickers (like Discord), never the browser's.

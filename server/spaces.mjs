@@ -1,3 +1,4 @@
+import { removeUserFromSpace } from './realtime.mjs';
 // Roles, permissions and membership for spaces. The owner always has every
 // permission; everyone else gets the union of @everyone and their roles.
 import crypto from 'node:crypto';
@@ -137,6 +138,7 @@ export async function handleSpaceRoutes({ db, req, res, requestPath, session, se
     const row = target && await db.prepare('SELECT * FROM space_roles WHERE id = ? AND space_id = ?').get(target, spaceId);
     if (!row) { send(res, 404, { message: 'Ese rol no existe.' }); return true; }
     if (row.id === ownerRoleId(spaceId)) return deny('El rol de creador no se puede cambiar.');
+    if (parsePerms(row.permissions).includes('ADMINISTRATOR') && !isOwner) return deny('Solo el creador puede cambiar o borrar un rol de administrador.');
     if (req.method === 'PATCH') {
       const body = await readBody(req);
       const permissions = body.permissions === undefined ? parsePerms(row.permissions) : cleanPerms(body.permissions);
@@ -195,6 +197,7 @@ export async function handleSpaceRoutes({ db, req, res, requestPath, session, se
     await notifySpace(spaceId, 'members');
     // The removed person must drop the space too.
     await emitToUsers([target], 'space:changed', { serverId: spaceId, kind: 'removed' });
+    await removeUserFromSpace(target, spaceId);
     send(res, 200, { ok: true });
     return true;
   }

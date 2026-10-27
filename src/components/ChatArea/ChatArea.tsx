@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { matchesShortcut } from '../../utils/shortcuts';
 import { isVoiceLike } from '../../utils/channels';
 import {
   Hash,
@@ -272,10 +273,10 @@ export const ChatArea: React.FC = () => {
   const [isFollowOpen, setIsFollowOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
-  // Ctrl+F searches messages (the browser's own find bar is disabled).
+  // The search shortcut (Ctrl+F by default) searches messages (the browser's own find bar is disabled).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'f') {
+      if (matchesShortcut(event, 'searchMessages')) {
         event.preventDefault();
         setIsSearchOpen(true);
       }
@@ -364,6 +365,8 @@ export const ChatArea: React.FC = () => {
 
   // Real voice notes: record the mic, upload the audio, send it as a playable attachment.
   const voiceRecordingRef = useRef<VoiceNoteRecording | null>(null);
+  // Leaving the channel mid-recording must release the microphone.
+  useEffect(() => () => voiceRecordingRef.current?.cancel(), []);
   const handleStartRecording = async () => {
     try {
       voiceRecordingRef.current = await startVoiceNote();

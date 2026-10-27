@@ -48,6 +48,19 @@ export const emitToUsers = async (userIds, event, payload) => {
 };
 
 /** Receives a relayed event (POST /api/realtime/emit) and broadcasts it locally. */
+// Drops a user's live sockets out of a space they no longer belong to (kick, ban, leave).
+export const removeUserFromSpace = async (userId, spaceId) => {
+  if (!io) return;
+  for (const socket of await io.in(userRoom(userId)).fetchSockets()) {
+    socket.leave(spaceRoom(spaceId));
+    if (Array.isArray(socket.data.spaceIds)) socket.data.spaceIds = socket.data.spaceIds.filter((id) => id !== spaceId);
+    if (socket.data.channelId && socket.data.channelSpaceId === spaceId) {
+      socket.leave(channelRoom(socket.data.channelId));
+      socket.data.channelId = null;
+    }
+  }
+};
+
 export const broadcastRelayed = ({ channelId, userIds, event, payload } = {}) => {
   const allowed = ['message:created', 'message:updated', 'message:deleted', 'message:reactions', 'dm:created', 'space:nickname', 'space:changed', 'friends:changed', 'channel:activity', 'voice:changed', 'thread:message', 'notes:changed', 'reminder:due', 'voice:notes', 'event:changed', 'event:starting', 'voice:music', 'poll:updated', 'level:up', 'stage:changed', 'voice:sound', 'voice:activity', 'activity:changed', 'group:message', 'group:changed', 'group:call', 'dm:call'];
   if (!io || !allowed.includes(event)) return false;
@@ -90,6 +103,9 @@ export async function attachRealtime(httpServer, { db, canAccessSpace, allowedOr
       if (!row) return next(new Error('UNAUTHORIZED'));
       socket.data.user = { id: row.id, username: row.username, displayName: row.display_name };
       socket.data.channelId = null;
+      // Loaded here, not in 'connection', so listeners are registered before the
+      // client's first events (channel:join on reconnect) arrive.
+      socket.data.spaceIds = await spaceIdsFor(db, row.id);
       next();
     } catch (error) {
       console.error('[Kova realtime auth]', error);
@@ -99,13 +115,11 @@ export async function attachRealtime(httpServer, { db, canAccessSpace, allowedOr
 
   io.on('connection', async (socket) => {
     const { user } = socket.data;
-    socket.data.spaceIds = await spaceIdsFor(db, user.id);
     socket.join(userRoom(user.id));
     for (const spaceId of socket.data.spaceIds) socket.join(spaceRoom(spaceId));
 
     const previous = connectionsByUser.get(user.id) || 0;
     connectionsByUser.set(user.id, previous + 1);
-    if (previous === 0) await broadcastPresence(db, socket, 'online');
 
     const stopTyping = () => {
       clearTimeout(socket.data.typingTimer);
@@ -123,6 +137,7 @@ export async function attachRealtime(httpServer, { db, canAccessSpace, allowedOr
         stopTyping();
         if (socket.data.channelId) socket.leave(channelRoom(socket.data.channelId));
         socket.data.channelId = id;
+        socket.data.channelSpaceId = channel.space_id;
         socket.join(channelRoom(id));
         ack?.({ ok: true });
       } catch (error) {
@@ -160,6 +175,11 @@ export async function attachRealtime(httpServer, { db, canAccessSpace, allowedOr
       connectionsByUser.delete(user.id);
       try { await broadcastPresence(db, socket, 'offline'); } catch (error) { console.error('[Kova realtime presence]', error); }
     });
+
+    // Announced last, after every listener above is in place.
+    if (previous === 0) {
+      try { await broadcastPresence(db, socket, 'online'); } catch (error) { console.error('[Kova realtime presence]', error); }
+    }
   });
 
   console.log('Kova realtime gateway (Socket.IO) activo');

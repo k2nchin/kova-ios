@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { ShortcutsEditor } from '../Settings/ShortcutsEditor';
 import {
   UserRound,
   Monitor,
@@ -933,30 +934,10 @@ export const SettingsModal: React.FC = () => {
             {/* TAB: ATAJOS */}
             {activeTab === 'atajos' && (
               <SettingsSection
-                title="Atajos de Teclado Esenciales"
-                description="Atajos rápidos para navegar y controlar Kova con el teclado."
+                title="Atajos de Teclado"
+                description="Haz clic en un atajo para cambiarlo. Usa al menos Ctrl, Shift o Alt."
               >
-                <div className="space-y-2">
-                  {[
-                    { label: 'Buscar canales y mensajes (Command Palette)', key: 'Ctrl + K' },
-                    { label: 'Abrir Asistente Kova AI', key: 'Ctrl + J' },
-                    { label: 'Enviar mensaje en chat', key: 'Enter' },
-                    { label: 'Insertar salto de línea', key: 'Shift + Enter' },
-                    { label: 'Silenciar micrófono', key: 'Ctrl + Shift + M' },
-                    { label: 'Ensordecer audio', key: 'Ctrl + Shift + D' },
-                    { label: 'Cerrar modal o panel activo', key: 'Esc' },
-                  ].map((s, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-3 rounded-xl bg-[#090414] border border-purple-900/30"
-                    >
-                      <span className="text-xs text-slate-300">{s.label}</span>
-                      <kbd className="px-2.5 py-1 rounded-lg bg-[#06020e] border border-purple-900/30 text-xs font-mono font-bold text-purple-300">
-                        {s.key}
-                      </kbd>
-                    </div>
-                  ))}
-                </div>
+                <ShortcutsEditor />
               </SettingsSection>
             )}
 

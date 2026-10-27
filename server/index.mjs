@@ -37,6 +37,7 @@ import { activitySchema, handleActivityRoutes, mentionedUserIds } from './activi
 import { spacesSchema, handleSpaceRoutes, can, rolesOf, memberRoleMap, ensureRoles, spaceAudience, deleteSpaceExtras } from './spaces.mjs';
 import { uploadsSchema, createUploadTicket, receiveLocalUpload, serveLocalFile, UploadError } from './storage.mjs';
 import { twoFactorSchema, twoFactorUserColumns, sealSecret, openSecret, generateSecret, otpauthUrl, verifyTotp, hashBackupCode, generateBackupCodes, looksLikeBackupCode, loginLockedFor, recordLoginFailure, clearLoginFailures, CHALLENGE_TTL_MS, CHALLENGE_MAX_ATTEMPTS } from './twoFactor.mjs';
+import { passwordResetSchema, handlePasswordResetRoutes } from './passwordReset.mjs';
 
 // Hosts such as Railway, Render or Fly inject PORT; KOVA_API_PORT wins for local setups.
 const port = Number(process.env.KOVA_API_PORT || process.env.PORT || 4000);
@@ -98,6 +99,7 @@ if (databaseUrl) {
 }
 await db.exec(schema);
 await db.exec(twoFactorSchema);
+await db.exec(passwordResetSchema);
 await db.exec(contentSchema);
 await db.exec(spacesSchema);
 await db.exec(activitySchema);
@@ -277,12 +279,14 @@ const isVerifiedEmail = (email) => VERIFIED_EMAILS.has(String(email || '').trim(
 const isVerifiedUserId = async (userId) => isVerifiedEmail((await db.prepare('SELECT email FROM users WHERE id = ?').get(userId))?.email);
 const publicUser = (u) => {
   const hash = [...String(u.id || '')].reduce((n, c) => ((n * 33) ^ c.charCodeAt(0)) >>> 0, 5381);
-  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, email: u.email, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: isVerifiedEmail(u.email), twoFactorEnabled: Boolean(u.twoFactorEnabled), bio: u.bio || '', banner: u.banner || '', customStatus: u.customStatus || '', thoughtBubble: u.thoughtBubble || '', accentColor: u.accentColor || '', joinSound: u.joinSound || '' };
+  return { id: u.id, userId: u.id, username: u.username, displayName: u.displayName, avatar: u.avatar, tag: String(hash % 10000).padStart(4, '0'), status: 'online', verified: isVerifiedEmail(u.email), twoFactorEnabled: Boolean(u.twoFactorEnabled), bio: u.bio || '', banner: u.banner || '', customStatus: u.customStatus || '', thoughtBubble: u.thoughtBubble || '', accentColor: u.accentColor || '', joinSound: u.joinSound || '' };
 };
+// The account owner's own payload: the only place email is exposed.
+const selfUser = (u) => ({ ...publicUser(u), email: u.email });
 const issueSession = async (user) => {
   const token = crypto.randomBytes(32).toString('hex');
   await db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, new Date().toISOString(), sessionExpiry());
-  return { user: publicUser(user), token };
+  return { user: selfUser(user), token };
 };
 // With 2FA enabled the password (or Google) step only yields a short-lived challenge.
 const completeFirstFactor = async (user) => {
@@ -365,7 +369,8 @@ const handleRequest = async (req, res) => {
     const file = path.join(updatesDir, updateFileMatch[1]);
     if (!fs.existsSync(file)) return send(res, 404, { message: 'No hay actualizaciones disponibles aquí.' });
     if (updateFileMatch[1] === 'latest.json') {
-      const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+      let manifest;
+      try { manifest = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return send(res, 503, { message: 'La actualización se está publicando. Inténtalo en unos minutos.' }); }
       const origin = `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host}`;
       for (const platform of Object.values(manifest.platforms || {})) {
         platform.url = `${origin}/api/updates/${String(platform.url).split('/').pop()}`;
@@ -401,6 +406,7 @@ const handleRequest = async (req, res) => {
     }
     return send(res, 201, await issueSession(user));
   }
+  if (await handlePasswordResetRoutes({ db, requestPath, req, res, send, readBody, passwordHash })) return;
   if (requestPath === '/api/auth/login' && req.method === 'POST') {
     const body = await readBody(req); const email = String(body.email || '').trim().toLowerCase();
     const throttleKey = `login:${email}`;
@@ -516,7 +522,7 @@ const handleRequest = async (req, res) => {
   }
   if (requestPath === '/api/auth/me' && req.method === 'GET') {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const row = await db.prepare('SELECT u.* FROM users u JOIN sessions s ON s.user_id = u.id WHERE s.token = ? AND s.expires_at > ?').get(token, new Date().toISOString()); const user = userFromRow(row);
-    return user ? send(res, 200, publicUser(user)) : send(res, 401, { message: 'Sesión no válida.' });
+    return user ? send(res, 200, selfUser(user)) : send(res, 401, { message: 'Sesión no válida.' });
   }
   if (requestPath === '/api/auth/logout' && req.method === 'POST') {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -717,7 +723,7 @@ const handleRequest = async (req, res) => {
   const unblockMatch = requestPath.match(/^\/api\/safety\/blocks\/([^/]+)$/);
   if (unblockMatch && req.method === 'DELETE') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
-    await db.prepare('DELETE FROM blocked_users WHERE blocker_id = ? AND blocked_id = ?').run(session.user_id, unblockMatch[1]);
+    await db.prepare('DELETE FROM blocked_users WHERE blocker_id = ? AND blocked_id = ?').run(session.user_id, decodeURIComponent(unblockMatch[1]));
     return send(res, 200, { ok: true });
   }
   if (requestPath === '/api/safety/reports' && req.method === 'POST') {
@@ -745,7 +751,7 @@ const handleRequest = async (req, res) => {
       if (!target) return send(res, 404, { message: 'No encontramos esa cuenta de Kova. Revisa su ID.' });
     } else {
       const identity = String(body.identity || '').trim().replace(/^@/, '').replace(/#\d{1,4}$/, '');
-      target = userFromRow(await db.prepare('SELECT * FROM users WHERE lower(username) = lower(?) OR lower(display_name) = lower(?) OR lower(email) = lower(?) OR id = ?').get(identity, identity, identity, identity));
+      target = userFromRow(await db.prepare('SELECT * FROM users WHERE lower(username) = lower(?) OR lower(email) = lower(?) OR id = ?').get(identity, identity, identity));
     }
     if (!target) return send(res, 404, { message: 'No encontramos esa cuenta de Kova. Revisa su usuario o correo.' });
     if (target.id === session.user_id) return send(res, 400, { message: 'No puedes enviarte una solicitud a ti mismo.' });
@@ -771,15 +777,15 @@ const handleRequest = async (req, res) => {
   const friendRequestMatch = requestPath.match(/^\/api\/friends\/requests\/([^/]+)(\/accept)?$/);
   if (friendRequestMatch && req.method === 'POST' && friendRequestMatch[2]) {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
-    const request = await db.prepare("SELECT * FROM friend_requests WHERE id = ? AND receiver_id = ? AND status = 'pending'").get(friendRequestMatch[1], session.user_id);
+    const request = await db.prepare("SELECT * FROM friend_requests WHERE id = ? AND receiver_id = ? AND status = 'pending'").get(decodeURIComponent(friendRequestMatch[1]), session.user_id);
     if (!request) return send(res, 404, { message: 'Esta solicitud ya no está disponible.' });
     await acceptFriendship(request.id, request.sender_id, session.user_id);
     return send(res, 200, { ok: true });
   }
   if (friendRequestMatch && req.method === 'DELETE') {
     if (!session) return send(res, 401, { message: 'Sesión no válida.' });
-    const request = await db.prepare('SELECT sender_id, receiver_id FROM friend_requests WHERE id = ?').get(friendRequestMatch[1]);
-    await db.prepare("DELETE FROM friend_requests WHERE id = ? AND (sender_id = ? OR receiver_id = ?)").run(friendRequestMatch[1], session.user_id, session.user_id);
+    const request = await db.prepare('SELECT sender_id, receiver_id FROM friend_requests WHERE id = ?').get(decodeURIComponent(friendRequestMatch[1]));
+    await db.prepare("DELETE FROM friend_requests WHERE id = ? AND (sender_id = ? OR receiver_id = ?)").run(decodeURIComponent(friendRequestMatch[1]), session.user_id, session.user_id);
     if (request) void emitToUsers([request.sender_id, request.receiver_id].filter((id) => id !== session.user_id), 'friends:changed', { kind: 'request' });
     return send(res, 200, { ok: true });
   }
@@ -835,6 +841,7 @@ const handleRequest = async (req, res) => {
         space = await tx.prepare('SELECT * FROM spaces WHERE id = ?').get(inviteCode);
         const alreadyMember = space && await tx.prepare('SELECT user_id FROM space_members WHERE space_id = ? AND user_id = ?').get(space.id, session.user_id);
         if (!space || (space.visibility !== 'public' && space.owner_id !== session.user_id && !alreadyMember)) return { error: { status: 404, message: 'La invitación no existe o el espacio es privado.' } };
+        if (await tx.prepare('SELECT user_id FROM space_bans WHERE space_id = ? AND user_id = ?').get(space.id, session.user_id)) return { error: { status: 403, message: 'No puedes entrar a este espacio.' } };
       }
       const membership = await tx.prepare('SELECT user_id FROM space_members WHERE space_id = ? AND user_id = ?').get(space.id, session.user_id);
       if (!membership && space.owner_id !== session.user_id) await tx.prepare('INSERT INTO space_members (space_id, user_id, joined_at) VALUES (?, ?, ?) ON CONFLICT (space_id, user_id) DO NOTHING').run(space.id, session.user_id, new Date().toISOString());
@@ -1058,9 +1065,9 @@ const handleRequest = async (req, res) => {
     const channel = await db.prepare('SELECT space_id FROM signals WHERE id = ?').get(decodeURIComponent(channelMatch[1]));
     if (!channel || !await can(db, channel.space_id, session.user_id, 'MANAGE_CHANNELS')) return send(res, 403, { message: 'No puedes eliminar este canal.' });
     await runInTransaction(async (tx) => {
-      await tx.prepare('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE signal_id = ?)').run(channelMatch[1]);
-      await tx.prepare('DELETE FROM messages WHERE signal_id = ?').run(channelMatch[1]);
-      await tx.prepare('DELETE FROM signals WHERE id = ?').run(channelMatch[1]);
+      await tx.prepare('DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE signal_id = ?)').run(decodeURIComponent(channelMatch[1]));
+      await tx.prepare('DELETE FROM messages WHERE signal_id = ?').run(decodeURIComponent(channelMatch[1]));
+      await tx.prepare('DELETE FROM signals WHERE id = ?').run(decodeURIComponent(channelMatch[1]));
     });
     await notifySpace(channel.space_id, 'channels');
     return send(res, 200, { ok: true });

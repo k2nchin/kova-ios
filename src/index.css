@@ -1296,57 +1296,34 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--turquois
 @media (max-width: 520px) { .kova-user-profile-modal { max-width: calc(100vw - 24px); } }
 
 /* Official Kova monochrome pass: remove legacy violet/blurple accents globally. */
-[class*="text-purple"], [class*="text-indigo"], [class*="text-violet"], [class*="text-fuchsia"] { color: #c7c7cc !important; }
-[class*="bg-purple"], [class*="bg-indigo"], [class*="bg-violet"], [class*="bg-fuchsia"] { background-color: rgba(255,255,255,.055) !important; }
-[class*="border-purple"], [class*="border-indigo"], [class*="border-violet"], [class*="border-fuchsia"] { border-color: rgba(255,255,255,.15) !important; }
-[class*="from-purple"], [class*="via-purple"], [class*="to-purple"], [class*="from-indigo"], [class*="via-indigo"], [class*="to-indigo"] { background-image: linear-gradient(135deg, #2a2a2f, #111114) !important; }
-[class*="shadow-purple"], [class*="shadow-indigo"] { --tw-shadow-color: rgba(255,255,255,.12) !important; }
-[class*="text-[#f47fff]"], [class*="text-[#a855f7]"], [class*="text-[#c084fc]"], [class*="text-[#7c3aed]"],
-[class*="text-[#5865f2]"], [class*="text-[#8b5cf6]"], [style*="#c084fc"], [style*="#a855f7"] { color: #ffffff !important; }
+[data-theme="oled"] [class*="text-purple"], [data-theme="oled"] [class*="text-indigo"], [data-theme="oled"] [class*="text-violet"], [data-theme="oled"] [class*="text-fuchsia"] { color: #c7c7cc !important; }
+[data-theme="oled"] [class*="bg-purple"], [data-theme="oled"] [class*="bg-indigo"], [data-theme="oled"] [class*="bg-violet"], [data-theme="oled"] [class*="bg-fuchsia"] { background-color: rgba(255,255,255,.055) !important; }
+[data-theme="oled"] [class*="border-purple"], [data-theme="oled"] [class*="border-indigo"], [data-theme="oled"] [class*="border-violet"], [data-theme="oled"] [class*="border-fuchsia"] { border-color: rgba(255,255,255,.15) !important; }
+[data-theme="oled"] [class*="from-purple"], [data-theme="oled"] [class*="via-purple"], [data-theme="oled"] [class*="to-purple"], [data-theme="oled"] [class*="from-indigo"], [data-theme="oled"] [class*="via-indigo"], [data-theme="oled"] [class*="to-indigo"] { background-image: linear-gradient(135deg, #2a2a2f, #111114) !important; }
+[data-theme="oled"] [class*="shadow-purple"], [data-theme="oled"] [class*="shadow-indigo"] { --tw-shadow-color: rgba(255,255,255,.12) !important; }
+[data-theme="oled"] [class*="text-[#f47fff]"], [data-theme="oled"] [class*="text-[#a855f7]"], [data-theme="oled"] [class*="text-[#c084fc]"], [data-theme="oled"] [class*="text-[#7c3aed]"],
+[data-theme="oled"] [class*="text-[#5865f2]"], [data-theme="oled"] [class*="text-[#8b5cf6]"], [data-theme="oled"] [style*="#c084fc"], [data-theme="oled"] [style*="#a855f7"] { color: #ffffff !important; }
 input::placeholder, textarea::placeholder { color: rgba(255,255,255,.62) !important; opacity: 1 !important; }
 input[class*="placeholder-purple"]::placeholder, textarea[class*="placeholder-purple"]::placeholder { color: rgba(255,255,255,.68) !important; }
 /* Keep active navigation unmistakably selected in silver. */
-.kova-nav-item[class*="bg-"], .kova-signal-card.is-active, .kova-inbox-actions button:hover {
+[data-theme="oled"] .kova-nav-item[class*="bg-"], [data-theme="oled"] .kova-signal-card.is-active, [data-theme="oled"] .kova-inbox-actions button:hover {
   background: linear-gradient(110deg, rgba(255,255,255,.18), rgba(255,255,255,.06)) !important;
   color: #fff !important;
   border-color: rgba(255,255,255,.28) !important;
 }
 /* Hard stop for legacy theme utility backgrounds inside preferences. */
-.kova-settings-modal [class*="bg-"], .kova-server-settings-modal [class*="bg-"], .kova-user-profile-modal [class*="bg-"] {
+[data-theme="oled"] .kova-settings-modal [class*="bg-"], [data-theme="oled"] .kova-server-settings-modal [class*="bg-"], [data-theme="oled"] .kova-user-profile-modal [class*="bg-"] {
   background-color: #111114 !important;
   background-image: none !important;
 }
-.kova-settings-modal [class*="text-slate"], .kova-server-settings-modal [class*="text-slate"], .kova-user-profile-modal [class*="text-slate"] { color: #d4d4d8 !important; }
-.kova-settings-modal .bg-gradient-to-r, .kova-server-settings-modal .bg-gradient-to-r, .kova-user-profile-modal .bg-gradient-to-r {
+[data-theme="oled"] .kova-settings-modal [class*="text-slate"], [data-theme="oled"] .kova-server-settings-modal [class*="text-slate"], [data-theme="oled"] .kova-user-profile-modal [class*="text-slate"] { color: #d4d4d8 !important; }
+[data-theme="oled"] .kova-settings-modal .bg-gradient-to-r, [data-theme="oled"] .kova-server-settings-modal .bg-gradient-to-r, [data-theme="oled"] .kova-user-profile-modal .bg-gradient-to-r {
   background: linear-gradient(135deg, #303037 0%, #17171b 48%, #09090b 100%) !important;
 }
-.kova-settings-modal button[class*="bg-gradient"], .kova-server-settings-modal button[class*="bg-gradient"] {
+[data-theme="oled"] .kova-settings-modal button[class*="bg-gradient"], [data-theme="oled"] .kova-server-settings-modal button[class*="bg-gradient"] {
   background: linear-gradient(110deg, #f4f4f5, #a1a1aa) !important;
   color: #111114 !important;
 }
-/* Neutral theme accents remain visibly different while staying monochrome. */
-[data-theme="oled"] { --violet:#9a9aa2; --main:#050506; --surface-1:#0d0d10; --surface-2:#151519; }
-[data-theme="crimson"] { --violet:#d2d2d7; --main:#101012; --surface-1:#1b1b20; --surface-2:#25252b; }
-[data-theme="abyss"] { --violet:#aeb0b8; --main:#08090b; --surface-1:#121318; --surface-2:#1c1d22; }
-[data-theme="emerald"] { --violet:#bfc0c6; --main:#0b0c0d; --surface-1:#17181a; --surface-2:#222326; }
-[data-theme="amethyst"] { --violet:#e0e0e4; --main:#121216; --surface-1:#202025; --surface-2:#2b2b31; }
-[data-theme="amber"] { --violet:#c5c5ca; --main:#0e0e10; --surface-1:#1b1b1f; --surface-2:#29292e; }
-[data-theme="nebula"] { --violet:#f0f0f2; --main:#17171a; --surface-1:#25252a; --surface-2:#323238; }
-[data-theme="matrix"] { --violet:#a8a8af; --main:#070708; --surface-1:#111114; --surface-2:#1d1d21; }
-[data-theme="synthwave"] { --violet:#d8d8dd; --main:#101012; --surface-1:#1f1f24; --surface-2:#2c2c32; }
-/* Neutral theme swatches: each preset has its own graphite/silver mood. */
-.kova-settings-modal .grid > button:nth-child(1) { background: linear-gradient(135deg,#2a2a2f,#66666d) !important; }
-.kova-settings-modal .grid > button:nth-child(2) { background: linear-gradient(135deg,#020203,#111114) !important; }
-.kova-settings-modal .grid > button:nth-child(3) { background: linear-gradient(135deg,#15161a,#34363b) !important; }
-.kova-settings-modal .grid > button:nth-child(4) { background: linear-gradient(135deg,#202125,#55575d) !important; }
-.kova-settings-modal .grid > button:nth-child(5) { background: linear-gradient(135deg,#303137,#777980) !important; }
-.kova-settings-modal .grid > button:nth-child(6) { background: linear-gradient(135deg,#0c0d0f,#3e4045) !important; }
-.kova-settings-modal .grid > button:nth-child(7) { background: linear-gradient(135deg,#45464b,#18191c) !important; }
-.kova-settings-modal .grid > button:nth-child(8) { background: linear-gradient(135deg,#111214,#292b30) !important; }
-.kova-settings-modal .grid > button:nth-child(9) { background: linear-gradient(135deg,#5b5c61,#25262a) !important; }
-.kova-settings-modal .grid > button:nth-child(-n+9) strong,
-.kova-settings-modal .grid > button:nth-child(-n+9) p,
-.kova-settings-modal .grid > button:nth-child(-n+9) span { color: #f4f4f5 !important; }
 
 @media (max-width: 1180px) {
   .kova-sidebar { width: 286px; }
@@ -2701,9 +2678,9 @@ select:focus {
   .kova-app-shell .fixed.inset-0.z-50 > div { border-radius: 18px 28px 28px 28px !important; }
 }
 
-/* Kova Chrome — official monochrome product palette. */
-:root,
-[data-theme] {
+/* Kova Chrome — official monochrome product palette (default OLED theme). */
+:root:not([data-theme]),
+[data-theme="oled"] {
   --background: #030304;
   --rail: #050506;
   --sidebar: #09090b;
@@ -2724,8 +2701,8 @@ select:focus {
 }
 
 .kova-app-shell,
-.kova-auth-screen { background: #030304 !important; }
-.kova-app-shell > .fixed.inset-0.pointer-events-none { filter: grayscale(1) contrast(1.05); opacity: .48; }
+.kova-auth-screen { background: var(--background) !important; }
+[data-theme="oled"] .kova-app-shell > .fixed.inset-0.pointer-events-none { filter: grayscale(1) contrast(1.05); opacity: .48; }
 .kova-app-shell::before { background: #f4f4f5; opacity: .055; }
 .kova-app-shell::after { background: #71717a; opacity: .07; }
 .kova-titlebar { background: linear-gradient(90deg,rgba(4,4,5,.98),rgba(18,18,21,.96),rgba(4,4,5,.98)); }

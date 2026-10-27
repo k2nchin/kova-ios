@@ -96,7 +96,8 @@ export async function handleContentRoute({ req, res, requestPath, session, db, s
     }
     const columns = Object.keys(updates);
     if (columns.length) await db.prepare(`UPDATE users SET ${columns.map((column) => `${column} = ?`).join(', ')} WHERE id = ?`).run(...columns.map((column) => updates[column]), userId);
-    send(res, 200, publicUser(userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(userId))));
+    const updated = userFromRow(await db.prepare('SELECT * FROM users WHERE id = ?').get(userId));
+    send(res, 200, { ...publicUser(updated), email: updated.email });
     return true;
   }
 

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { matchesShortcut } from './utils/shortcuts';
+import { listenDeepLinks } from './utils/deepLinks';
 import { Titlebar } from './components/Titlebar/Titlebar';
 import { LandingPage } from './components/Landing/LandingPage';
 import { DownloadsPage } from './components/Downloads/DownloadsPage';
@@ -199,22 +201,19 @@ export const MainLayout: React.FC = () => {
     }
   }, [isAuthenticated, isNative, joinServerByInvite]);
 
+  // Read through refs so the listener is registered once, not on every render.
+  const inviteHandlerRef = useRef({ isAuthenticated, joinServerByInvite });
+  inviteHandlerRef.current = { isAuthenticated, joinServerByInvite };
   useEffect(() => {
     if (!isNative) return;
-    let dispose: (() => void) | undefined;
-    const handle = (url: string) => {
+    return listenDeepLinks((url) => {
       const match = url.match(/(?:kova:\/\/invite\/|\/invite\/)([^/?#]+)/i);
-      if (match && isAuthenticated) {
-        void joinServerByInvite(decodeURIComponent(match[1])).then((result) => { if (!result.ok) toast.error(result.message); });
+      const { isAuthenticated: signedIn, joinServerByInvite: join } = inviteHandlerRef.current;
+      if (match && signedIn) {
+        void join(decodeURIComponent(match[1])).then((result) => { if (!result.ok) toast.error(result.message); });
       }
-    };
-    void import('@tauri-apps/plugin-deep-link').then(async ({ getCurrent, onOpenUrl }) => {
-      const current = await getCurrent();
-      current?.forEach(handle);
-      dispose = await onOpenUrl((urls) => urls.forEach(handle));
-    }).catch(() => undefined);
-    return () => dispose?.();
-  }, [isNative, isAuthenticated, joinServerByInvite]);
+    });
+  }, [isNative]);
 
   useEffect(() => {
     if (isAuthenticated) void requestNotificationPermission();
@@ -254,11 +253,11 @@ export const MainLayout: React.FC = () => {
     return connectSocketOnResume();
   }, [isAuthenticated]);
 
-  // Alt+P toggles the Pulse hub (AI digest of your space) from anywhere in the app.
+  // The Pulse shortcut (Alt+P by default) toggles the Pulse hub (AI digest of your space) from anywhere in the app.
   useEffect(() => {
     if (!isAuthenticated) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.altKey && (event.key === 'p' || event.key === 'P')) {
+      if (matchesShortcut(event, 'pulse')) {
         event.preventDefault();
         setIsDMViewActive(false);
         setLayoutMode(layoutMode === 'pulse_feed' ? 'split' : 'pulse_feed');
