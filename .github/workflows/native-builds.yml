@@ -114,6 +114,17 @@ jobs:
               sys.exit(1)
           open(p, 'w').write(s)
           PY
+          # Register kova:// so the Google sign-in page can return to the app
+          # (normally added by the Tauri CLI, which this build bypasses).
+          for PLIST in $(find . -name Info.plist -path '*_iOS/*' -not -path '*/build/*'); do
+            /usr/libexec/PlistBuddy -c 'Delete :CFBundleURLTypes' "$PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c 'Add :CFBundleURLTypes array' \
+              -c 'Add :CFBundleURLTypes:0 dict' \
+              -c 'Add :CFBundleURLTypes:0:CFBundleURLName string com.kova.client' \
+              -c 'Add :CFBundleURLTypes:0:CFBundleURLSchemes array' \
+              -c 'Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string kova' "$PLIST"
+            echo "kova:// registered in $PLIST"
+          done
           SCHEME=$(xcodebuild -list -json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["project"]["schemes"][0])')
           xcodebuild -scheme "$SCHEME" -configuration release -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Kova.xcarchive" archive \
@@ -125,5 +136,7 @@ jobs:
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/out/Kova-iOS-unsigned.ipa" Payload)
           ls -la out
+          unzip -p out/Kova-iOS-unsigned.ipa 'Payload/*.app/Info.plist' > /tmp/i.plist
+          plutil -p /tmp/i.plist | grep -q '"kova"' || { echo 'kova:// missing in IPA'; exit 1; }
       - uses: actions/upload-artifact@v4
         with: { name: Kova-iOS, path: out/*.ipa, if-no-files-found: error, retention-days: 14 }
