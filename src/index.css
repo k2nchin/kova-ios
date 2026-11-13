@@ -3161,3 +3161,38 @@ select:focus {
   .kova-landing .kova-sky-band { animation: none !important; }
   .kova-landing .kova-btn { transition: none; }
 }
+
+/* ───────────── iOS mobile shell ───────────── */
+.kova-m-shell { position:relative; flex:1; display:flex; flex-direction:column; min-height:0; width:100%; background:#07080a; }
+.kova-m-screen { flex:1; display:flex; flex-direction:column; min-height:0; animation:kova-m-fade .22s ease-out; }
+.kova-m-pushed { animation:kova-m-push .28s cubic-bezier(.2,.8,.2,1); }
+@keyframes kova-m-fade { from { opacity:0 } to { opacity:1 } }
+@keyframes kova-m-push { from { transform:translateX(28%); opacity:.4 } to { transform:none; opacity:1 } }
+.kova-m-largetitle { display:flex; align-items:flex-end; justify-content:space-between; padding:10px 18px 10px; }
+.kova-m-largetitle h1 { font-size:32px; line-height:1.1; font-weight:800; letter-spacing:-.02em; color:#fff; }
+.kova-m-actions { display:flex; gap:8px; align-items:center; }
+.kova-m-iconbtn { width:40px; height:40px; min-height:40px!important; display:grid; place-items:center; border-radius:999px; background:rgba(255,255,255,.06); color:#e4e4e7; }
+.kova-m-iconbtn:active { transform:scale(.92); background:rgba(255,255,255,.12); }
+.kova-m-avatar { width:36px; height:36px; min-height:36px!important; border-radius:999px; overflow:hidden; display:grid; place-items:center; background:linear-gradient(135deg,#f4f4f5,#a1a1aa); color:#09090b; font-weight:800; font-size:15px; }
+.kova-m-avatar img { width:100%; height:100%; object-fit:cover; }
+.kova-m-navbar { display:flex; align-items:center; justify-content:space-between; height:48px; padding:0 10px 0 4px; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(8,9,11,.92); backdrop-filter:blur(20px); }
+.kova-m-back { display:flex; align-items:center; gap:0; color:#fafafa; font-size:16px; font-weight:600; max-width:70%; }
+.kova-m-back span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kova-m-stage { flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+.kova-m-stage > .kova-console { width:100%!important; height:100%; border:0; border-radius:0; }
+.kova-m-tabbar { display:flex; justify-content:space-around; padding:6px 8px max(10px, env(safe-area-inset-bottom)); border-top:1px solid rgba(255,255,255,.08); background:rgba(8,9,11,.94); backdrop-filter:blur(24px); z-index:80; }
+.kova-m-tabbar button { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0; color:#71717a; font-size:10.5px; font-weight:600; transition:color .15s; }
+.kova-m-tabbar button.is-active { color:#fff; }
+.kova-m-tabbar button:active { transform:scale(.94); }
+.kova-m-sheet-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.5); z-index:90; animation:kova-m-fade .2s; }
+.kova-m-sheet { position:absolute; left:0; right:0; bottom:0; height:72%; z-index:91; display:flex; flex-direction:column; overflow:hidden; background:#0c0d10; border-radius:22px 22px 0 0; border-top:1px solid rgba(255,255,255,.08); padding-bottom:env(safe-area-inset-bottom); animation:kova-m-sheet .3s cubic-bezier(.2,.8,.2,1); }
+.kova-m-grabber { width:38px; height:5px; border-radius:9px; background:rgba(255,255,255,.22); margin:8px auto 4px; flex-shrink:0; }
+@keyframes kova-m-sheet { from { transform:translateY(100%) } to { transform:none } }
+/* Stage header inside pushed screens: keep it compact on phones */
+.kova-m-pushed .kova-stage-head { padding:10px 14px!important; }
+.kova-m-pushed .kova-stage-presence > span:last-child { display:none; }
+.kova-m-stage .kova-rail-foot { display:none!important; }
+.kova-m-stage .kova-channels-me { display:none!important; }
+.kvr-chips { display:contents; }
+.kova-m-stage .kvr-chips { display:flex; gap:8px; padding:10px 14px 0; overflow-x:auto; flex-shrink:0; scrollbar-width:none; }
+.kova-m-stage .kvr-chips > .klt, .kova-m-stage .kvr-chips > .kact-launch { position:relative!important; left:auto!important; top:auto!important; right:auto!important; flex-shrink:0; }

@@ -30,8 +30,8 @@ const KovaAIPanel = lazy(() =>
 const CommandPalette = lazy(() =>
   import('./components/Modals/CommandPalette').then((m) => ({ default: m.CommandPalette }))
 );
-const MobileTabBar = lazy(() =>
-  import('./components/Shell/MobileTabBar').then((m) => ({ default: m.MobileTabBar }))
+const MobileShell = lazy(() =>
+  import('./components/Shell/MobileShell').then((m) => ({ default: m.MobileShell }))
 );
 
 const AppChunkFallback = (
@@ -274,7 +274,7 @@ export const MainLayout: React.FC = () => {
     return (
       <div className="w-full min-h-screen bg-[#07090e] text-[#dbdee1] relative">
         <LandingPage onEnterApp={openApp} inviteCode={inviteCode} />
-        <Toaster position="bottom-right" theme="dark" />
+        <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" />
       </div>
     );
   }
@@ -287,7 +287,7 @@ export const MainLayout: React.FC = () => {
         <Suspense fallback={AppChunkFallback}>
           <AuthScreen onShowLanding={openLanding} />
         </Suspense>
-        <Toaster position="bottom-right" theme="dark" />
+        <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" />
       </div>
     );
   }
@@ -306,20 +306,17 @@ export const MainLayout: React.FC = () => {
       {/* Main Workspace Canvas (Left Nav + Main Stage with Voice Dock + Members) */}
       <main className="flex-1 flex overflow-hidden relative z-10">
         <Suspense fallback={AppChunkFallback}>
+          {isMobile ? (
+            <MobileShell layoutMode={layoutMode} />
+          ) : (
           <WorkspaceContainer
             layoutMode={layoutMode}
             sidebarCollapsed={sidebarCollapsed}
-            onCloseSidebar={isMobile ? () => setSidebarCollapsed(true) : undefined}
           />
+          )}
         </Suspense>
       </main>
 
-      {/* Bottom navigation for mobile */}
-      {isMobile && (
-        <Suspense fallback={null}>
-          <MobileTabBar onOpenNav={() => setSidebarCollapsed(false)} />
-        </Suspense>
-      )}
 
       {/* Modals & Overlays */}
       <Suspense fallback={null}>
@@ -378,7 +375,7 @@ export const MainLayout: React.FC = () => {
         {/* Discord Hub oculto por petición */}
         {isNotificationsOpen && <NotificationsDrawer />}
       </Suspense>
-      <Toaster position="bottom-right" theme="dark" />
+      <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" />
     </div>
   );
 };

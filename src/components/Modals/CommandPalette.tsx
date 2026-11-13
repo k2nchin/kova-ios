@@ -10,6 +10,7 @@ export const CommandPalette: React.FC = () => {
     activeServer,
     setActiveServerId,
     setActiveChannelId,
+    setIsDMViewActive,
     setIsKovaAIOpen,
     askKovaAI,
   } = useApp();
@@ -28,6 +29,7 @@ export const CommandPalette: React.FC = () => {
   );
 
   const handleSelectChannel = (channelId: string) => {
+    setIsDMViewActive(false);
     setActiveChannelId(channelId);
     setIsCommandPaletteOpen(false);
   };
@@ -63,7 +65,7 @@ export const CommandPalette: React.FC = () => {
             placeholder="Buscar canales, espacios o comandos"
             className="flex-1 bg-transparent text-sm text-purple-100 placeholder-purple-400/40 focus:outline-none"
           />
-          <kbd className="text-[10px] px-2 py-0.5 rounded-lg bg-purple-950/40 border border-purple-900/40 text-purple-300/70 font-mono">
+          <kbd className="hidden md:inline text-[10px] px-2 py-0.5 rounded-lg bg-purple-950/40 border border-purple-900/40 text-purple-300/70 font-mono">
             ESC
           </kbd>
         </div>

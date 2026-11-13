@@ -1,0 +1,103 @@
+name: Kova native builds (macOS · Android · iOS)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'mobile/**'
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (.dmg universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-apple-darwin,x86_64-apple-darwin' }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: 'src-tauri -> target' }
+      - name: Build universal app + dmg (unsigned)
+        run: npx tauri build --target universal-apple-darwin --bundles app,dmg --no-sign
+      - name: Collect
+        run: |
+          mkdir -p out
+          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg out/
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with: { name: Kova-macOS, path: out/*.dmg, if-no-files-found: error, retention-days: 14 }
+
+  android:
+    name: Android (.apk)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK
+        run: |
+          sdkmanager --install "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android' }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: 'src-tauri -> target' }
+      - name: Generate Android project
+        run: '[ -d src-tauri/gen/android ] || npx tauri android init --ci'
+      - name: Build APK (debug-signed, installs directly)
+        run: npx tauri android build --apk --debug --target aarch64 --target armv7
+      - name: Collect
+        run: |
+          mkdir -p out
+          find src-tauri/gen/android -name '*.apk' -exec cp {} out/ \;
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with: { name: Kova-Android, path: out/*.apk, if-no-files-found: error, retention-days: 14 }
+
+  ios:
+    name: iOS (.ipa sin firma, para Sideloadly/AltStore)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-apple-ios,aarch64-apple-ios-sim' }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: 'src-tauri -> target' }
+      - name: Generate Xcode project
+        run: '[ -d src-tauri/gen/apple ] || npx tauri ios init --ci'
+      - name: Build web bundle
+        run: npm run build
+      - name: Build device app without signing
+        run: |
+          cd src-tauri/gen/apple
+          SCHEME=$(xcodebuild -list -json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["project"]["schemes"][0])')
+          xcodebuild -scheme "$SCHEME" -configuration release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Kova.xcarchive" archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64
+      - name: Package .ipa
+        run: |
+          APP=$(find "$RUNNER_TEMP/Kova.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p "$RUNNER_TEMP/ipa/Payload" out
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/out/Kova-iOS-unsigned.ipa" Payload)
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with: { name: Kova-iOS, path: out/*.ipa, if-no-files-found: error, retention-days: 14 }

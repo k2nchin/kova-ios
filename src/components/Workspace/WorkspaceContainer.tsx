@@ -52,31 +52,7 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
       {/* 2. Center Stage (Chat / Voice Room / DMs / Notes) */}
       <div className="kova-panel kova-panel-center flex-1 h-full rounded-2xl bg-[#06020e] backdrop-blur-xl border border-purple-950/40 overflow-hidden flex flex-col shadow-2xl relative min-w-0">
         <div className="flex-1 overflow-hidden flex flex-col relative min-h-0">
-          <div
-            key={`${isDMViewActive ? 'dm' : activeServer?.id}-${activeChannel?.id}-${layoutMode}`}
-            className="kova-view-transition flex-1 overflow-hidden flex flex-col min-h-0"
-          >
-            {isDMViewActive ? (
-              <DirectMessagesView />
-            ) : isServerEmpty ? (
-              <EmptyServerView />
-            ) : layoutMode === 'pulse_feed' ? (
-              <PulseFeed />
-            ) : isVoiceLike(activeChannel?.type) ? (
-              <VoiceRoom />
-            ) : activeChannel?.type === 'forum' ? (
-              <ForumView key={activeChannel.id} />
-            ) : activeChannel?.type === 'notes' ? (
-              <NotesChannel />
-            ) : (
-              <ChatArea />
-            )}
-          </div>
-
-          {/* Threads Drawer */}
-          <ThreadDrawer />
-          {!isDMViewActive && activeServer && <WelcomeFlow key={activeServer.id} server={activeServer} />}
-          <IncomingCalls />
+          <WorkspaceStage layoutMode={layoutMode} />
         </div>
       </div>
 
@@ -90,5 +66,40 @@ export const WorkspaceContainer: React.FC<WorkspaceContainerProps> = ({
         </div>
       )}
     </div>
+  );
+};
+
+/** Center content (chat, voice, DMs, notes…). Shared by desktop and the mobile shell. */
+export const WorkspaceStage: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ layoutMode = 'split' }) => {
+  const { activeServer, activeChannel, isDMViewActive } = useApp();
+  const isServerEmpty = !activeServer?.channels || activeServer.channels.length === 0;
+  return (
+    <>
+      <div
+        key={`${isDMViewActive ? 'dm' : activeServer?.id}-${activeChannel?.id}-${layoutMode}`}
+        className="kova-view-transition flex-1 overflow-hidden flex flex-col min-h-0"
+      >
+        {isDMViewActive ? (
+          <DirectMessagesView />
+        ) : isServerEmpty ? (
+          <EmptyServerView />
+        ) : layoutMode === 'pulse_feed' ? (
+          <PulseFeed />
+        ) : isVoiceLike(activeChannel?.type) ? (
+          <VoiceRoom />
+        ) : activeChannel?.type === 'forum' ? (
+          <ForumView key={activeChannel.id} />
+        ) : activeChannel?.type === 'notes' ? (
+          <NotesChannel />
+        ) : (
+          <ChatArea />
+        )}
+      </div>
+
+      {/* Threads Drawer */}
+      <ThreadDrawer />
+      {!isDMViewActive && activeServer && <WelcomeFlow key={activeServer.id} server={activeServer} />}
+      <IncomingCalls />
+    </>
   );
 };

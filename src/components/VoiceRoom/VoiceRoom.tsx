@@ -440,8 +440,10 @@ export const VoiceRoom: React.FC = () => {
       />
 
       <main className="relative min-h-0 flex-1 flex flex-col">
-        <ListenTogether channelId={activeChannel.id} />
-        <CallActivities channelId={activeChannel.id} />
+        <div className="kvr-chips">
+          <ListenTogether channelId={activeChannel.id} />
+          <CallActivities channelId={activeChannel.id} />
+        </div>
         {activeChannel.type === 'stage' && <StagePanel channelId={activeChannel.id} listenerCount={totalParticipants} />}
         <div
           ref={stageRef}

@@ -24,8 +24,9 @@ export interface ShareQuality {
 
 // Free for everyone: no paid tier for HD sharing in Kova.
 export const SHARE_QUALITIES: ShareQuality[] = [
-  { label: 'Alta · 1080p · 30 fps', maxWidth: 1920, fps: 30, jpeg: 85, bitrate: 6_000_000, hint: 'detail' },
-  { label: 'Juegos · 720p · 60 fps', maxWidth: 1280, fps: 60, jpeg: 75, bitrate: 5_000_000, hint: 'motion' },
+  { label: 'Fluida · 1080p · 60 fps', maxWidth: 1920, fps: 60, jpeg: 78, bitrate: 9_000_000, hint: 'motion' },
+  { label: 'Juegos · 720p · 60 fps', maxWidth: 1280, fps: 60, jpeg: 75, bitrate: 6_000_000, hint: 'motion' },
+  { label: 'Texto nítido · 1080p · 30 fps', maxWidth: 1920, fps: 30, jpeg: 85, bitrate: 6_000_000, hint: 'detail' },
   { label: 'Máxima · 1440p · 30 fps', maxWidth: 2560, fps: 30, jpeg: 88, bitrate: 9_000_000, hint: 'detail' },
   { label: 'Ahorro · 480p · 15 fps', maxWidth: 854, fps: 15, jpeg: 70, bitrate: 1_000_000, hint: 'detail' },
 ];
@@ -68,22 +69,49 @@ export async function startNativeCapture(sourceId: string, quality: ShareQuality
 
   let stopped = false;
   let failures = 0;
+  // Pipelined capture: keep several frame requests in flight so capture, JPEG
+  // encoding, IPC and decoding overlap. A serial loop can't reach 60 fps.
+  const MAX_IN_FLIGHT = quality.fps >= 50 ? 3 : 2;
   const interval = 1000 / quality.fps;
-  const loop = async () => {
-    while (!stopped) {
-      const started = performance.now();
-      try {
-        await drawFrame();
-        failures = 0;
-      } catch {
-        // The window was closed or minimised for too long: end the share.
-        if (++failures >= 15) { stop(); onEnded(); return; }
-      }
-      const wait = interval - (performance.now() - started);
-      if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait));
+  let inFlight = 0;
+  let requested = 0;
+  let lastDrawn = 0;
+  let nextAt = performance.now();
+
+  const fetchFrame = async (seq: number) => {
+    const raw = await invoke<ArrayBuffer | number[] | Uint8Array>('capture_source_frame', { id: sourceId, maxWidth: quality.maxWidth, jpegQuality: quality.jpeg });
+    const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw instanceof Uint8Array ? raw : Uint8Array.from(raw);
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new Error('bad frame');
+    const bitmap = await createImageBitmap(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/jpeg' }));
+    // Drop frames that arrive after a newer one was already drawn.
+    if (seq < lastDrawn || stopped) { bitmap.close(); return; }
+    lastDrawn = seq;
+    if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
     }
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
   };
-  void loop();
+
+  const pump = () => {
+    if (stopped) return;
+    const now = performance.now();
+    while (inFlight < MAX_IN_FLIGHT && now >= nextAt) {
+      nextAt = Math.max(nextAt + interval, now - interval);
+      const seq = ++requested;
+      inFlight += 1;
+      fetchFrame(seq)
+        .then(() => { failures = 0; })
+        .catch(() => {
+          // The window was closed or minimised for too long: end the share.
+          if (++failures >= 15 && !stopped) { stop(); onEnded(); }
+        })
+        .finally(() => { inFlight -= 1; });
+    }
+    requestAnimationFrame(pump);
+  };
+  requestAnimationFrame(pump);
 
   const stop = () => {
     if (stopped) return;
