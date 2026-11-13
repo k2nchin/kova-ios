@@ -48,10 +48,11 @@ jobs:
       - run: npm ci
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
-      - uses: android-actions/setup-android@v3
-      - name: Install NDK
+      - name: Install NDK (preinstalled SDK)
         run: |
-          sdkmanager --install "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.2.12479018" "platforms;android-35" "build-tools;35.0.0" > /dev/null
           echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android' }
@@ -85,9 +86,26 @@ jobs:
         run: '[ -d src-tauri/gen/apple ] || npx tauri ios init --ci'
       - name: Build web bundle
         run: npm run build
+      - name: Build Rust core for iPhone
+        run: |
+          cd src-tauri
+          cargo build --release --lib --target aarch64-apple-ios --features tauri/custom-protocol
+          mkdir -p gen/apple/Externals/arm64/release
+          cp target/aarch64-apple-ios/release/libapp_lib.a gen/apple/Externals/arm64/release/libapp.a
       - name: Build device app without signing
         run: |
           cd src-tauri/gen/apple
+          # The Rust core is already built above; skip Tauri's Xcode build phase,
+          # which needs a running `tauri ios build` CLI.
+          PBX=$(find . -name project.pbxproj -path '*xcodeproj*' | head -1)
+          python3 - "$PBX" <<'PY'
+          import re, sys
+          p = sys.argv[1]
+          s = open(p).read()
+          s = re.sub(r'shellScript = "[^"]*tauri ios xcode-script[^"]*";', 'shellScript = "exit 0";', s)
+          open(p, 'w').write(s)
+          PY
+          grep -c 'shellScript = "exit 0"' "$PBX"
           SCHEME=$(xcodebuild -list -json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["project"]["schemes"][0])')
           xcodebuild -scheme "$SCHEME" -configuration release -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Kova.xcarchive" archive \
