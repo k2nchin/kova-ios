@@ -61,6 +61,8 @@ jobs:
         with: { workspaces: 'src-tauri -> target' }
       - name: Generate Android project
         run: '[ -d src-tauri/gen/android ] || npx tauri android init --ci'
+      - name: Kova app icon
+        run: npx tauri icon src-tauri/icons/icon.png
       - name: Build APK (debug-signed, installs directly)
         run: npx tauri android build --apk --debug --target aarch64 --target armv7
       - name: Collect
@@ -85,6 +87,8 @@ jobs:
         with: { workspaces: 'src-tauri -> target' }
       - name: Generate Xcode project
         run: '[ -d src-tauri/gen/apple ] || npx tauri ios init --ci'
+      - name: Kova app icon
+        run: npx tauri icon src-tauri/icons/icon.png --ios-color '#000000'
       - name: Build web bundle
         run: npm run build
       - name: Build Rust core for iPhone
