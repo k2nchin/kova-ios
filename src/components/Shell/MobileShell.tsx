@@ -20,6 +20,7 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
     currentUser,
     isDMViewActive,
     setIsDMViewActive,
+    activeDMUserId,
     setActiveDMUserId,
     isCommandPaletteOpen,
     setIsCommandPaletteOpen,
@@ -75,6 +76,9 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
     { id: 'me', label: 'Tú', icon: UserRound },
   ];
 
+  // An open private conversation is a pushed screen on the Home tab.
+  const inDM = !pushed && tab === 'home' && Boolean(activeDMUserId);
+
   const showMembers = pushed && isMemberListOpen && !isVoiceLike(activeChannel?.type);
 
   return (
@@ -106,7 +110,15 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
           )}
         </section>
       ) : (
-        <section className="kova-m-screen" key={tab}>
+        <section className={`kova-m-screen ${inDM ? 'kova-m-pushed' : ''}`} key={inDM ? `dm-${activeDMUserId}` : tab}>
+          {inDM ? (
+            <header className="kova-m-navbar">
+              <button type="button" className="kova-m-back" onClick={() => setActiveDMUserId(null)} aria-label="Volver a Inicio">
+                <ChevronLeft size={26} strokeWidth={2.2} />
+                <span>Inicio</span>
+              </button>
+            </header>
+          ) : (
           <header className="kova-m-largetitle">
             <h1>{tab === 'home' ? 'Inicio' : 'Espacios'}</h1>
             <div className="kova-m-actions">
@@ -118,6 +130,7 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
               </button>
             </div>
           </header>
+          )}
           <div className="kova-m-stage">
             {tab === 'home' ? (
               <WorkspaceStage layoutMode={layoutMode} />
@@ -128,7 +141,7 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
         </section>
       )}
 
-      {!pushed && (
+      {!pushed && !inDM && (
         <nav className="kova-m-tabbar" aria-label="Navegación principal">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button

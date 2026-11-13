@@ -3196,3 +3196,13 @@ select:focus {
 .kvr-chips { display:contents; }
 .kova-m-stage .kvr-chips { display:flex; gap:8px; padding:10px 14px 0; overflow-x:auto; flex-shrink:0; scrollbar-width:none; }
 .kova-m-stage .kvr-chips > .klt, .kova-m-stage .kvr-chips > .kact-launch { position:relative!important; left:auto!important; top:auto!important; right:auto!important; flex-shrink:0; }
+
+/* ───────────── iOS native feel ───────────── */
+.kova-native-mobile, .kova-native-mobile * { -webkit-tap-highlight-color: transparent; }
+html:has(.kova-native-mobile), body:has(.kova-native-mobile) { overscroll-behavior: none; background:#07080a; }
+.kova-native-mobile { padding-left:env(safe-area-inset-left,0); padding-right:env(safe-area-inset-right,0); -webkit-text-size-adjust:100%; }
+.kova-native-mobile img { -webkit-user-drag:none; -webkit-touch-callout:none; }
+.kova-native-mobile .custom-scrollbar, .kova-native-mobile [class*="overflow-y-auto"] { -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+.kova-native-mobile ::-webkit-scrollbar { display:none; }
+/* Text the user may want to copy stays selectable */
+.kova-native-mobile .kova-message-item, .kova-native-mobile input, .kova-native-mobile textarea { -webkit-user-select:text; user-select:text; }
