@@ -257,8 +257,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onShowLanding }) => {
 
   const handleRealGoogleSuccess = (user: RealGoogleUser) => {
     if (isDesktopGoogleBridge) {
-      window.location.assign(`kova://auth?access_token=${encodeURIComponent(user.accessToken)}`);
-      toast.success('Cuenta confirmada. Regresando a Kova...');
+      const appUrl = `kova://auth?access_token=${encodeURIComponent(user.accessToken)}`;
+      window.location.assign(appUrl);
+      // Some mobile browsers block the automatic jump: offer a tap to open the app.
+      toast.success('Cuenta confirmada. Regresando a Kova...', {
+        duration: 60_000,
+        action: { label: 'Abrir Kova', onClick: () => window.location.assign(appUrl) },
+      });
       return;
     }
     executeOrChallenge2FA(

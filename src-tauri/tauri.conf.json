@@ -40,8 +40,9 @@
     "deep-link": {
       "mobile": [
         {
+          "scheme": ["kova"],
           "host": "auth",
-          "pathPrefix": ["/"]
+          "appLink": false
         }
       ],
       "desktop": {
