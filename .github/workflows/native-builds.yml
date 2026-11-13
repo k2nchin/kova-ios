@@ -18,6 +18,7 @@ concurrency:
 jobs:
   macos:
     name: macOS (.dmg universal)
+    if: false  # en pausa: primero la IPA
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
@@ -102,10 +103,13 @@ jobs:
           import re, sys
           p = sys.argv[1]
           s = open(p).read()
-          s = re.sub(r'shellScript = "[^"]*tauri ios xcode-script[^"]*";', 'shellScript = "exit 0";', s)
+          s, n = re.subn(r'shellScript = "(?:[^"\\]|\\.)*xcode-script(?:[^"\\]|\\.)*";', 'shellScript = "exit 0";', s)
+          print("phases disabled:", n)
+          if n == 0:
+              print([l for l in s.splitlines() if 'shellScript' in l])
+              sys.exit(1)
           open(p, 'w').write(s)
           PY
-          grep -c 'shellScript = "exit 0"' "$PBX"
           SCHEME=$(xcodebuild -list -json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["project"]["schemes"][0])')
           xcodebuild -scheme "$SCHEME" -configuration release -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Kova.xcarchive" archive \
