@@ -16,9 +16,11 @@ import { api, getAuthToken } from '../../services/apiClient';
 import { soundFx } from '../../utils/soundEffects';
 
 export const InviteModal: React.FC = () => {
-  const { isInviteModalOpen, setIsInviteModalOpen, activeServer, servers, inviteServerId, friends } = useApp();
+  const { isInviteModalOpen, setIsInviteModalOpen, activeServer, servers, inviteServerId, friends, setIsCreateServerOpen } = useApp();
 
-  const targetServer = (inviteServerId ? servers.find((s) => s.id === inviteServerId) : activeServer) || servers[0];
+  const pickedServer = (inviteServerId ? servers.find((s) => s.id === inviteServerId) : activeServer) || servers[0];
+  // The placeholder shown before you create a space can't have invites.
+  const targetServer = pickedServer && pickedServer.id !== 'server_default' && servers.some((s) => s.id === pickedServer.id) ? pickedServer : undefined;
 
   const [inviteCode, setInviteCode] = useState('');
   const [inviteUrl, setInviteUrl] = useState('');
@@ -125,6 +127,21 @@ export const InviteModal: React.FC = () => {
   const filteredFriends = friends.filter((f) =>
     f.displayName.toLowerCase().includes(searchFriend.toLowerCase())
   );
+
+  if (!targetServer) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4" onClick={() => setIsInviteModalOpen(false)}>
+        <div className="w-full max-w-sm rounded-3xl bg-[#0d0e12] border border-white/10 p-6 text-center space-y-3" onClick={(e) => e.stopPropagation()}>
+          <h2 className="text-lg font-bold text-white">Primero crea un espacio</h2>
+          <p className="text-sm text-zinc-400">Las invitaciones son para un espacio. Crea el tuyo o únete a uno y vuelve aquí para invitar a tus amigos.</p>
+          <div className="flex gap-2 justify-center pt-2">
+            <button type="button" className="px-4 py-2 rounded-xl text-sm text-zinc-300 bg-white/5" onClick={() => setIsInviteModalOpen(false)}>Cerrar</button>
+            <button type="button" className="px-4 py-2 rounded-xl text-sm font-semibold text-black bg-white" onClick={() => { setIsInviteModalOpen(false); setIsCreateServerOpen(true); }}>Crear espacio</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -2540,7 +2540,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (isDesktopApp()) { setIsScreenPickerOpen(true); return; }
     // Web: the browser has its own picker and nothing can replace it there.
-    if (!navigator.mediaDevices?.getDisplayMedia) { toast.error('Este dispositivo no permite compartir pantalla.'); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      // iOS WebViews have no screen capture API; viewers still see everyone else's screens.
+      toast.info(/iPhone|iPad|iPod/i.test(navigator.userAgent)
+        ? 'iPhone aún no permite transmitir tu pantalla desde Kova. Puedes ver la pantalla de los demás y compartir la tuya desde el ordenador.'
+        : 'Este dispositivo no permite compartir pantalla. Puedes ver la de los demás.');
+      return;
+    }
     try {
       const on = await session.setScreenShareEnabled(true);
       setCurrentUser((prev) => ({ ...prev, isScreenSharing: on }));

@@ -347,7 +347,7 @@ export const DirectMessagesView: React.FC = () => {
                     />
                   )}
                   <div
-                    className={`max-w-md px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                    className={`kova-dm-bubble ${isMe ? 'kova-dm-mine' : ''} max-w-md px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
                       isMe
                         ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                         : 'bg-[#151924] border border-white/[0.08] text-slate-200'
@@ -440,6 +440,7 @@ export const DirectMessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActiveTab('add')}
+                  aria-label="Añadir amigo"
                   className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                     activeTab === 'add'
                       ? 'bg-emerald-600 text-white shadow-md'

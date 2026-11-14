@@ -3232,9 +3232,43 @@ html:has(.kova-native-mobile), body:has(.kova-native-mobile) { overscroll-behavi
 /* Small badge buttons get a 44px invisible touch target. */
 .kova-native-mobile .kova-story-add::after { content: ''; position: absolute; inset: -12px; }
 /* Horizontally scrolling chip rows hint that there is more to the right. */
-.kova-native-mobile .kova-friends-tabs > div,
-.kova-native-mobile .kova-channels-tools { overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg,#000 88%,transparent); mask-image: linear-gradient(90deg,#000 88%,transparent); padding-right: 24px; }
-.kova-native-mobile .kova-channels-tools > button { flex-shrink: 0; }
 /* Members list fills the bottom sheet on phones. */
 .kova-m-sheet .kova-members { width: 100% !important; max-width: none !important; flex: 1; min-height: 0; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
 .kova-m-sheet .kova-members-head { padding-top: 4px; }
+
+/* ───────────── Compact phone layout: everything fits, nothing scrolls sideways ───────────── */
+.kova-native-mobile button, .kova-native-mobile [role="button"] { min-height: 36px; }
+.kova-m-largetitle { padding: 6px 14px 6px; }
+.kova-m-largetitle h1 { font-size: 24px; }
+.kova-m-iconbtn { width: 34px; height: 34px; min-height: 34px !important; }
+.kova-m-avatar { width: 32px; height: 32px; min-height: 32px !important; font-size: 13px; }
+.kova-m-navbar { height: 44px; }
+.kova-m-back { font-size: 15px; }
+.kova-m-tabbar { padding: 4px 6px max(6px, env(safe-area-inset-bottom)); }
+.kova-m-tabbar button { font-size: 10px; gap: 2px; padding: 2px 0; }
+.kova-m-tabbar svg { width: 21px; height: 21px; }
+
+/* Space tools: icon-only row that always fits. */
+.kova-native-mobile .kova-channels-tools { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 0 10px 8px; overflow: visible; }
+.kova-native-mobile .kova-channels-tools button { justify-content: center; padding: 0; height: 34px; min-height: 34px; font-size: 0; gap: 3px; position: relative; }
+.kova-native-mobile .kova-channels-tools button svg { width: 16px; height: 16px; }
+.kova-native-mobile .kova-channels-tools b { font-size: 9px; position: absolute; top: -4px; right: 2px; line-height: 14px; }
+.kova-native-mobile .kova-channels-search { margin: 0 10px 6px; }
+.kova-native-mobile .kova-channels-search input { padding-top: 7px; padding-bottom: 7px; }
+
+/* Friends tabs: four equal segments, no sideways scrolling. */
+.kova-native-mobile .kova-friends-head { height: auto !important; padding: 8px 10px !important; }
+.kova-native-mobile .kova-friends-tabs { width: 100%; overflow: visible !important; }
+.kova-native-mobile .kova-friends-tabs > div { display: grid !important; grid-template-columns: 1fr 1fr 1fr auto; width: 100%; gap: 4px; }
+.kova-native-mobile .kova-friends-tabs > div > button { justify-content: center; padding: 6px 4px !important; font-size: 12px; min-height: 32px; white-space: nowrap; }
+.kova-native-mobile .kova-friends-tabs > div > button:last-child { font-size: 0; width: 40px; padding: 6px !important; }
+.kova-native-mobile .kova-friends-tabs > div > button:last-child svg { width: 16px; height: 16px; }
+img.kova-img-broken { visibility: hidden; }
+/* Compact iOS-style banners: small, quick, swipe away. */
+.kova-m-toast { padding: 9px 14px !important; min-height: 0 !important; font-size: 13px !important; border-radius: 16px !important; }
+/* Your own DM bubbles: always readable, whatever the theme does to gradients. */
+.kova-dm-bubble.kova-dm-mine { background: linear-gradient(180deg,#f4f4f5,#d4d4d8) !important; color: #0b0b0d !important; border: 0 !important; }
+.kova-dm-bubble.kova-dm-mine .text-purple-200 { color: #52525b !important; }
+.kova-dm-bubble { -webkit-user-select: text; user-select: text; }
+/* Inside the phone shell the navbar already has "‹ Inicio": no second back arrow. */
+.kova-m-shell .kova-dm-mobile-back { display: none !important; }

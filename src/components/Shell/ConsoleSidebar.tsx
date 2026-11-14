@@ -259,10 +259,10 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
         </header>
 
         <div className="kova-channels-tools">
-          <button type="button" className={isPulseActive ? 'is-active' : ''} onClick={togglePulse} title="Pulse: resumen de tu espacio">
+          <button type="button" className={isPulseActive ? 'is-active' : ''} onClick={togglePulse} title="Pulse: resumen de tu espacio" aria-label="Pulse">
             <Activity size={15} /> Pulse
           </button>
-          <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes guardados">
+          <button type="button" onClick={() => setIsPinnedDrawerOpen(true)} title="Mensajes guardados" aria-label="Guardado">
             <Bookmark size={15} /> Guardado {savedCount > 0 && <b>{savedCount}</b>}
           </button>
           <button type="button" onClick={() => setIsLeaderboardOpen(true)} title="Clasificación y niveles" aria-label="Clasificación">

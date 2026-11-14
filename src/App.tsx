@@ -274,7 +274,7 @@ export const MainLayout: React.FC = () => {
     return (
       <div className="w-full min-h-screen bg-[#07090e] text-[#dbdee1] relative">
         <LandingPage onEnterApp={openApp} inviteCode={inviteCode} />
-        <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 60px)", left: 12, right: 12 }} />
+        <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 6px)", left: 12, right: 12 }} duration={isMobile ? 2600 : undefined} toastOptions={isMobile ? { className: "kova-m-toast" } : undefined} />
       </div>
     );
   }
@@ -287,7 +287,7 @@ export const MainLayout: React.FC = () => {
         <Suspense fallback={AppChunkFallback}>
           <AuthScreen onShowLanding={openLanding} />
         </Suspense>
-        <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 60px)", left: 12, right: 12 }} />
+        <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 6px)", left: 12, right: 12 }} duration={isMobile ? 2600 : undefined} toastOptions={isMobile ? { className: "kova-m-toast" } : undefined} />
       </div>
     );
   }
@@ -375,7 +375,7 @@ export const MainLayout: React.FC = () => {
         {/* Discord Hub oculto por petición */}
         {isNotificationsOpen && <NotificationsDrawer />}
       </Suspense>
-      <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 60px)", left: 12, right: 12 }} />
+      <Toaster position={isMobile ? "top-center" : "bottom-right"} theme="dark" mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 6px)", left: 12, right: 12 }} duration={isMobile ? 2600 : undefined} toastOptions={isMobile ? { className: "kova-m-toast" } : undefined} />
     </div>
   );
 };
