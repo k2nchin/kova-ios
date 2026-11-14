@@ -1,5 +1,7 @@
 // Voice notes: records your microphone in the composer and returns an audio file.
 export interface VoiceNoteRecording {
+  /** Live microphone stream, for level meters while recording. */
+  stream: MediaStream;
   stop: () => Promise<{ file: File; duration: number } | null>;
   cancel: () => void;
 }
@@ -19,6 +21,7 @@ export async function startVoiceNote(): Promise<VoiceNoteRecording> {
   const autoStop = window.setTimeout(() => { if (recorder.state === 'recording') recorder.stop(); }, MAX_VOICE_NOTE_SECONDS * 1000);
 
   return {
+    stream,
     stop: () => new Promise((resolve) => {
       window.clearTimeout(autoStop);
       const finish = () => {
@@ -41,3 +44,12 @@ export async function startVoiceNote(): Promise<VoiceNoteRecording> {
     },
   };
 }
+
+/** Voice notes inside text-only messages (direct messages): `[[kova-voice:URL|seconds]]`. */
+const VOICE_TOKEN = /^\[\[kova-voice:(https?:\/\/\S+?|\/\S+?)\|(\d+)\]\]$/;
+export const encodeVoiceNote = (url: string, duration: number) => `[[kova-voice:${url}|${Math.round(duration)}]]`;
+export const decodeVoiceNote = (content: string): { url: string; duration: number } | null => {
+  const m = content.trim().match(VOICE_TOKEN);
+  return m ? { url: m[1], duration: Number(m[2]) } : null;
+};
+export const previewText = (content: string) => (decodeVoiceNote(content) ? '🎤 Nota de voz' : content);

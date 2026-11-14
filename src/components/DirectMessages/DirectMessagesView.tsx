@@ -20,10 +20,13 @@ import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { StoriesBar } from '../Stories/StoriesBar';
 import '../../styles/friends.css';
 import '../../styles/community.css';
-import { api, type DmGroup } from '../../services/apiClient';
+import { api, uploadFile, type DmGroup } from '../../services/apiClient';
 import { getSocket } from '../../services/socketClient';
 import { GroupChat, GroupPicker, groupTitle } from './GroupChat';
 import { PrivateCallBar, dmRoomId } from './PrivateCall';
+import { useVoiceRecorder, VoiceRecordButton, VoiceRecordingBar, type VoiceResult } from '../Common/VoiceRecorder';
+import { VoiceNotePlayer } from '../Common/VoiceNotePlayer';
+import { decodeVoiceNote, encodeVoiceNote, previewText } from '../../services/voiceNote';
 
 export const DirectMessagesView: React.FC = () => {
   const {
@@ -80,6 +83,17 @@ export const DirectMessagesView: React.FC = () => {
   const [friendQuery, setFriendQuery] = useState('');
   const [addFriendInput, setAddFriendInput] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
+  const dmVoice = useVoiceRecorder(async (result: VoiceResult) => {
+    if (!activeUser) return;
+    const sending = toast.loading('Enviando nota de voz…');
+    try {
+      const url = await uploadFile(result.file, 'attachment');
+      sendDirectMessage(activeUser.id, encodeVoiceNote(url, result.duration));
+      toast.dismiss(sending);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo enviar la nota de voz.', { id: sending });
+    }
+  });
 
   // Selected conversation
   const activeConversation = dmConversations.find((c) => c.user.id === activeDMUserId);
@@ -158,7 +172,7 @@ export const DirectMessagesView: React.FC = () => {
                   <span className="kgl-avatar"><Users size={15} /></span>
                   <span className="flex-1 min-w-0">
                     <span className="block font-bold truncate">{groupTitle(group, currentUser.id)}</span>
-                    <span className="block text-[10px] text-slate-500 truncate">{group.lastMessage?.content || `${group.members.length} miembros`}</span>
+                    <span className="block text-[10px] text-slate-500 truncate">{group.lastMessage?.content ? previewText(group.lastMessage.content) : `${group.members.length} miembros`}</span>
                   </span>
                   {activeVoiceChannelId === group.id && <Phone size={12} className="text-emerald-400" />}
                 </button>
@@ -216,7 +230,7 @@ export const DirectMessagesView: React.FC = () => {
                       </div>
                       {dm.lastMessage && (
                         <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                          {dm.lastMessage}
+                          {previewText(dm.lastMessage)}
                         </div>
                       )}
                     </div>
@@ -353,7 +367,12 @@ export const DirectMessagesView: React.FC = () => {
                         : 'bg-[#151924] border border-white/[0.08] text-slate-200'
                     }`}
                   >
-                    <div className="whitespace-pre-wrap">{m.content}</div>
+                    {(() => {
+                      const note = decodeVoiceNote(m.content);
+                      return note
+                        ? <VoiceNotePlayer url={note.url} duration={note.duration} seed={m.id} />
+                        : <div className="whitespace-pre-wrap">{m.content}</div>;
+                    })()}
                     <div
                       className={`text-[9px] mt-1 font-mono text-right ${
                         isMe ? 'text-purple-200' : 'text-slate-500'
@@ -368,7 +387,10 @@ export const DirectMessagesView: React.FC = () => {
           </div>
 
           {/* DM Composer */}
-          <form onSubmit={handleSendMessage} className="p-4 bg-[#090414] border-t border-purple-950/40">
+          <form onSubmit={handleSendMessage} className="kova-dm-composer p-4 bg-[#090414] border-t border-purple-950/40">
+            {dmVoice.state !== 'idle' ? (
+              <div className="flex items-center gap-2 w-full"><VoiceRecordingBar recorder={dmVoice} /></div>
+            ) : (
             <div className="flex items-center gap-2 bg-[#07020e] border border-purple-900/30 focus-within:border-purple-500 rounded-2xl px-4 py-2.5 shadow-lg">
               <input
                 type="text"
@@ -377,14 +399,20 @@ export const DirectMessagesView: React.FC = () => {
                 placeholder={`Enviar mensaje a @${activeUser.displayName}...`}
                 className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
               />
+              {!messageDraft.trim() ? (
+                <VoiceRecordButton recorder={dmVoice} />
+              ) : (
               <button
                 type="submit"
                 disabled={!messageDraft.trim()}
+                aria-label="Enviar mensaje"
                 className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white disabled:opacity-40 transition-all cursor-pointer shadow-md glow-purple"
               >
                 <Send size={13} />
               </button>
+              )}
             </div>
+            )}
           </form>
         </div>
       ) : (

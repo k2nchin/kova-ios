@@ -31,7 +31,7 @@ import {
 import { toast } from 'sonner';
 import { useApp } from '../../context/AppContext';
 import { PollComposer } from './PollCard';
-import { startVoiceNote, type VoiceNoteRecording } from '../../services/voiceNote';
+import { useVoiceRecorder, VoiceRecordButton, VoiceRecordingBar, type VoiceResult } from '../Common/VoiceRecorder';
 import { FollowChannelModal } from '../Community/FollowChannelModal';
 import { ChannelAccessPanel } from '../Settings/ChannelAccessPanel';
 import { MessageSearch } from './MessageSearch';
@@ -291,8 +291,6 @@ export const ChatArea: React.FC = () => {
   const dragCounterRef = useRef(0);
 
   // Real voice note recording state
-  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -351,44 +349,9 @@ export const ChatArea: React.FC = () => {
   }, [messages.length]);
 
   // Recording Timer
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isRecordingVoice) {
-      interval = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-    } else {
-      setRecordingSeconds(0);
-    }
-    return () => clearInterval(interval);
-  }, [isRecordingVoice]);
 
   // Real voice notes: record the mic, upload the audio, send it as a playable attachment.
-  const voiceRecordingRef = useRef<VoiceNoteRecording | null>(null);
-  // Leaving the channel mid-recording must release the microphone.
-  useEffect(() => () => voiceRecordingRef.current?.cancel(), []);
-  const handleStartRecording = async () => {
-    try {
-      voiceRecordingRef.current = await startVoiceNote();
-      setIsRecordingVoice(true);
-    } catch (error) {
-      toast.error(error instanceof Error && error.name !== 'NotAllowedError' ? error.message : 'Permite el micrófono para grabar notas de voz.');
-    }
-  };
-
-  const handleCancelRecording = () => {
-    voiceRecordingRef.current?.cancel();
-    voiceRecordingRef.current = null;
-    setIsRecordingVoice(false);
-  };
-
-  const handleSendVoiceNote = async () => {
-    const recording = voiceRecordingRef.current;
-    voiceRecordingRef.current = null;
-    setIsRecordingVoice(false);
-    if (!recording) return;
-    const result = await recording.stop();
-    if (!result) { toast.info('La nota de voz estaba vacía.'); return; }
+  const sendVoiceNote = async (result: VoiceResult) => {
     const sending = toast.loading('Enviando nota de voz…');
     try {
       const url = await uploadFile(result.file, 'attachment');
@@ -398,6 +361,7 @@ export const ChatArea: React.FC = () => {
       toast.error(error instanceof Error ? error.message : 'No se pudo enviar la nota de voz.', { id: sending });
     }
   };
+  const voice = useVoiceRecorder(sendVoiceNote);
 
   const runAiAction = async (action: 'summary' | 'minutes') => {
     setLoadingAction(action);
@@ -920,35 +884,10 @@ export const ChatArea: React.FC = () => {
         })()}
 
         <div className="composer">
-          {isRecordingVoice ? (
-            /* Live Voice Recorder Strip */
-            <div className="p-3 bg-[#131722] rounded-2xl flex items-center justify-between animate-in fade-in duration-150">
-              <div className="flex items-center gap-3">
-                <div className="w-3.5 h-3.5 rounded-full bg-rose-500 animate-ping" />
-                <span className="text-xs font-bold text-rose-400 font-mono">
-                  Grabando: 0:{recordingSeconds < 10 ? `0${recordingSeconds}` : recordingSeconds}
-                </span>
-                <span className="text-[11px] text-slate-400">Audio ultra claro listo para enviar</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCancelRecording}
-                  className="p-1.5 rounded-xl hover:bg-white/[0.08] text-slate-400 hover:text-white cursor-pointer"
-                  title="Cancelar grabación"
-                >
-                  <X size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendVoiceNote}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                >
-                  <Check size={14} />
-                  <span>Enviar Nota</span>
-                </button>
-              </div>
+          {voice.state !== 'idle' ? (
+            <div className="flex items-center gap-2 w-full">
+              <VoiceRecordingBar recorder={voice} />
+              {voice.state === 'holding' && <VoiceRecordButton recorder={voice} />}
             </div>
           ) : (
             <div className="kova-message-composer flex items-center gap-3 px-3 py-1.5 rounded-full bg-[#111416]/95 border border-white/15 shadow-[0_10px_35px_rgba(0,0,0,0.8)] backdrop-blur-2xl focus-within:border-white/35 transition-all w-full">
@@ -1072,6 +1011,9 @@ export const ChatArea: React.FC = () => {
                   </span>
                 )}
 
+                {!draft.trim() && pendingAttachments.length === 0 && slowmodeCooldown <= 0 ? (
+                  <VoiceRecordButton recorder={voice} />
+                ) : (
                 <button
                   type="button"
                   onClick={handleSendMessage}
@@ -1081,6 +1023,7 @@ export const ChatArea: React.FC = () => {
                 >
                   <Send size={15} className="translate-x-0.5" />
                 </button>
+                )}
               </div>
             </div>
           )}

@@ -3289,3 +3289,21 @@ img.kova-img-broken { visibility: hidden; }
 .kova-native-mobile .kova-message-item { touch-action: pan-y; }
 .kova-native-mobile .kova-message-item::before { content: '↩'; position: absolute; left: -28px; top: 50%; transform: translateY(-50%) scale(.6); opacity: 0; transition: opacity .15s, transform .15s; color: #fff; font-size: 18px; }
 .kova-native-mobile .kova-message-item.is-swipe-ready::before { opacity: 1; transform: translateY(-50%) scale(1); }
+
+/* ───────────── Voice notes recorder ───────────── */
+.kova-vrec-btn { width: 36px; height: 36px; min-height: 36px !important; border-radius: 999px; display: grid; place-items: center; background: rgba(255,255,255,.08); color: #e4e4e7; flex-shrink: 0; touch-action: none; -webkit-user-select: none; user-select: none; transition: transform .15s, background .15s; }
+.kova-vrec-btn.is-holding { transform: scale(1.35); background: #ef4444; color: #fff; box-shadow: 0 0 0 8px rgba(239,68,68,.18); }
+.kova-vrec-bar { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px 6px 14px; border-radius: 999px; background: #111416; border: 1px solid rgba(255,255,255,.15); animation: kova-m-fade .15s; }
+.kova-vrec-dot { width: 9px; height: 9px; border-radius: 999px; background: #ef4444; animation: kova-vrec-blink 1s infinite; flex-shrink: 0; }
+@keyframes kova-vrec-blink { 50% { opacity: .25; } }
+.kova-vrec-time { font: 600 13px ui-monospace, monospace; color: #fafafa; min-width: 38px; }
+.kova-vrec-wave { flex: 1; height: 26px; display: flex; align-items: center; gap: 2px; overflow: hidden; }
+.kova-vrec-wave i { flex: 1; min-width: 2px; height: 100%; border-radius: 2px; background: #e4e4e7; transform-origin: center; transition: transform .07s linear; }
+.kova-vrec-hint { font-size: 12px; color: #a1a1aa; white-space: nowrap; }
+.kova-vrec-cancel, .kova-vrec-send { width: 34px; height: 34px; min-height: 34px !important; border-radius: 999px; display: grid; place-items: center; flex-shrink: 0; }
+.kova-vrec-cancel { color: #f87171; background: rgba(248,113,113,.12); }
+.kova-vrec-send { color: #09090b; background: #fafafa; }
+/* Voice notes fit inside DM bubbles on phones. */
+.kova-dm-bubble { max-width: min(28rem, 84%) !important; min-width: 0; }
+.kova-dm-bubble > *:first-child { max-width: 100%; }
+.kova-dm-bubble .kvn { width: 100%; min-width: 0; } .kova-dm-bubble .kvn-wave { min-width: 0; overflow: hidden; }

@@ -691,7 +691,7 @@ const handleRequest = async (req, res) => {
     const directMessage = { id, authorId: session.user_id, content, createdAt };
     await emitToUsers([session.user_id, peerId], 'dm:created', { ...directMessage, peerIds: [session.user_id, peerId] });
     const sender = await db.prepare('SELECT display_name, username FROM users WHERE id = ?').get(session.user_id);
-    await sendPush(db, [peerId], { title: sender?.display_name || sender?.username || 'Mensaje directo', body: content.slice(0, 200), url: `/app?dm=${session.user_id}`, tag: `dm-${session.user_id}` });
+    await sendPush(db, [peerId], { title: sender?.display_name || sender?.username || 'Mensaje directo', body: (/^\[\[kova-voice:/.test(content) ? '🎤 Nota de voz' : content.slice(0, 200)), url: `/app?dm=${session.user_id}`, tag: `dm-${session.user_id}` });
     return send(res, 201, directMessage);
   }
   const removeFriendMatch = requestPath.match(/^\/api\/friends\/([^/]+)$/);
