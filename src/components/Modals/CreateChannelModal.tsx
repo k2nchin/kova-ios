@@ -88,8 +88,10 @@ export const CreateChannelModal: React.FC = () => {
             <p className="text-[11px] text-purple-300/70">En {activeServer.name}</p>
           </div>
           <button
+            type="button"
+            aria-label="Cerrar"
             onClick={() => setIsCreateChannelOpen(false)}
-            className="p-1 rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="w-9 h-9 grid place-items-center rounded-lg hover:bg-white/[0.08] text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>

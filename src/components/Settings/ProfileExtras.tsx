@@ -67,7 +67,7 @@ export const ProfileExtras: React.FC = () => {
             />
           ))}
           <label className="kset-swatch-custom" title="Otro color">
-            <input type="color" value={accent || '#454749'} onChange={(e) => void updateUserProfile({ accentColor: e.target.value })} />
+            <input type="color" aria-label="Color personalizado" value={accent || '#454749'} onChange={(e) => void updateUserProfile({ accentColor: e.target.value })} />
           </label>
         </div>
       </div>

@@ -510,8 +510,9 @@ export const ServerSettingsModal: React.FC = () => {
                         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-5 pr-2">
                           {/* Role Name */}
                           <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-slate-300">NOMBRE DEL ROL</label>
+                            <label htmlFor="kss-role-name" className="text-xs font-semibold text-slate-300">NOMBRE DEL ROL</label>
                             <input
+                              id="kss-role-name"
                               type="text"
                               value={selectedRole.name}
                               disabled={selectedRole.name === '@everyone'}
@@ -580,6 +581,9 @@ export const ServerSettingsModal: React.FC = () => {
                             </div>
                             <button
                               type="button"
+                              role="switch"
+                              aria-checked={Boolean(selectedRole.hoist)}
+                              aria-label="Mostrar miembros por separado"
                               onClick={handleRoleHoistToggle}
                               className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
                                 selectedRole.hoist ? 'bg-purple-600' : 'bg-slate-700'
@@ -605,6 +609,9 @@ export const ServerSettingsModal: React.FC = () => {
                             </div>
                             <button
                               type="button"
+                              role="switch"
+                              aria-checked={Boolean(selectedRole.mentionable)}
+                              aria-label="Permitir a cualquiera mencionar este rol"
                               onClick={handleRoleMentionableToggle}
                               className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
                                 selectedRole.mentionable ? 'bg-purple-600' : 'bg-slate-700'
@@ -661,6 +668,10 @@ export const ServerSettingsModal: React.FC = () => {
 
                                         <button
                                           type="button"
+                                          role="switch"
+                                          aria-checked={hasPerm}
+                                          aria-label={perm.name}
+                                          tabIndex={-1}
                                           className={`w-11 h-6 rounded-full transition-colors relative shrink-0 ${
                                             hasPerm ? 'bg-purple-600' : 'bg-slate-700'
                                           }`}
