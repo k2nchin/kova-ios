@@ -362,6 +362,7 @@ export const ChatArea: React.FC = () => {
     }
   };
   const voice = useVoiceRecorder(sendVoiceNote);
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
 
   const runAiAction = async (action: 'summary' | 'minutes') => {
     setLoadingAction(action);
@@ -902,7 +903,12 @@ export const ChatArea: React.FC = () => {
               <button
                 type="button"
                 aria-label="Adjuntar archivo o imagen"
-                onClick={() => fileInputRef.current?.click()}
+                aria-haspopup="menu"
+                onClick={() => {
+                  // Phones: one menu with everything the desktop composer shows as icons.
+                  if (window.matchMedia('(max-width: 767px)').matches) setIsPlusMenuOpen(true);
+                  else fileInputRef.current?.click();
+                }}
                 title="Adjuntar archivo o medios"
                 className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white/65 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0 border border-white/10"
               >
@@ -1029,6 +1035,23 @@ export const ChatArea: React.FC = () => {
           )}
         </div>
       </div>
+
+      {isPlusMenuOpen && (
+        <div className="kova-msheet-root" role="presentation" onClick={() => setIsPlusMenuOpen(false)}>
+          <div className="kova-msheet" role="menu" aria-label="Añadir al mensaje" onClick={(e) => e.stopPropagation()}>
+            <span className="kova-m-grabber" />
+            <div className="kova-msheet-list">
+              <button type="button" role="menuitem" onClick={() => { setIsPlusMenuOpen(false); fileInputRef.current?.click(); }}><Paperclip size={18} /> <span>Foto o archivo</span></button>
+              {!isVoiceLike(activeChannel.type) && activeChannel.canSend !== false && !activeChannel.id.startsWith('dm') && (
+                <button type="button" role="menuitem" onClick={() => { setIsPlusMenuOpen(false); setIsPollOpen(true); }}><BarChart3 size={18} /> <span>Encuesta</span></button>
+              )}
+              <button type="button" role="menuitem" onClick={() => { setIsPlusMenuOpen(false); setIsSoundboardOpen(true); }}><Sparkles size={18} /> <span>Sonidos</span></button>
+              <button type="button" role="menuitem" onClick={() => { setIsPlusMenuOpen(false); setIsEmojiPickerOpen(true); }}><Smile size={18} /> <span>Emojis y GIF</span></button>
+            </div>
+            <button type="button" className="kova-msheet-cancel" onClick={() => setIsPlusMenuOpen(false)}>Cancelar</button>
+          </div>
+        </div>
+      )}
 
       {/* Channel Info Modal */}
       {isChannelInfoOpen && (

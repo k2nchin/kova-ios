@@ -3325,3 +3325,25 @@ img.kova-img-broken { visibility: hidden; }
 .kova-live-text strong { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #fafafa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kova-live-text small { font-size: 11px; color: #a1a1aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kova-live-join { flex-shrink: 0; padding: 6px 12px; border-radius: 999px; background: #22c55e; color: #052e16; font-size: 12px; font-weight: 800; }
+
+/* ───────────── Settings on phones: every section visible, no sideways scrolling ───────────── */
+@media (max-width: 767px) {
+  .kova-native-mobile .kset-nav, .kova-native-mobile .kss-nav, .kset-overlay .kset-nav, .kss-overlay .kss-nav {
+    flex-wrap: wrap !important; overflow: visible !important; gap: 5px !important; padding: 8px 10px !important;
+  }
+  .kset-overlay .kset-tab, .kss-overlay .kss-tab {
+    padding: 5px 10px !important; font-size: 12px !important; gap: 5px !important; flex-shrink: 1 !important;
+  }
+  .kset-overlay .kset-tab svg, .kss-overlay .kss-tab svg { width: 13px !important; height: 13px !important; }
+  .kss-overlay .kss-content .kss-subtabs { flex-wrap: wrap; overflow: visible !important; gap: 8px 14px !important; }
+  .kss-overlay .kss-content .kss-subtabs button { white-space: nowrap; font-size: 12px; }
+  /* Small icon buttons get a real touch size. */
+  .kss-overlay .kss-content button:has(> svg:only-child) { min-width: 32px; min-height: 32px !important; }
+}
+@media (max-width: 767px) {
+  /* The sticky footer (Guardar / Cerrar sesión) never covers the last fields. */
+  .kset-overlay .kset-content { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
+}
+/* Any close (X) button in a dialog gets a real touch target on phones. */
+.kova-native-mobile [role="dialog"] button[aria-label="Cerrar"], .kova-native-mobile button[aria-label="Cerrar"] { min-width: 36px; min-height: 36px !important; display: inline-grid; place-items: center; }
+@media (max-width: 767px) { .kfol button[aria-label="Cerrar"], .kfol-overlay button[aria-label="Cerrar"] { min-width: 36px; min-height: 36px !important; display: inline-grid; place-items: center; } }

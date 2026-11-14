@@ -56,7 +56,9 @@ export function PreferenceToggle({
         className={`w-11 h-6 rounded-full transition-colors cursor-pointer relative shrink-0 ${
           checked ? 'bg-gradient-to-r from-purple-600 to-indigo-600 shadow-[0_0_10px_rgba(147,51,234,0.5)]' : 'bg-slate-800 border border-white/10'
         }`}
-        aria-pressed={checked}
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
         onClick={onChange}
       >
         <span
