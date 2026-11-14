@@ -124,6 +124,20 @@ jobs:
               -c 'Add :CFBundleURLTypes:0:CFBundleURLSchemes array' \
               -c 'Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string kova' "$PLIST"
             echo "kova:// registered in $PLIST"
+            # Privacy texts iOS requires before using the mic/camera/photos (without them
+            # the app is killed the moment a voice room or voice note asks for the mic),
+            # and background audio so a voice call keeps going with the screen locked.
+            for KV in \
+              'NSMicrophoneUsageDescription|Kova usa el micrófono para las salas de voz, llamadas y notas de voz.' \
+              'NSCameraUsageDescription|Kova usa la cámara cuando decides participar con video.' \
+              'NSPhotoLibraryUsageDescription|Kova accede a tus fotos cuando eliges una imagen para compartir o para tu perfil.'; do
+              K="${KV%%|*}"; V="${KV#*|}"
+              /usr/libexec/PlistBuddy -c "Delete :$K" "$PLIST" 2>/dev/null || true
+              /usr/libexec/PlistBuddy -c "Add :$K string $V" "$PLIST"
+            done
+            /usr/libexec/PlistBuddy -c 'Delete :UIBackgroundModes' "$PLIST" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c 'Add :UIBackgroundModes array' -c 'Add :UIBackgroundModes:0 string audio' "$PLIST"
+            echo "mic/camera/photos permissions + background audio set in $PLIST"
           done
           SCHEME=$(xcodebuild -list -json | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["project"]["schemes"][0])')
           xcodebuild -scheme "$SCHEME" -configuration release -sdk iphoneos -destination 'generic/platform=iOS' \
@@ -138,5 +152,8 @@ jobs:
           ls -la out
           unzip -p out/Kova-iOS-unsigned.ipa 'Payload/*.app/Info.plist' > /tmp/i.plist
           plutil -p /tmp/i.plist | grep -q '"kova"' || { echo 'kova:// missing in IPA'; exit 1; }
+          for K in NSMicrophoneUsageDescription NSCameraUsageDescription UIBackgroundModes; do
+            plutil -p /tmp/i.plist | grep -q "\"$K\"" || { echo "$K missing in IPA"; exit 1; }
+          done
       - uses: actions/upload-artifact@v4
         with: { name: Kova-iOS, path: out/*.ipa, if-no-files-found: error, retention-days: 14 }
