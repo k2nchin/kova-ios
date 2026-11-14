@@ -6,6 +6,7 @@ import { ConsoleSidebar } from './ConsoleSidebar';
 import { WorkspaceStage } from '../Workspace/WorkspaceContainer';
 import { RightWidgetsSidebar } from '../RightSidebar/RightWidgetsSidebar';
 import { WorkspaceLayoutMode } from '../../types';
+import { useBackButton, useEdgeSwipeBack, useSheetDragDismiss, useVisualViewportHeight } from '../../hooks/useMobileGestures';
 
 type Tab = 'home' | 'spaces' | 'search' | 'me';
 
@@ -81,10 +82,20 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
 
   const showMembers = pushed && isMemberListOpen && !isVoiceLike(activeChannel?.type);
 
+  const closeDM = () => setActiveDMUserId(null);
+  const pushedRef = useEdgeSwipeBack<HTMLElement>(pushed && !showMembers, back);
+  const dmRef = useEdgeSwipeBack<HTMLElement>(inDM, closeDM);
+  const sheetRef = useSheetDragDismiss<HTMLDivElement>(() => setIsMemberListOpen(false));
+  useVisualViewportHeight(true);
+  // System Back (Android / browser): sheet first, then the pushed screen.
+  useBackButton(showMembers, () => setIsMemberListOpen(false));
+  useBackButton(pushed, back);
+  useBackButton(inDM, closeDM);
+
   return (
     <div className="kova-m-shell">
       {pushed ? (
-        <section className="kova-m-screen kova-m-pushed" key="pushed">
+        <section ref={pushedRef} className="kova-m-screen kova-m-pushed" key="pushed">
           <header className="kova-m-navbar">
             <button type="button" className="kova-m-back" onClick={back} aria-label="Volver a Espacios">
               <ChevronLeft size={26} strokeWidth={2.2} />
@@ -102,7 +113,7 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
           {showMembers && (
             <>
               <button type="button" className="kova-m-sheet-backdrop" onClick={() => setIsMemberListOpen(false)} aria-label="Cerrar miembros" />
-              <div className="kova-m-sheet">
+              <div ref={sheetRef} className="kova-m-sheet" role="dialog" aria-label="Miembros">
                 <span className="kova-m-grabber" />
                 <RightWidgetsSidebar />
               </div>
@@ -110,10 +121,10 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
           )}
         </section>
       ) : (
-        <section className={`kova-m-screen ${inDM ? 'kova-m-pushed' : ''}`} key={inDM ? `dm-${activeDMUserId}` : tab}>
+        <section ref={inDM ? dmRef : undefined} className={`kova-m-screen ${inDM ? 'kova-m-pushed' : ''}`} key={inDM ? `dm-${activeDMUserId}` : tab}>
           {inDM ? (
             <header className="kova-m-navbar">
-              <button type="button" className="kova-m-back" onClick={() => setActiveDMUserId(null)} aria-label="Volver a Inicio">
+              <button type="button" className="kova-m-back" onClick={closeDM} aria-label="Volver a Inicio">
                 <ChevronLeft size={26} strokeWidth={2.2} />
                 <span>Inicio</span>
               </button>

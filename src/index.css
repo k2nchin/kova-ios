@@ -3206,3 +3206,18 @@ html:has(.kova-native-mobile), body:has(.kova-native-mobile) { overscroll-behavi
 .kova-native-mobile ::-webkit-scrollbar { display:none; }
 /* Text the user may want to copy stays selectable */
 .kova-native-mobile .kova-message-item, .kova-native-mobile input, .kova-native-mobile textarea { -webkit-user-select:text; user-select:text; }
+
+/* ───────────── iOS polish: keyboard, gestures, motion ───────────── */
+/* Follow the visible viewport so the composer stays above the keyboard. */
+@media (max-width: 767px) {
+  .kova-native-mobile { height: var(--kova-vvh, 100dvh); }
+}
+.kova-keyboard-open .kova-m-tabbar { display: none; }
+.kova-m-screen, .kova-m-sheet { contain: layout paint; backface-visibility: hidden; }
+.kova-m-pushed { background:#07080a; }
+.kova-m-tabbar button:focus-visible, .kova-m-back:focus-visible, .kova-m-iconbtn:focus-visible { outline: 2px solid rgba(255,255,255,.6); outline-offset: 2px; border-radius: 12px; }
+.kova-m-sheet { touch-action: pan-y; }
+@media (prefers-reduced-motion: reduce) {
+  .kova-m-screen, .kova-m-pushed, .kova-m-sheet, .kova-m-sheet-backdrop { animation: none !important; }
+  .kova-m-tabbar button:active, .kova-m-iconbtn:active { transform: none; }
+}
