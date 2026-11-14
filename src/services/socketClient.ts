@@ -3,8 +3,11 @@
 import { io, Socket } from 'socket.io-client';
 import { getAuthToken, FALLBACK_SOCKET_URL } from './apiClient';
 
-const SOCKET_URL = import.meta.env.VITE_KOVA_SOCKET_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:4000');
-const SOCKET_CONFIGURED = Boolean(import.meta.env.VITE_KOVA_SOCKET_URL);
+// Native apps (iPhone, Android, desktop) load from tauri://localhost, which has no realtime server:
+// without an explicit URL they connect to Kova's always-on Socket.IO gateway.
+const IS_NATIVE = typeof window !== 'undefined' && ('__TAURI__' in window || '__TAURI_INTERNALS__' in window);
+const SOCKET_URL = import.meta.env.VITE_KOVA_SOCKET_URL || (IS_NATIVE ? FALLBACK_SOCKET_URL : typeof window !== 'undefined' ? window.location.origin : 'http://localhost:4000');
+const SOCKET_CONFIGURED = Boolean(import.meta.env.VITE_KOVA_SOCKET_URL) || IS_NATIVE || Boolean(import.meta.env.DEV);
 
 let socket: Socket | null = null;
 

@@ -749,6 +749,12 @@ export const SettingsModal: React.FC = () => {
                     checked={preferences.soundEnabled}
                     onChange={() => updatePreference('soundEnabled', !preferences.soundEnabled)}
                   />
+                  <PreferenceToggle
+                    label="Reacciones con sonido"
+                    description="Cada reacción suena distinto (🔥, 😂, 👏, 🎉…), también cuando reaccionan a mensajes del canal que tienes abierto."
+                    checked={preferences.reactionSounds !== false}
+                    onChange={() => updatePreference('reactionSounds', preferences.reactionSounds === false)}
+                  />
                 </div>
               </SettingsSection>
             )}

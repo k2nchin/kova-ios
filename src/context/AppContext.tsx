@@ -81,6 +81,8 @@ export interface AppPreferences {
   myLanguage: string;
   /** Desktop: show the game you're playing automatically. */
   shareGameActivity?: boolean;
+  /** Each reaction plays its own short sound. */
+  reactionSounds?: boolean;
 }
 
 export interface AppNotification {
@@ -969,6 +971,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return general?.id || servers[0]?.channels[0]?.id || '';
   });
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>({});
+  const allMessagesRef = useRef(allMessages);
+  allMessagesRef.current = allMessages;
+  const reactionSoundsRef = useRef(true);
+  const lastReactionSoundRef = useRef(0);
+  /** Channel actually on screen (activeChannelId can be null while a default channel is shown). */
+  const shownChannelIdRef = useRef<string | null>(null);
 
   // Spaces arrive from the API after the first render: once they do, point the
   // active space/channel at a real one (otherwise message loading never starts).
@@ -1027,6 +1035,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     const handleReactions = (update: any) => {
       if (!update?.channelId || !Array.isArray(update.reactions)) return;
+      // Someone else reacted in the channel you're looking at: play that reaction's sound.
+      if (update.channelId === shownChannelIdRef.current && reactionSoundsRef.current) {
+        const before = (allMessagesRef.current[update.channelId] || []).find((m) => m.id === update.messageId)?.reactions || [];
+        const added = (update.reactions as Array<{ emoji: string; users?: string[]; count: number }>).find((r) => {
+          const old = before.find((b) => b.emoji === r.emoji);
+          const newcomers = (r.users || []).filter((u) => u !== currentUser.id && !(old?.users || []).includes(u));
+          return newcomers.length > 0 || (!r.users && r.count > (old?.count || 0));
+        });
+        if (added && Date.now() - lastReactionSoundRef.current > 400) {
+          lastReactionSoundRef.current = Date.now();
+          soundFx.playReactionSound(added.emoji);
+        }
+      }
       updateChannel(update.channelId, (messages) => messages.map((m) => (m.id === update.messageId ? { ...m, reactions: update.reactions } : m)));
     };
     const handleTyping = (event: any) => {
@@ -1044,7 +1065,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     const handleConnect = () => {
       setRealtimeConnected(true);
-      if (activeChannelId) socket.emit('channel:join', { channelId: activeChannelId });
+      if (shownChannelIdRef.current) socket.emit('channel:join', { channelId: shownChannelIdRef.current });
     };
     const handleDisconnect = () => {
       setRealtimeConnected(false);
@@ -1081,14 +1102,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthenticated, activeChannelId, currentUser]);
 
-  // Cambiar de sala en Socket.IO cuando cambia el canal activo
-  useEffect(() => {
-    if (!activeChannelId) return;
-    const socket = getSocket();
-    if (socket && socket.connected) {
-      socket.emit('channel:join', { channelId: activeChannelId });
-    }
-  }, [activeChannelId]);
 
   // Ask which members are online whenever the realtime link (re)connects or the space changes.
   useEffect(() => {
@@ -1204,6 +1217,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       myLanguage: systemLanguage(),
     };
   });
+  reactionSoundsRef.current = preferences.reactionSounds !== false;
 
   const preferencesRef = useRef(preferences);
   useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
@@ -2142,6 +2156,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     activeServer.channels.find((c) => c.id === activeChannelId) ||
     activeServer.channels[0] ||
     fallbackChannel;
+  shownChannelIdRef.current = activeChannel?.id || null;
+
+  // Join the Socket.IO room of the channel on screen (also the default one shown when none was picked),
+  // and again after every reconnect, so reactions, edits and typing arrive live.
+  const shownChannelId = activeChannel?.id;
+  useEffect(() => {
+    if (!shownChannelId || !realtimeConnected || shownChannelId === fallbackChannel.id) return;
+    getSocket().emit('channel:join', { channelId: shownChannelId });
+  }, [shownChannelId, realtimeConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const messages: Message[] = allMessages[activeChannel.id] || [];
 
@@ -2229,7 +2252,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addReaction = (messageId: string, emoji: string) => {
-    soundFx.playReactionAdded();
+    const target = (allMessages[activeChannel.id] || []).find((msg) => msg.id === messageId);
+    const removing = Boolean(target?.reactions.find((r) => r.emoji === emoji)?.users.includes(currentUser.id));
+    if (!removing) { if (preferences.reactionSounds !== false) soundFx.playReactionSound(emoji); else soundFx.playReactionAdded(); }
     setAllMessages((prev) => {
       const channelMsgs = prev[activeChannel.id] || [];
       const updated = channelMsgs.map((msg) => {

@@ -364,6 +364,70 @@ class SoundEngine {
   }
 
   // 7. Reaction Added (sparkling chime)
+  // Reaction sounds: each emoji has its own tiny, synthesized sound (no files to download).
+  private tone(ctx: AudioContext, freq: number, start: number, dur: number, type: OscillatorType = 'sine', vol = 0.08, toFreq?: number) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+    if (toFreq) osc.frequency.exponentialRampToValueAtTime(toFreq, ctx.currentTime + start + dur);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+    gain.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+    osc.connect(gain);
+    gain.connect(this.getOutput(ctx));
+    osc.start(ctx.currentTime + start);
+    osc.stop(ctx.currentTime + start + dur + 0.02);
+  }
+
+  private noise(ctx: AudioContext, start: number, dur: number, from: number, to: number, vol = 0.06) {
+    const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(from, ctx.currentTime + start);
+    filter.frequency.exponentialRampToValueAtTime(to, ctx.currentTime + start + dur);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+    gain.gain.exponentialRampToValueAtTime(vol, ctx.currentTime + start + dur * 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+    src.connect(filter); filter.connect(gain); gain.connect(this.getOutput(ctx));
+    src.start(ctx.currentTime + start);
+  }
+
+  public playReactionSound(emoji: string) {
+    if (!this.soundEnabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const e = emoji.replace(/\uFE0F/g, '');
+    switch (e) {
+      case '❤': case '😍': case '🥰': // warm two-note chime
+        this.tone(ctx, 659.25, 0, 0.35, 'sine', 0.07); this.tone(ctx, 987.77, 0.09, 0.45, 'sine', 0.06); break;
+      case '😂': case '🤣': case '😆': // bouncy "ha-ha-ha"
+        [0, 0.09, 0.18, 0.27].forEach((t, i) => this.tone(ctx, 520 + i * 40, t, 0.08, 'triangle', 0.07, 380 + i * 30)); break;
+      case '🔥': // whoosh
+        this.noise(ctx, 0, 0.45, 300, 3200, 0.09); this.tone(ctx, 110, 0, 0.35, 'sawtooth', 0.025, 220); break;
+      case '👍': case '👌': // pop
+        this.tone(ctx, 300, 0, 0.09, 'sine', 0.12, 900); break;
+      case '😮': case '😯': case '🤯': // rising "ooh"
+        this.tone(ctx, 330, 0, 0.4, 'sine', 0.07, 660); break;
+      case '😢': case '😭': // sad slide down
+        this.tone(ctx, 494, 0, 0.25, 'triangle', 0.06, 440); this.tone(ctx, 440, 0.22, 0.45, 'triangle', 0.06, 330); break;
+      case '🙏': // soft bell
+        this.tone(ctx, 1046.5, 0, 0.8, 'sine', 0.05); this.tone(ctx, 2093, 0, 0.5, 'sine', 0.015); break;
+      case '👏': this.playSoundboardFx('applause'); break;
+      case '🎉': case '🥳': this.playSoundboardFx('victory'); break;
+      case '🚀': case '⚡': this.playSoundboardFx('laser'); break;
+      case '💀': this.playSoundboardFx('bruh'); break;
+      case '🦆': this.playSoundboardFx('quack'); break;
+      case '🥁': this.playSoundboardFx('badumtss'); break;
+      default: this.playReactionAdded();
+    }
+  }
+
   public playReactionAdded() {
     if (!this.soundEnabled) return;
     const ctx = this.getContext();
