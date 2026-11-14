@@ -18,6 +18,7 @@ import { useApp } from '../../context/AppContext';
 import type { User } from '../../types';
 import { VerifiedBadge } from '../Common/VerifiedBadge';
 import { StoriesBar } from '../Stories/StoriesBar';
+import { LiveRoomsCard } from '../Home/LiveRoomsCard';
 import '../../styles/friends.css';
 import '../../styles/community.css';
 import { api, uploadFile, type DmGroup } from '../../services/apiClient';
@@ -483,6 +484,7 @@ export const DirectMessagesView: React.FC = () => {
           </div>
 
           {/* Stories Bar — historias de tu gente (Kova, no existe en Discord) */}
+          {(activeTab === 'all' || activeTab === 'online') && <LiveRoomsCard />}
           {(activeTab === 'all' || activeTab === 'online') && <StoriesBar />}
 
           {/* Tab Content */}

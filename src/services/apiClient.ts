@@ -120,6 +120,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+export interface LiveVoiceRoom {
+  serverId: string;
+  serverName: string;
+  channelId: string;
+  channelName: string;
+  type: string;
+  friends: number;
+  people: Array<{ id: string; name: string; avatar: string; friend: boolean; me: boolean }>;
+}
+
 export const api = {
   // Auth
   register: (data: { username: string; email: string; password: string; displayName?: string }) =>
@@ -320,6 +330,7 @@ export const api = {
   setAutomod: (spaceId: string, enabled: boolean) => request<AutomodState>(`/spaces/${encodeURIComponent(spaceId)}/automod`, { method: 'PATCH', data: { enabled } }),
   getVoiceOccupancy: (serverId: string) =>
     request<Record<string, Array<{ id: string; name: string; avatar: string }>>>(`/servers/${encodeURIComponent(serverId)}/voice`, { method: 'GET' }),
+  getLiveVoice: () => request<LiveVoiceRoom[]>('/voice/live', { method: 'GET' }),
   voiceLeft: (channelId: string) => request<{ ok: true }>('/voice/left', { method: 'POST', data: { channelId } }),
   getVoiceToken: (channelId: string, ring = false) =>
     request<{ token: string; url: string; room: string; canPublish?: boolean }>('/voice/token', { method: 'POST', data: { channelId, ring } }),

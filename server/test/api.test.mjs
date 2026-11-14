@@ -1023,3 +1023,20 @@ test('estadísticas del espacio: actividad, canales y retención', async () => {
   assert.ok(stats.deadChannels.some((c) => c.name === 'muerto'));
   assert.equal(stats.totals.newcomerRetention, 100);
 });
+
+test('voz en vivo: exige sesión y devuelve una lista (vacía sin LiveKit)', async () => {
+  assert.equal((await call('GET', '/voice/live')).status, 401);
+  const user = await register('live');
+  const res = await call('GET', '/voice/live', undefined, user.token);
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body));
+});
+
+test('espacios: dos espacios con los mismos ids de canal y categoría no fallan', async () => {
+  const user = await register('dup');
+  const payload = { name: 'Uno', categories: [{ id: 'dup-cat', name: 'General' }], channels: [{ id: 'dup-general', name: 'general', type: 'text', categoryId: 'dup-cat' }] };
+  const first = await call('POST', '/servers', payload, user.token);
+  const second = await call('POST', '/servers', { ...payload, name: 'Dos' }, user.token);
+  assert.ok([200, 201].includes(first.status), JSON.stringify(first.body));
+  assert.ok([200, 201].includes(second.status), JSON.stringify(second.body));
+});

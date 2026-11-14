@@ -6,6 +6,7 @@ import { ConsoleSidebar } from './ConsoleSidebar';
 import { WorkspaceStage } from '../Workspace/WorkspaceContainer';
 import { RightWidgetsSidebar } from '../RightSidebar/RightWidgetsSidebar';
 import { WorkspaceLayoutMode } from '../../types';
+import { OPEN_CHANNEL_EVENT } from '../Home/LiveRoomsCard';
 import { useBackButton, useEdgeSwipeBack, useSheetDragDismiss, useVisualViewportHeight } from '../../hooks/useMobileGestures';
 
 type Tab = 'home' | 'spaces' | 'search' | 'me';
@@ -43,6 +44,13 @@ export const MobileShell: React.FC<{ layoutMode?: WorkspaceLayoutMode }> = ({ la
   useEffect(() => {
     if (pushed && tab === 'spaces' && isDMViewActive) { setPushed(false); setTab('home'); }
   }, [pushed, tab, isDMViewActive]);
+
+  // "En la sala ahora" (and other shortcuts) open a channel full-screen.
+  useEffect(() => {
+    const open = () => { setTab('spaces'); setIsMemberListOpen(false); setPushed(true); };
+    window.addEventListener(OPEN_CHANNEL_EVENT, open);
+    return () => window.removeEventListener(OPEN_CHANNEL_EVENT, open);
+  }, [setIsMemberListOpen]);
 
   // Picking a channel from search opens it full-screen.
   const channelAtSearch = useRef<string | undefined>(undefined);

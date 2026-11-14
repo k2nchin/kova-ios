@@ -634,6 +634,33 @@ const handleRequest = async (req, res) => {
     }
     return send(res, 200, { ok: true });
   }
+  // "En la sala ahora": every voice room with people in it across your spaces.
+  if (requestPath === '/api/voice/live' && req.method === 'GET') {
+    if (!session) return send(res, 401, { message: 'Sesión no válida.' });
+    const rows = await db.prepare("SELECT s.id AS channel_id, s.name AS channel_name, s.type, sp.id AS space_id, sp.name AS space_name FROM signals s JOIN spaces sp ON sp.id = s.space_id WHERE s.type IN ('voice', 'stage') AND (sp.owner_id = ? OR sp.id IN (SELECT space_id FROM space_members WHERE user_id = ?))").all(session.user_id, session.user_id);
+    // Private voice rooms only show up for people allowed to see them.
+    const allowed = [];
+    for (const row of rows) if ((await channelRights(db, { id: row.channel_id, space_id: row.space_id }, session.user_id)).view) allowed.push(row);
+    rows.length = 0; rows.push(...allowed);
+    try {
+      const occupancy = await voiceOccupancy(rows.map((row) => row.channel_id));
+      const friendRows = await db.prepare('SELECT user_a, user_b FROM friendships WHERE user_a = ? OR user_b = ?').all(session.user_id, session.user_id);
+      const friends = new Set(friendRows.map((row) => (row.user_a === session.user_id ? row.user_b : row.user_a)));
+      const rooms = rows
+        .filter((row) => occupancy[row.channel_id]?.length)
+        .map((row) => ({
+          serverId: row.space_id, serverName: row.space_name, channelId: row.channel_id, channelName: row.channel_name, type: row.type,
+          people: occupancy[row.channel_id].map((person) => ({ ...person, friend: friends.has(person.id), me: person.id === session.user_id })),
+        }))
+        .map((room) => ({ ...room, friends: room.people.filter((person) => person.friend).length }))
+        .sort((a, b) => b.friends - a.friends || b.people.length - a.people.length)
+        .slice(0, 12);
+      return send(res, 200, rooms);
+    } catch (error) {
+      console.warn('[Kova voice] No se pudo consultar las salas:', error?.message || error);
+      return send(res, 200, []);
+    }
+  }
   // Who is in each voice room of a space, without joining.
   const voiceOccupancyMatch = requestPath.match(/^\/api\/servers\/([^/]+)\/voice$/);
   if (voiceOccupancyMatch && req.method === 'GET') {
@@ -907,16 +934,28 @@ const handleRequest = async (req, res) => {
     if (requestedId && id !== requestedId) return send(res, 409, { message: 'Ese identificador de espacio ya existe.' });
     const categories = Array.isArray(body.categories) ? body.categories.slice(0, 50) : [];
     const channels = Array.isArray(body.channels) ? body.channels.slice(0, 100) : [];
+    // Ids sent by the client must be valid and unused; otherwise the server picks new ones
+    // (two templates reusing "general" must not break space creation).
+    const freshId = async (wanted, table, prefix, taken) => {
+      const value = String(wanted || '').trim();
+      if (/^[\w-]{1,80}$/.test(value) && !taken.has(value) && !await db.prepare(`SELECT id FROM ${table} WHERE id = ?`).get(value)) { taken.add(value); return value; }
+      const generated = `${prefix}_${crypto.randomUUID()}`; taken.add(generated); return generated;
+    };
+    const categoryIds = new Map(); const takenCategories = new Set();
+    for (const category of categories) categoryIds.set(category, await freshId(category?.id, 'categories', 'category', takenCategories));
+    const categoryIdByClient = new Map(categories.map((category) => [String(category?.id || ''), categoryIds.get(category)]));
+    const channelIds = new Map(); const takenChannels = new Set();
+    for (const channel of channels) channelIds.set(channel, await freshId(channel?.id, 'signals', 'signal', takenChannels));
     await runInTransaction(async (tx) => {
       await tx.prepare('INSERT INTO spaces (id, owner_id, name, description, visibility, icon_url, banner_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(id, session.user_id, name, String(body.description || '').slice(0, 1000), visibility, hostedImageUrl(body.iconUrl), hostedImageUrl(body.bannerUrl), new Date().toISOString());
       for (const [position, category] of categories.entries()) {
-        const categoryId = String(category.id || `category_${crypto.randomUUID()}`);
+        const categoryId = categoryIds.get(category);
         const categoryName = String(category.name || '').trim().slice(0, 64);
         if (categoryName) await tx.prepare('INSERT INTO categories (id, space_id, name, position, created_at) VALUES (?, ?, ?, ?, ?)').run(categoryId, id, categoryName, position, new Date().toISOString());
       }
       for (const channel of channels) {
-        const channelId = String(channel.id || `signal_${crypto.randomUUID()}`);
-        const categoryId = channel.categoryId && categories.some((category) => category.id === channel.categoryId) ? channel.categoryId : null;
+        const channelId = channelIds.get(channel);
+        const categoryId = channel.categoryId && categoryIdByClient.has(String(channel.categoryId)) ? categoryIdByClient.get(String(channel.categoryId)) : null;
         await tx.prepare('INSERT INTO signals (id, space_id, name, type, topic, category_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(channelId, id, String(channel.name || 'general').slice(0, 100), channelType(channel.type), String(channel.topic || '').slice(0, 500), categoryId, new Date().toISOString());
       }
     });
