@@ -3272,3 +3272,20 @@ img.kova-img-broken { visibility: hidden; }
 .kova-dm-bubble { -webkit-user-select: text; user-select: text; }
 /* Inside the phone shell the navbar already has "‹ Inicio": no second back arrow. */
 .kova-m-shell .kova-dm-mobile-back { display: none !important; }
+
+/* ───────────── Message action sheet (phones) ───────────── */
+.kova-msheet-root { position: fixed; inset: 0; z-index: 120; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; animation: kova-m-fade .18s; }
+.kova-msheet { width: 100%; background: #111215; border-radius: 22px 22px 0 0; border-top: 1px solid rgba(255,255,255,.08); padding: 0 12px max(12px, env(safe-area-inset-bottom)); animation: kova-m-sheet .26s cubic-bezier(.2,.8,.2,1); }
+.kova-msheet-preview { margin: 4px 6px 10px; font-size: 13px; color: #a1a1aa; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.kova-msheet-reactions { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 8px; border-radius: 16px; background: rgba(255,255,255,.05); margin-bottom: 10px; }
+.kova-msheet-reactions button { font-size: 24px; height: 42px; min-height: 42px !important; border-radius: 12px; transition: transform .12s; }
+.kova-msheet-reactions button:active { transform: scale(1.25); background: rgba(255,255,255,.08); }
+.kova-msheet-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.kova-msheet-list button { display: flex; align-items: center; gap: 10px; padding: 0 12px; height: 46px; border-radius: 14px; background: rgba(255,255,255,.05); color: #e4e4e7; font-size: 14px; font-weight: 600; text-align: left; }
+.kova-msheet-list button:active { background: rgba(255,255,255,.12); }
+.kova-msheet-list button.is-danger { color: #f87171; }
+.kova-msheet-cancel { width: 100%; margin-top: 8px; height: 46px; border-radius: 14px; background: rgba(255,255,255,.1); color: #fff; font-weight: 700; font-size: 15px; }
+/* Swipe-to-reply affordance */
+.kova-native-mobile .kova-message-item { touch-action: pan-y; }
+.kova-native-mobile .kova-message-item::before { content: '↩'; position: absolute; left: -28px; top: 50%; transform: translateY(-50%) scale(.6); opacity: 0; transition: opacity .15s, transform .15s; color: #fff; font-size: 18px; }
+.kova-native-mobile .kova-message-item.is-swipe-ready::before { opacity: 1; transform: translateY(-50%) scale(1); }

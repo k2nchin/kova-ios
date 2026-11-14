@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MessageSquare, PhoneOff } from 'lucide-react';
+import { Mic, MicOff, Headphones, HeadphoneOff, Video, VideoOff, Monitor, MessageSquare, PhoneOff, AudioLines } from 'lucide-react';
 
 interface VoiceControlDockProps {
   isMuted: boolean;
@@ -13,6 +13,8 @@ interface VoiceControlDockProps {
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
   onToggleChat: () => void;
+  /** Phones: the soundboard lives in the dock, not behind a menu. */
+  onOpenSoundboard?: () => void;
   onLeave: () => void;
   /** Dock root ref: the audio loop writes --voice-mic here (rAF, no React renders). */
   dockRef?: React.RefObject<HTMLDivElement | null>;
@@ -58,6 +60,7 @@ export const VoiceControlDock: React.FC<VoiceControlDockProps> = ({
   onToggleChat,
   onLeave,
   dockRef,
+  onOpenSoundboard,
 }) => (
   <div ref={dockRef} role="toolbar" aria-label="Controles de la sala de voz" className="kvr-dock">
     <DockButton
@@ -90,6 +93,16 @@ export const VoiceControlDock: React.FC<VoiceControlDockProps> = ({
       state={isScreenSharing ? 'on' : 'idle'}
       onClick={onToggleScreenShare}
     />
+    {onOpenSoundboard && (
+      <DockButton
+        className="kvr-mobile-only"
+        icon={<AudioLines size={19} />}
+        label="Sonidos"
+        short="Sonidos"
+        state="idle"
+        onClick={onOpenSoundboard}
+      />
+    )}
     <DockButton
       icon={<MessageSquare size={19} />}
       label={isChatOpen ? 'Cerrar chat de la sala' : 'Abrir chat de la sala'}

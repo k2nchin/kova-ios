@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { MessageActionSheet } from './MessageActionSheet';
 import {
   Sparkles,
   Smile,
@@ -75,10 +76,36 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
   const [revealBlocked, setRevealBlocked] = useState(false);
   const [isRemindOpen, setIsRemindOpen] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const toggleActionsOnTouch = (event: React.MouseEvent) => {
     if (!window.matchMedia('(hover: none)').matches) return;
     if ((event.target as HTMLElement).closest('a, button, input, textarea, video, audio, img')) return;
+    if (swipeRef.current.swiped) { swipeRef.current.swiped = false; return; }
+    // Phones get a full action sheet instead of the tiny desktop toolbar.
+    if (window.matchMedia('(max-width: 767px)').matches) { setIsSheetOpen(true); return; }
     setShowActions((open) => !open);
+  };
+  // Swipe a message to the right to reply (follows the finger, springs back).
+  const swipeRef = useRef<{ x: number; y: number; dx: number; active: boolean; swiped: boolean; el: HTMLElement | null }>({ x: 0, y: 0, dx: 0, active: false, swiped: false, el: null });
+  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const t = e.touches[0];
+    if (t.clientX < 28) return; // left edge belongs to "swipe back"
+    swipeRef.current = { x: t.clientX, y: t.clientY, dx: 0, active: false, swiped: false, el: e.currentTarget };
+  };
+  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const s = swipeRef.current; if (!s.el) return;
+    const t = e.touches[0]; const dx = t.clientX - s.x; const dy = t.clientY - s.y;
+    if (!s.active) { if (Math.abs(dy) > 10) { s.el = null; return; } if (dx > 12 && dx > Math.abs(dy) * 1.5) s.active = true; else return; }
+    s.dx = Math.max(0, Math.min(90, dx));
+    s.el.style.transform = `translate3d(${s.dx}px,0,0)`;
+    s.el.classList.toggle('is-swipe-ready', s.dx > 60);
+  };
+  const onTouchEnd = () => {
+    const s = swipeRef.current; if (!s.el) return;
+    s.el.style.transition = 'transform .2s cubic-bezier(.2,.8,.2,1)'; s.el.style.transform = '';
+    const el = s.el; window.setTimeout(() => { el.style.transition = ''; el.classList.remove('is-swipe-ready'); }, 220);
+    if (s.active) { s.swiped = true; if (s.dx > 60) onReply(message); }
+    s.el = null;
   };
   const [editText, setEditText] = useState(message.content);
 
@@ -139,7 +166,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
         message.pinned ? 'bg-white/[0.03] border-l-2 border-[#c2c4c8]' : ''
       }`}
       onClick={toggleActionsOnTouch}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onContextMenu={(e) => { if (window.matchMedia('(max-width: 767px)').matches) { e.preventDefault(); setIsSheetOpen(true); } }}
     >
+      {isSheetOpen && (
+        <MessageActionSheet
+          message={message}
+          isMine={isAuthorMe}
+          onClose={() => setIsSheetOpen(false)}
+          onReply={onReply}
+          onEdit={() => { setEditText(message.content); setIsEditing(true); }}
+        />
+      )}
       {/* 1. Author Avatar (or the time, when continuing a group) */}
       <div className="relative shrink-0 mt-0.5">
         {isGrouped ? (

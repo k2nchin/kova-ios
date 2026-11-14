@@ -536,6 +536,7 @@ export const VoiceRoom: React.FC = () => {
           onToggleScreenShare={() => void toggleScreenShare()}
           onToggleChat={() => setIsChatOpen((v) => !v)}
           onLeave={handleVoiceToggle}
+          onOpenSoundboard={() => setIsSoundboardOpen((v) => !v)}
           dockRef={dockRef}
         />
 
