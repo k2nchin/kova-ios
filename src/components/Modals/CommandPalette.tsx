@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Search, Hash, Server as ServerIcon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Search, Hash, Server as ServerIcon, Volume2, NotebookPen, Megaphone, MessagesSquare } from 'lucide-react';
+
+const CHANNEL_ICONS: Record<string, typeof Hash> = { voice: Volume2, stage: Volume2, notes: NotebookPen, announcements: Megaphone, forum: MessagesSquare };
 import { useApp } from '../../context/AppContext';
 
 export const CommandPalette: React.FC = () => {
@@ -17,10 +19,17 @@ export const CommandPalette: React.FC = () => {
 
   const [query, setQuery] = useState('');
 
+  useEffect(() => {
+    if (!isCommandPaletteOpen) { setQuery(''); return; }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsCommandPaletteOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isCommandPaletteOpen, setIsCommandPaletteOpen]);
+
   if (!isCommandPaletteOpen) return null;
 
   // Search through all channels & servers
-  const matchingChannels = activeServer.channels.filter((c) =>
+  const matchingChannels = (activeServer?.channels || []).filter((c) =>
     c.name.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -68,6 +77,13 @@ export const CommandPalette: React.FC = () => {
           <kbd className="hidden md:inline text-[10px] px-2 py-0.5 rounded-lg bg-purple-950/40 border border-purple-900/40 text-purple-300/70 font-mono">
             ESC
           </kbd>
+          <button
+            type="button"
+            onClick={() => setIsCommandPaletteOpen(false)}
+            className="md:hidden text-sm font-semibold text-white/80 px-1"
+          >
+            Cancelar
+          </button>
         </div>
 
         {/* Results */}
@@ -76,7 +92,7 @@ export const CommandPalette: React.FC = () => {
           {matchingChannels.length > 0 && (
             <div>
               <div className="text-[10px] font-bold text-purple-400/80 uppercase tracking-wider px-2 mb-1.5 font-mono">
-                Canales ({activeServer.name})
+                Canales ({activeServer?.name})
               </div>
               <div className="space-y-0.5">
                 {matchingChannels.map((c) => (
@@ -86,7 +102,7 @@ export const CommandPalette: React.FC = () => {
                     className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-purple-900/25 text-xs text-purple-200 hover:text-white transition-colors text-left cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
-                      <Hash className="w-3.5 h-3.5 text-purple-400" />
+                      {React.createElement(CHANNEL_ICONS[c.type] || Hash, { className: 'w-3.5 h-3.5 text-purple-400' })}
                       <span>{c.name}</span>
                     </div>
                     <span className="text-[10px] text-purple-400/50 uppercase font-mono">{({ text: "Texto", voice: "Voz", announcements: "Anuncios", notes: "Notas" } as Record<string, string>)[c.type] || c.type}</span>

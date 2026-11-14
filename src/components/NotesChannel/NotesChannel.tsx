@@ -47,7 +47,7 @@ export const NotesChannel: React.FC = () => {
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5 text-purple-400" />
           <span className="font-bold text-sm text-purple-100 font-['Outfit']">{activeChannel.name}</span>
-          <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] border border-purple-500/30">
+          <span className="hidden sm:inline text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] border border-purple-500/30">
             Docs & Notas Vivas
           </span>
         </div>
@@ -73,10 +73,10 @@ export const NotesChannel: React.FC = () => {
       </div>
 
       {/* 2. Main Content: Notes List Sidebar + Markdown Editor */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left note selector */}
-        <div className="w-64 border-r border-purple-950/40 bg-[#080312] p-3 space-y-2 overflow-y-auto shrink-0 custom-scrollbar">
-          <div className="text-[11px] font-bold text-purple-400/60 uppercase tracking-wider px-1">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+        {/* Left note selector (a horizontal strip on phones) */}
+        <div className={`kova-notes-list ${notes.length === 0 ? "hidden md:block" : "flex md:block"} gap-2 md:space-y-2 w-full md:w-64 border-b md:border-b-0 md:border-r border-purple-950/40 bg-[#080312] p-3 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto shrink-0 custom-scrollbar`}>
+          <div className="hidden md:block text-[11px] font-bold text-purple-400/60 uppercase tracking-wider px-1">
             Notas del Canal ({notes.length})
           </div>
 
@@ -86,7 +86,7 @@ export const NotesChannel: React.FC = () => {
               <button
                 key={note.id}
                 onClick={() => setActiveNoteId(note.id)}
-                className={`w-full p-2.5 rounded-xl text-left transition-all border block cursor-pointer ${
+                className={`w-44 md:w-full shrink-0 p-2.5 rounded-xl text-left transition-all border block cursor-pointer ${
                   isSelected
                     ? 'bg-purple-900/30 border-purple-500/50 text-purple-100 shadow-sm shadow-purple-900/40'
                     : 'bg-purple-950/10 border-purple-950/30 hover:bg-purple-950/30 text-purple-300/70 hover:text-purple-100'
@@ -114,7 +114,7 @@ export const NotesChannel: React.FC = () => {
         </div>
 
         {/* Right Editor Area */}
-        <div className="flex-1 flex flex-col p-6 overflow-y-auto bg-[#06020e] custom-scrollbar">
+        <div className="flex-1 min-h-0 flex flex-col p-4 md:p-6 overflow-y-auto bg-[#06020e] custom-scrollbar">
           {activeDoc ? (
             <div className="max-w-3xl w-full mx-auto space-y-4">
               {/* Title input */}
@@ -148,7 +148,7 @@ export const NotesChannel: React.FC = () => {
                   value={activeDoc.content}
                   onChange={(e) => handleContentChange(e.target.value)}
                   rows={18}
-                  className="w-full bg-[#090414] border border-purple-950/50 rounded-xl p-4 text-purple-100 font-mono text-xs leading-6 resize-none focus:outline-none focus:border-purple-500/50 shadow-inner"
+                  className="w-full min-h-[40dvh] md:min-h-0 bg-[#090414] border border-purple-950/50 rounded-xl p-4 text-purple-100 font-mono text-xs leading-6 resize-none focus:outline-none focus:border-purple-500/50 shadow-inner"
                   placeholder="Escribe el contenido en Markdown..."
                 />
               )}

@@ -3221,3 +3221,20 @@ html:has(.kova-native-mobile), body:has(.kova-native-mobile) { overscroll-behavi
   .kova-m-screen, .kova-m-pushed, .kova-m-sheet, .kova-m-sheet-backdrop { animation: none !important; }
   .kova-m-tabbar button:active, .kova-m-iconbtn:active { transform: none; }
 }
+
+/* ───────────── Touch: nothing may depend on hover ───────────── */
+@media (hover: none) {
+  /* Buttons revealed only on hover on desktop are always visible on touch. */
+  .kova-channels-section-head button { opacity: .75 !important; }
+  .opacity-0.group-hover\:opacity-100 { opacity: 1 !important; }
+}
+.kova-native-mobile .kova-channels-section-head button { width: 36px; height: 36px; min-height: 36px !important; }
+/* Small badge buttons get a 44px invisible touch target. */
+.kova-native-mobile .kova-story-add::after { content: ''; position: absolute; inset: -12px; }
+/* Horizontally scrolling chip rows hint that there is more to the right. */
+.kova-native-mobile .kova-friends-tabs > div,
+.kova-native-mobile .kova-channels-tools { overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(90deg,#000 88%,transparent); mask-image: linear-gradient(90deg,#000 88%,transparent); padding-right: 24px; }
+.kova-native-mobile .kova-channels-tools > button { flex-shrink: 0; }
+/* Members list fills the bottom sheet on phones. */
+.kova-m-sheet .kova-members { width: 100% !important; max-width: none !important; flex: 1; min-height: 0; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
+.kova-m-sheet .kova-members-head { padding-top: 4px; }

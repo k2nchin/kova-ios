@@ -110,7 +110,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
-    const error = new Error(errorBody.message || `Request failed with status ${res.status}`) as Error & { code?: string; status?: number };
+    const error = new Error(errorBody.message || (res.status >= 500 ? `El servidor no respondió bien (error ${res.status}). Inténtalo de nuevo en un momento.` : `No se pudo completar la acción (error ${res.status}).`)) as Error & { code?: string; status?: number };
     error.code = errorBody.code;
     error.status = res.status;
     throw error;

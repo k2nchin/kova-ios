@@ -271,7 +271,7 @@ export const ConsoleSidebar: React.FC<ConsoleSidebarProps> = ({ onNavigate }) =>
           <button type="button" onClick={() => setIsEventsOpen(true)} title="Eventos del espacio" aria-label="Eventos">
             <CalendarDays size={15} />
           </button>
-          <button type="button" onClick={() => setIsNotificationsOpen(true)} title="Actividad">
+          <button type="button" onClick={() => setIsNotificationsOpen(true)} title="Actividad" aria-label="Actividad">
             <Bell size={15} /> {unreadNotificationsCount > 0 && <b>{unreadNotificationsCount}</b>}
           </button>
         </div>
