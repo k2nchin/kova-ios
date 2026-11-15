@@ -40,6 +40,8 @@ interface MessageItemProps {
 
 // "Hoy a las 11:24 p. m." -> "11:24 p. m."
 const shortTime = (timestamp: string) => timestamp.replace(/^hoy a las\s*/i, '');
+/** Gutter clock on grouped rows: HH:MM only, so it never wraps or runs into the text. */
+const gutterTime = (timestamp: string) => shortTime(timestamp).replace(/\s*[ap]\.?\s?m\.?$/i, '').trim();
 
 export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGrouped = false }) => {
   const {
@@ -183,7 +185,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onReply, isGr
       {/* 1. Author Avatar (or the time, when continuing a group) */}
       <div className="relative shrink-0 mt-0.5">
         {isGrouped ? (
-          <span className="kova-message-gutter-time">{shortTime(message.timestamp)}</span>
+          <span className="kova-message-gutter-time">{gutterTime(message.timestamp)}</span>
         ) : (
           <Avatar
             src={message.author.avatar}
